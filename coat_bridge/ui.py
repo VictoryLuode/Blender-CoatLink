@@ -70,7 +70,7 @@ class COATBRIDGE_OT_detect(bpy.types.Operator):
             return {"CANCELLED"}
         exchange = applink.detect_exchange(p.exchange_folder)
         p.exchange_folder = exchange
-        folder = applink.ensure_folders(exchange, transfer.spec(p.fmt)["ext"])
+        folder = applink.ensure_app_folder(exchange)
         self.report({"INFO"}, "Exchange: %s" % exchange)
         self.report({"INFO"}, "AppLink target ready: %s" % folder)
         return {"FINISHED"}
@@ -183,8 +183,6 @@ class COATBRIDGE_PT_details(bpy.types.Panel):
         row = layout.row()
         row.alert = not os.path.isdir(exchange)
         row.prop(p, "exchange_folder", text="")
-        for extra in applink.exchange_roots(p.exchange_folder)[1:]:
-            layout.label(text="also watching: %s" % extra)
         layout.separator(factor=0.8)
         box = layout.box()
         for line in bridge.detail_lines(context):

@@ -4,13 +4,13 @@
 
 """Send / pull orchestration.
 
-Send : export the chosen meshes to <exchange>/coat_bridge_out.<ext> and drop an
-       import.txt next to it, then remember what is expected back.
-Pull : watch <exchange>/export.txt (and our own AppLink folder) for the returned
-       model and merge it into the object it came from.
+Send : export the chosen meshes to <root>/BlenderBridge/bridge.<ext> and drop a
+       root-level import.txt next to it, then remember where they came from.
+Pull : watch <root>/BlenderBridge/export.txt for the returned model and merge it
+       into the object the send came from.
 
-Only files this bridge owns are consumed, so the official 3D-Coat AppLink can
-stay enabled without the two add-ons fighting over the same signal files.
+Everything 3D-Coat writes into a BlenderBridge folder is ours; anything else is
+left alone, so the official 3D-Coat AppLink can stay enabled.
 """
 
 import os
@@ -23,7 +23,7 @@ from . import applink, transfer
 ROOT = __package__.split(".")[0]
 
 STATE = {
-    "pending": {},      # normalised return path -> {"active": name, "objects": [names]}
+    "target": None,     # {"object": name, "file": path} of the last send
     "seen": {},         # signal file -> mtime already handled
     "last_send": 0.0,
     "last_pull": 0.0,
@@ -50,14 +50,12 @@ def detail_lines(context=None):
     if p is None:
         return ["Add-on preferences unavailable"]
     roots = applink.exchange_roots(p.exchange_folder)
-    lines = ["Job folder: %s" % roots[0]]
+    lines = ["Job file: %s" % applink.import_txt(roots[0])]
+    lines.append("Model folder: %s" % applink.app_folder(roots[0]))
     for extra in roots[1:]:
-        lines.append("Also watching: %s" % extra)
-    if STATE["pending"]:
-        for path, info in STATE["pending"].items():
-            lines.append("Waiting for: %s -> %s" % (os.path.basename(path), info["active"]))
-    else:
-        lines.append("Waiting for: nothing")
+        lines.append("Also watching: %s" % applink.app_folder(extra))
+    target = STATE["target"]
+    lines.append("Target object: %s" % (target["object"] if target else "none"))
     lines.append("Last send %s / last pull %s" % (_stamp(STATE["last_send"]), _stamp(STATE["last_pull"])))
     linked = [obj for obj in bpy.data.objects if obj.get("coat_bridge_file")]
     lines.append("Linked objects: %s" % (", ".join(obj.name for obj in linked[:6]) or "none"))
@@ -88,15 +86,15 @@ def send(context):
             obj.data.uv_layers.new(name="UVMap", do_init=False)
 
     ext = transfer.spec(fmt)["ext"]
-    out_path = os.path.join(primary, "%s_out.%s" % (applink.PREFIX, ext))
-    back_path = os.path.join(primary, "%s_back.%s" % (applink.PREFIX, ext))
+    out_path = applink.model_path(primary, ext)
+    back_path = applink.model_path(primary, ext, name="bridge_back")
     for root in roots:  # so 3D-Coat lists the target from every root it searches
-        applink.ensure_folders(root, ext)
+        applink.ensure_app_folder(root)
 
     dropped = transfer.export_model(out_path, fmt, objects, p.apply_modifiers)
     applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
 
-    STATE["pending"][_norm(back_path)] = {"active": active.name, "objects": [o.name for o in objects]}
+    STATE["target"] = {"object": active.name, "file": out_path}
     STATE["last_send"] = time.time()
     for candidate in applink.signal_files(roots):
         STATE["seen"].pop(candidate, None)
@@ -129,7 +127,7 @@ def pull(context, force=False):
         if not ours:
             STATE["seen"][signal] = mtime
             if foreign:
-                messages.append("Left export.txt alone (not ours): %s" % os.path.dirname(signal))
+                messages.append("Ignored export.txt outside BlenderBridge: %s" % os.path.basename(paths[0]))
             continue
 
         STATE["seen"][signal] = mtime
@@ -174,12 +172,12 @@ def _import_and_link(context, path):
     fmt = transfer.format_from_path(path)
     if not transfer.ensure_module(fmt):
         raise RuntimeError(transfer.missing_reason(fmt) or "%s unavailable" % fmt)
-    pending = STATE["pending"].get(_norm(path))
     imported, dropped = transfer.import_model(path, fmt)
     if dropped:
         STATE["log"].append("dropped import options: %s" % ", ".join(dropped))
 
-    target = bpy.data.objects.get(pending["active"]) if pending else None
+    target_name = (STATE["target"] or {}).get("object")
+    target = bpy.data.objects.get(target_name) if target_name else None
     if target is None:
         target = bpy.data.objects.get(_stem(path))
     names = []
@@ -213,13 +211,12 @@ def _replace_mesh(target, source):
 
 
 def _is_ours(path, roots):
-    if _norm(path) in STATE["pending"]:
-        return True
+    """A model inside one of our BlenderBridge folders is ours - nothing else is."""
     folder = os.path.normcase(os.path.normpath(os.path.dirname(path)))
     for root in roots:
         if folder == os.path.normcase(os.path.normpath(applink.app_folder(root))):
             return True
-    return os.path.basename(path).startswith(applink.PREFIX)
+    return False
 
 
 def _set_message(text):
@@ -230,10 +227,6 @@ def _set_message(text):
             scene.coat_bridge_status = text
         except Exception:
             pass
-
-
-def _norm(path):
-    return os.path.normcase(os.path.normpath(os.path.abspath(path)))
 
 
 def _stem(path):

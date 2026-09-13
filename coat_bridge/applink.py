@@ -8,22 +8,21 @@
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 
-"""3D-Coat AppLink protocol.
+"""3D-Coat AppLink protocol - the two files that matter.
 
-The protocol is file based.  Everything happens inside an exchange folder:
+    <root>/import.txt                 job file: what to load, nothing else
+    <root>/BlenderBridge/             our folder: the model goes here
+    <root>/BlenderBridge/export.txt   3D-Coat writes it when it sends a model back
 
-    <exchange>/import.txt          we write it  -> tells 3D-Coat what to load
-    <exchange>/export.txt          3D-Coat writes it -> path of the returned model
-    <exchange>/<App>/run.txt       marks <App> as a target of File > Export To
-    <exchange>/<App>/export.txt    3D-Coat writes it when <App> was the export target
+3D-Coat registers more than one root (it logs both on startup):
 
-3D-Coat registers MORE THAN ONE exchange folder (it logs both on startup):
+    Documents/AppLinks/3D-Coat/Exchange   reads job files here
+    Documents/3DCoat/Exchange             writes its exports here
 
-    Documents/AppLinks/3D-Coat/Exchange   the documented one, reads jobs from it
-    Documents/3DCoat/Exchange             3D-Coat's own, gets the exports
-
-so this module treats the exchange as a list of roots: the job file goes to the
-primary root, the return signals are looked for in every root.
+Measured on 3D-Coat 2026: the job file is only polled in the ROOT (a copy inside
+the app folder is ignored), and an export made with File > Export To > <App>
+lands in <app folder> of 3D-Coat's own root.  So: write the job to the primary
+root, look for the return in every root's app folder.
 
 Reference: "3D-Coat AppLinks specifications" (applinks.rst), shipped with
 3D-Coat in UserPrefs/PythonAPI/docs/source/.
@@ -35,15 +34,11 @@ import os
 import platform
 import subprocess
 
-# Folder name that shows up in 3D-Coat's File > Export To menu.  It is kept
-# separate from the official AppLink folder ("Blender") on purpose, so both
-# add-ons can live side by side without fighting over the same files.
+# Folder name that shows up in 3D-Coat's File > Export To menu.  Kept separate
+# from the official AppLink folder ("Blender") so both add-ons can coexist.
 APP_FOLDER = "BlenderBridge"
 
-# All files this bridge creates are prefixed, which makes "is this file ours?"
-# a cheap and reliable question.
-PREFIX = "coat_bridge"
-
+_MODEL_NAME = "bridge"
 _COAT_EXE = "3DCoatGL64.exe"
 
 
@@ -89,7 +84,7 @@ def _existing(paths):
 
 
 def resolve_exchange(configured=""):
-    """The root used for the job file and for the AppLink target folder.
+    """The root the job file goes to.
 
     An explicitly configured folder is always honoured - even when it is wrong -
     so a typo surfaces as an error instead of silently writing somewhere else.
@@ -124,37 +119,42 @@ def app_folder(root):
     return os.path.join(root, APP_FOLDER)
 
 
-def ensure_folders(root, extension="obj"):
-    """Create <root>/<App>/ with the files AppLink expects.
+def model_path(root, extension=None, name=_MODEL_NAME):
+    """Single, fixed name inside the app folder - no per-send file names."""
+    stem = name if not extension else "%s.%s" % (name, extension.lstrip("."))
+    return os.path.join(app_folder(root), stem)
 
-    run.txt must exist (it may be empty) for 3D-Coat to list the target in
-    File > Export To; extension.txt says which format to hand back.
+
+def ensure_app_folder(root):
+    """Create <root>/BlenderBridge/ with the one file AppLink requires.
+
+    run.txt only has to exist (it may be empty) for 3D-Coat to list the target
+    in File > Export To.  No extension.txt: measured on 3D-Coat 2026, it ignores
+    it and hands back FBX.
     """
-    os.makedirs(root, exist_ok=True)
     folder = app_folder(root)
     os.makedirs(folder, exist_ok=True)
-    _write(os.path.join(folder, "run.txt"), "")  # empty on purpose: never launches anything
-    _write(os.path.join(folder, "extension.txt"), extension.lstrip("."))
+    marker = os.path.join(folder, "run.txt")
+    if not os.path.isfile(marker):
+        _write(marker, "")
     return folder
 
 
 def import_txt(root):
+    """The job file.  It is polled in the root only, never in the app folder."""
     return os.path.join(root, "import.txt")
 
 
-def export_txt_candidates(root):
-    """Files 3D-Coat uses to signal "the model came back".
-
-    Root export.txt is the documented return channel; the app folder one is
-    written when 3D-Coat exported through File > Export To > <App>.
-    """
-    return [os.path.join(root, "export.txt"), os.path.join(app_folder(root), "export.txt")]
-
-
 def signal_files(roots):
+    """Where a returned model is announced, in every root.
+
+    The app folder signal is ours by definition; the root one is an
+    announcement that has to point into an app folder to be accepted.
+    """
     files = []
     for root in roots:
-        files += export_txt_candidates(root)
+        files.append(os.path.join(app_folder(root), "export.txt"))
+        files.append(os.path.join(root, "export.txt"))
     return files
 
 

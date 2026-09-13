@@ -111,37 +111,42 @@ def main():
     # ---- send ----
     out_path = bridge.send(bpy.context)
     check("send writes the model", os.path.isfile(out_path), out_path)
-    check("send writes to the primary root", norm(os.path.dirname(out_path)) == norm(EXCHANGE), out_path)
+    check("model goes into the BlenderBridge folder",
+          norm(os.path.dirname(out_path)) == norm(applink.app_folder(EXCHANGE)), out_path)
+    check("model has the fixed name bridge.obj", os.path.basename(out_path) == "bridge.obj", out_path)
     check("send writes the material library", os.path.isfile(os.path.splitext(out_path)[0] + ".mtl"))
     job = applink.import_txt(EXCHANGE)
-    check("send writes import.txt", os.path.isfile(job))
+    check("send writes import.txt at the root", os.path.isfile(job))
     lines = read(job).splitlines()
-    check("import.txt: model path first", lines[0].endswith("coat_bridge_out.obj"), lines)
-    check("import.txt: return path second", lines[1].endswith("coat_bridge_back.obj"), lines)
+    check("import.txt: model path first", lines[0].endswith("BlenderBridge/bridge.obj"), lines)
+    check("import.txt: return path second", lines[1].endswith("BlenderBridge/bridge_back.obj"), lines)
     check("import.txt: mode line third", lines[2] == "[ppp]", lines)
     check("import.txt: skip flags", lines[3:] == ["[SkipImport]", "[SkipExport]"], lines)
     check("import.txt: nothing else", len(lines) == 5, lines)
     check("import.txt: posix paths only", "\\" not in "".join(lines), lines)
+    check("no import.txt inside the folder",
+          not os.path.isfile(os.path.join(applink.app_folder(EXCHANGE), "import.txt")))
     check("job file only in the primary root", not os.path.isfile(applink.import_txt(OTHER_ROOT)))
     for root in (EXCHANGE, OTHER_ROOT):
         folder = applink.app_folder(root)
-        check("AppLink folder complete in %s" % os.path.basename(root),
-              all(os.path.isfile(os.path.join(folder, name)) for name in ("run.txt", "extension.txt")),
+        check("AppLink folder ready in %s" % os.path.basename(root),
+              os.path.isfile(os.path.join(folder, "run.txt")),
               os.listdir(folder) if os.path.isdir(folder) else "missing")
-    check("extension.txt follows the format",
-          read(os.path.join(applink.app_folder(EXCHANGE), "extension.txt")).strip() == "obj")
-    check("send arms exactly one pending return", len(bridge.STATE["pending"]) == 1, bridge.STATE["pending"])
+        check("no extension.txt in %s" % os.path.basename(root),
+              not os.path.isfile(os.path.join(folder, "extension.txt")))
+    check("send remembers the target object", bridge.STATE["target"]["object"] == "BridgeCube",
+          bridge.STATE["target"])
     check("UV set created for painting", len(cube.data.uv_layers) == 1)
     check("cube starts with 8 vertices", len(cube.data.vertices) == 8, len(cube.data.vertices))
 
     # ---- simulate 3D-Coat returning a denser model into the primary root ----
     bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=1.6)
     returned = bpy.context.active_object
-    back_path = os.path.join(EXCHANGE, "coat_bridge_back.obj")
+    back_path = applink.model_path(EXCHANGE, "obj", name="bridge_back")
     transfer.export_model(back_path, "obj", [returned], apply_modifiers=False)
     expected = len(returned.data.vertices)
     bpy.data.objects.remove(returned, do_unlink=True)
-    signal = applink.export_txt_candidates(EXCHANGE)[0]
+    signal = applink.signal_files([EXCHANGE])[0]
     write(signal, back_path + "\n")
 
     messages = bridge.pull(bpy.context, force=True)
@@ -186,12 +191,13 @@ def main():
     check("foreign model not imported", mesh_count() == 1, mesh_count())
     os.remove(signal)
 
-    # ---- format switch keeps files and AppLink folder in sync ----
+    # ---- format switch keeps the folder and the file name in sync ----
     prefs.fmt = "fbx"
     fbx_out = bridge.send(bpy.context)
     check("fbx round trip exports", os.path.isfile(fbx_out), fbx_out)
-    check("extension.txt follows the format",
-          read(os.path.join(applink.app_folder(EXCHANGE), "extension.txt")).strip() == "fbx")
+    check("fbx model keeps the fixed name", os.path.basename(fbx_out) == "bridge.fbx", fbx_out)
+    check("no extension.txt appears",
+          not os.path.isfile(os.path.join(applink.app_folder(EXCHANGE), "extension.txt")))
     prefs.fmt = "obj"
     bridge.send(bpy.context)
 
@@ -226,8 +232,8 @@ def main():
     prefs.exchange_folder = EXCHANGE
 
     check("status text set", bool(bridge.status(bpy.context)), bridge.status(bpy.context))
-    check("details list the job folder",
-          any(line.startswith("Job folder:") for line in bridge.detail_lines(bpy.context)),
+    check("details list the job file",
+          any(line.startswith("Job file:") for line in bridge.detail_lines(bpy.context)),
           bridge.detail_lines(bpy.context))
 
 

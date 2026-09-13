@@ -82,11 +82,9 @@ def main():
     cube.name = "RoundTripTarget"
     bpy.ops.mesh.primitive_uv_sphere_add(segments=8, ring_count=4, radius=0.5)
     filler = bpy.context.active_object
-    transfer.export_model(os.path.join(EXCHANGE, "coat_bridge_out." + fmt), fmt, [filler],
-                          apply_modifiers=False)
+    transfer.export_model(applink.model_path(EXCHANGE, fmt), fmt, [filler], apply_modifiers=False)
     bpy.data.objects.remove(filler, do_unlink=True)
-    bridge.STATE["pending"][os.path.normcase(os.path.normpath(landed))] = {
-        "active": cube.name, "objects": [cube.name]}
+    bridge.STATE["target"] = {"object": cube.name, "file": applink.model_path(EXCHANGE, fmt)}
     before = len(cube.data.vertices)
 
     messages = bridge.pull(bpy.context, force=True)
