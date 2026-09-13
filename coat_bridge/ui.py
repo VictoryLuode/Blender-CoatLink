@@ -2,14 +2,14 @@
 #
 # Coat Bridge - a small, predictable Blender <-> 3D-Coat model bridge.
 
-"""Panel and buttons.  Everything the bridge can do is reachable in two clicks."""
+"""Panel and buttons.  Everything the bridge does is two clicks away."""
 
 import os
 import subprocess
 
 import bpy
 
-from . import applink, bridge, transfer, watcher
+from . import applink, bridge, transfer
 
 CATEGORY = "3D-Coat"
 
@@ -151,15 +151,9 @@ class COATBRIDGE_PT_main(bpy.types.Panel):
         column.prop(p, "fmt", text="Format")
 
         column.separator(factor=1.2)
-        column.prop(p, "auto_pull", text="Auto pull")
-        row = column.row()
-        row.enabled = p.auto_pull
-        row.prop(p, "interval", text="Every")
-        column.prop(p, "apply_textures", text="Apply textures")
-
         grid = column.grid_flow(row_major=True, columns=2, even_columns=True, align=True)
-        grid.prop(p, "skip_import", text="Skip import dlg")
-        grid.prop(p, "skip_export", text="Skip export dlg")
+        grid.prop(p, "auto_pull", text="Auto pull")
+        grid.prop(p, "skip_dialogs", text="Skip dialogs")
         grid.prop(p, "apply_modifiers", text="Modifiers")
         grid.operator("coatbridge.detect", text="Detect")
 
@@ -189,7 +183,6 @@ class COATBRIDGE_PT_details(bpy.types.Panel):
         row = layout.row()
         row.alert = not os.path.isdir(exchange)
         row.prop(p, "exchange_folder", text="")
-        layout.prop(p, "preset", text="Preset")
         layout.separator(factor=0.8)
         box = layout.box()
         for line in bridge.detail_lines(context):

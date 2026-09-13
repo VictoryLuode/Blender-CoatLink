@@ -5,7 +5,7 @@
 """Model transport: export the selection, import a returned file.
 
 Only operators that actually exist in the running Blender are used, and only
-keyword arguments the operator declares are passed.  Everything dropped or
+keyword arguments the operator declares are passed.  Anything dropped or
 unavailable is reported instead of silently ignored.
 """
 

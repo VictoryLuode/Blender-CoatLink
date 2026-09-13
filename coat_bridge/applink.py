@@ -14,7 +14,6 @@ The protocol is file based.  Everything happens inside one exchange folder:
 
     <exchange>/import.txt          we write it  -> tells 3D-Coat what to load
     <exchange>/export.txt          3D-Coat writes it -> path of the returned model
-    <exchange>/textures.txt        3D-Coat writes it -> list of exported textures
     <exchange>/<App>/run.txt       marks <App> as a target of File > Export To
     <exchange>/<App>/export.txt    3D-Coat writes it when <App> was the target
 
@@ -131,20 +130,16 @@ def export_txt_candidates(exchange):
     return [os.path.join(exchange, "export.txt"), os.path.join(app_folder(exchange), "export.txt")]
 
 
-def textures_txt(exchange):
-    return os.path.join(exchange, "textures.txt")
-
-
-def write_import_txt(exchange, load_path, return_path, mode, preset="",
-                     skip_import=True, skip_export=True):
+def write_import_txt(exchange, load_path, return_path, mode, skip_dialogs=True):
     """Write the job file.  Must be the LAST file created: its appearance is
-    what makes 3D-Coat start the import."""
+    what makes 3D-Coat start the import.
+
+    [SkipImport]/[SkipExport] let 3D-Coat load and send back the model with its
+    current settings instead of stopping at a dialog every time.
+    """
     lines = [_slash(load_path), _slash(return_path), "[%s]" % mode]
-    if preset:
-        lines.append("[export_preset %s]" % preset)
-    if skip_import:
+    if skip_dialogs:
         lines.append("[SkipImport]")
-    if skip_export:
         lines.append("[SkipExport]")
     target = import_txt(exchange)
     tmp = target + ".tmp"
@@ -167,39 +162,6 @@ def read_export_paths(path):
             continue
         out.append(os.path.normpath(chunk))
     return out
-
-
-def read_texture_records(path):
-    """Parse textures.txt into [(name, secondary, usage, image_path), ...].
-
-    3DCoat writes four lines per texture: object name, material/uv-set name,
-    usage tag, absolute path.  A "displacement" record may carry an extra
-    float line (scale), which is consumed here.
-    """
-    if not os.path.isfile(path):
-        return []
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace") as handle:
-            lines = [line.strip() for line in handle.read().replace("\r", "").split("\n")]
-    except OSError:
-        return []
-    lines = [line for line in lines if line]
-    records = []
-    index = 0
-    while index + 3 < len(lines):
-        usage = lines[index + 2]
-        if not usage or usage.startswith("["):
-            index += 1
-            continue
-        records.append((lines[index], lines[index + 1], usage, lines[index + 3]))
-        index += 4
-        if index < len(lines) and lines[index].lower().startswith("displacement"):
-            try:
-                float(lines[index + 1])
-                index += 2
-            except (IndexError, ValueError):
-                pass
-    return records
 
 
 def find_coat_executable():

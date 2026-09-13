@@ -65,6 +65,8 @@ def main():
     check("per-object link property registered", hasattr(bpy.types.Object, "coat_bridge_file"))
     check("timer registered", bpy.app.timers.is_registered(watcher.poll))
     check("defaults are painting + obj", prefs.mode == "ppp" and prefs.fmt == "obj")
+    for gone in ("apply_textures", "preset", "interval", "skip_import", "skip_export"):
+        check("no '%s' option left" % gone, not hasattr(prefs, gone))
 
     # ---- format availability ----
     if not transfer.operator("export", "fbx"):
@@ -79,8 +81,7 @@ def main():
 
     prefs.exchange_folder = EXCHANGE
     prefs.auto_pull = True
-    prefs.apply_textures = False
-    prefs.interval = 2.0
+    prefs.skip_dialogs = True
 
     # ---- clean scene ----
     bpy.ops.object.select_all(action="SELECT")
@@ -104,9 +105,9 @@ def main():
     lines = read(job).splitlines()
     check("import.txt: model path first", lines[0].endswith("coat_bridge_out.obj"), lines)
     check("import.txt: return path second", lines[1].endswith("coat_bridge_back.obj"), lines)
-    check("import.txt: mode line", "[ppp]" in lines, lines)
-    check("import.txt: export preset", any(line.startswith("[export_preset ") for line in lines), lines)
-    check("import.txt: skip flags", "[SkipImport]" in lines and "[SkipExport]" in lines, lines)
+    check("import.txt: mode line third", lines[2] == "[ppp]", lines)
+    check("import.txt: skip flags", lines[3:] == ["[SkipImport]", "[SkipExport]"], lines)
+    check("import.txt: nothing else", len(lines) == 5, lines)
     check("import.txt: posix paths only", "\\" not in "".join(lines), lines)
     app_folder = applink.app_folder(EXCHANGE)
     check("AppLink folder complete",
@@ -166,7 +167,7 @@ def main():
     bpy.data.objects.remove(small, do_unlink=True)
     write(signal, back_path + "\n")
     delay = watcher.poll(force=True)
-    check("watcher returns the polling interval", abs(delay - prefs.interval) < 1e-6, delay)
+    check("watcher returns the polling interval", abs(delay - watcher.INTERVAL) < 1e-6, delay)
     check("watcher pulls automatically", len(cube.data.vertices) == small_verts, len(cube.data.vertices))
 
     prefs.auto_pull = False
@@ -176,32 +177,10 @@ def main():
     os.remove(signal)
     prefs.auto_pull = True
 
-    # ---- texture hand-off ----
-    texture_path = os.path.join(EXCHANGE, "BridgeMat_diffuse.png")
-    image = bpy.data.images.new("bridge_test_tex", 16, 16)
-    image.filepath_raw = texture_path
-    image.file_format = "PNG"
-    image.save()
-    write(applink.textures_txt(EXCHANGE),
-          "BridgeMat\nBridgeMat\ndiffuse\n%s\n"
-          "BridgeMat\nBridgeMat\nroughness\n%s\n"
-          "BridgeMat\nBridgeMat\nheight\n%s\n" % (texture_path, texture_path, texture_path))
-    prefs.apply_textures = True
-    write(signal, back_path + "\n")
-    messages = bridge.pull(bpy.context, force=True)
-    nodes = material.node_tree.nodes
-    base = nodes.get("CoatBridge base_color")
-    check("base colour map wired", base is not None and base.image is not None,
-          [node.name for node in nodes])
-    check("base colour reaches the Principled BSDF",
-          any(link.to_socket.name == "Base Color" for link in material.node_tree.links))
-    check("roughness map wired and non-colour",
-          nodes.get("CoatBridge roughness") is not None
-          and nodes["CoatBridge roughness"].image.colorspace_settings.name == "Non-Color")
-    check("unsupported map reported", any("height" in message for message in messages), messages)
-    prefs.apply_textures = False
+    # ---- linking, unlinking, error paths, status ----
+    check("unlink clears the link", _unlink_clears(cube, bpy))
+    cube["coat_bridge_file"] = back_path
 
-    # ---- errors are surfaced, not swallowed ----
     prefs.exchange_folder = os.path.join(EXCHANGE, "does_not_exist")
     try:
         bridge.send(bpy.context)
@@ -210,10 +189,19 @@ def main():
         check("send fails loudly on a missing folder", True, exc)
     prefs.exchange_folder = EXCHANGE
 
-    # ---- status surface ----
     check("status text set", bool(bridge.status(bpy.context)), bridge.status(bpy.context))
     check("details list the exchange folder",
           any(line.startswith("Exchange:") for line in bridge.detail_lines(bpy.context)))
+
+
+def _unlink_clears(cube, bpy_module):
+    cube["coat_bridge_file"] = "something"
+    for obj in bpy.context.selected_objects:
+        obj.select_set(False)
+    cube.select_set(True)
+    bpy.context.view_layer.objects.active = cube
+    bpy.ops.coatbridge.unlink()
+    return not cube.get("coat_bridge_file")
 
 
 try:

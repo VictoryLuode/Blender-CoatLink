@@ -15,7 +15,7 @@ bl_info = {
 }
 
 import bpy
-from bpy.props import BoolProperty, EnumProperty, FloatProperty, StringProperty
+from bpy.props import BoolProperty, EnumProperty, StringProperty
 
 from . import transfer, ui, watcher
 
@@ -55,42 +55,20 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
         items=transfer.format_items(),
         default="obj",
     )
-    preset: StringProperty(
-        name="Export preset",
-        description="3D-Coat export preset used when the model comes back",
-        default="Blender Cycles",
-    )
-    skip_import: BoolProperty(
-        name="Skip import dialog",
-        description="Let 3D-Coat load the model with the settings above instead of asking",
+    auto_pull: BoolProperty(
+        name="Auto pull",
+        description="Watch the exchange folder and take a returned model automatically",
         default=True,
     )
-    skip_export: BoolProperty(
-        name="Skip export dialog",
-        description="Let 3D-Coat send the model back with the last export settings instead of asking",
+    skip_dialogs: BoolProperty(
+        name="Skip dialogs",
+        description="Let 3D-Coat import and export with its current settings instead of asking every time",
         default=True,
     )
     apply_modifiers: BoolProperty(
         name="Apply modifiers",
         description="Export evaluated meshes (modifiers applied)",
         default=False,
-    )
-    apply_textures: BoolProperty(
-        name="Apply textures on pull",
-        description="Wire the maps listed in textures.txt into the materials after a pull",
-        default=False,
-    )
-    auto_pull: BoolProperty(
-        name="Auto pull",
-        description="Watch the exchange folder and take a returned model automatically",
-        default=True,
-    )
-    interval: FloatProperty(
-        name="Interval",
-        description="Seconds between two checks of the exchange folder",
-        default=2.0,
-        min=0.5,
-        max=30.0,
     )
 
     def draw(self, context):
