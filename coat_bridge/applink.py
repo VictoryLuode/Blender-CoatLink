@@ -10,12 +10,20 @@
 
 """3D-Coat AppLink protocol.
 
-The protocol is file based.  Everything happens inside one exchange folder:
+The protocol is file based.  Everything happens inside an exchange folder:
 
     <exchange>/import.txt          we write it  -> tells 3D-Coat what to load
     <exchange>/export.txt          3D-Coat writes it -> path of the returned model
     <exchange>/<App>/run.txt       marks <App> as a target of File > Export To
-    <exchange>/<App>/export.txt    3D-Coat writes it when <App> was the target
+    <exchange>/<App>/export.txt    3D-Coat writes it when <App> was the export target
+
+3D-Coat registers MORE THAN ONE exchange folder (it logs both on startup):
+
+    Documents/AppLinks/3D-Coat/Exchange   the documented one, reads jobs from it
+    Documents/3DCoat/Exchange             3D-Coat's own, gets the exports
+
+so this module treats the exchange as a list of roots: the job file goes to the
+primary root, the return signals are looked for in every root.
 
 Reference: "3D-Coat AppLinks specifications" (applinks.rst), shipped with
 3D-Coat in UserPrefs/PythonAPI/docs/source/.
@@ -53,84 +61,104 @@ def _windows_documents():
     return None
 
 
-def _candidate_exchange_folders():
+def _documents_bases():
+    """Every place a 3D-Coat folder may live, most likely first."""
     home = os.path.expanduser("~")
-    system = platform.system()
     bases = []
-    if system == "Windows":
+    if platform.system() == "Windows":
         docs = _windows_documents()
         if docs:
-            bases.append(os.path.join(docs, "AppLinks"))
-        bases.append(os.path.join(home, "Documents", "AppLinks"))
-    elif system == "Darwin":
-        bases.append(os.path.join(home, "Documents", "AppLinks"))
-    else:
-        bases.append(os.path.join(home, "AppLinks"))
-    return [os.path.normpath(os.path.join(b, "3D-Coat", "Exchange")) for b in bases]
+            bases.append(docs)
+    bases.append(os.path.join(home, "Documents"))
+    if platform.system() not in ("Windows", "Darwin"):
+        bases = [home]
+    return [os.path.normpath(base) for base in dict.fromkeys(bases)]
+
+
+def _candidate_exchange_folders():
+    """Exchange roots in preference order (the one jobs are read from first)."""
+    roots = []
+    for base in _documents_bases():
+        roots.append(os.path.join(base, "AppLinks", "3D-Coat", "Exchange"))
+        roots.append(os.path.join(base, "3DCoat", "Exchange"))
+    return [os.path.normpath(root) for root in dict.fromkeys(roots)]
+
+
+def _existing(paths):
+    return [path for path in paths if os.path.isdir(path)]
 
 
 def resolve_exchange(configured=""):
-    """Effective exchange folder.
+    """The root used for the job file and for the AppLink target folder.
 
     An explicitly configured folder is always honoured - even when it is wrong -
     so a typo surfaces as an error instead of silently writing somewhere else.
-    With no configuration the usual locations are probed.
     """
     if configured:
         return os.path.normpath(configured)
-    existing = _first_existing()
-    return existing or _candidate_exchange_folders()[0]
+    existing = _existing(_candidate_exchange_folders())
+    return existing[0] if existing else _candidate_exchange_folders()[0]
 
 
 def detect_exchange(configured=""):
     """Best guess for "where is 3D-Coat's exchange folder right now"."""
     if configured and os.path.isdir(configured):
         return os.path.normpath(configured)
-    existing = _first_existing()
+    existing = _existing(_candidate_exchange_folders())
     if existing:
-        return existing
+        return existing[0]
     return os.path.normpath(configured) if configured else _candidate_exchange_folders()[0]
 
 
-def _first_existing():
-    for path in _candidate_exchange_folders():
-        if os.path.isdir(path):
-            return path
-    return ""
+def exchange_roots(configured=""):
+    """Every exchange root worth watching, the primary one first."""
+    primary = resolve_exchange(configured)
+    roots = [primary]
+    for path in _existing(_candidate_exchange_folders()):
+        if os.path.normcase(path) not in [os.path.normcase(root) for root in roots]:
+            roots.append(path)
+    return roots
 
 
-def app_folder(exchange):
-    return os.path.join(exchange, APP_FOLDER)
+def app_folder(root):
+    return os.path.join(root, APP_FOLDER)
 
 
-def ensure_folders(exchange, extension="obj"):
-    """Create <exchange>/<App>/ with the three files AppLink expects.
+def ensure_folders(root, extension="obj"):
+    """Create <root>/<App>/ with the files AppLink expects.
 
     run.txt must exist (it may be empty) for 3D-Coat to list the target in
-    File > Export To; extension.txt tells 3D-Coat which format to hand back.
+    File > Export To; extension.txt says which format to hand back.
     """
-    os.makedirs(exchange, exist_ok=True)
-    folder = app_folder(exchange)
+    os.makedirs(root, exist_ok=True)
+    folder = app_folder(root)
     os.makedirs(folder, exist_ok=True)
     _write(os.path.join(folder, "run.txt"), "")  # empty on purpose: never launches anything
     _write(os.path.join(folder, "extension.txt"), extension.lstrip("."))
     return folder
 
 
-def import_txt(exchange):
-    return os.path.join(exchange, "import.txt")
+def import_txt(root):
+    return os.path.join(root, "import.txt")
 
 
-def export_txt_candidates(exchange):
+def export_txt_candidates(root):
     """Files 3D-Coat uses to signal "the model came back".
 
     Root export.txt is the documented return channel; the app folder one is
     written when 3D-Coat exported through File > Export To > <App>.
     """
-    return [os.path.join(exchange, "export.txt"), os.path.join(app_folder(exchange), "export.txt")]
+    return [os.path.join(root, "export.txt"), os.path.join(app_folder(root), "export.txt")]
 
 
-def write_import_txt(exchange, load_path, return_path, mode, skip_dialogs=True):
+def signal_files(roots):
+    files = []
+    for root in roots:
+        files += export_txt_candidates(root)
+    return files
+
+
+def write_import_txt(root, load_path, return_path, mode, skip_dialogs=True):
     """Write the job file.  Must be the LAST file created: its appearance is
     what makes 3D-Coat start the import.
 
@@ -141,7 +169,7 @@ def write_import_txt(exchange, load_path, return_path, mode, skip_dialogs=True):
     if skip_dialogs:
         lines.append("[SkipImport]")
         lines.append("[SkipExport]")
-    target = import_txt(exchange)
+    target = import_txt(root)
     tmp = target + ".tmp"
     _write(tmp, "\n".join(lines) + "\n")
     os.replace(tmp, target)  # atomic: 3D-Coat never sees a half written file

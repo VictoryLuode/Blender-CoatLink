@@ -2,8 +2,9 @@
 """Headless end-to-end test for Coat Bridge.
 
 Run it with tests/run_tests.sh - it prepares a throwaway Blender script folder,
-enables the add-on there and drives a full send/pull round trip without ever
-touching the real 3D-Coat exchange folder.
+enables the add-on there and drives a full send/pull round trip against two
+temporary exchange roots (3D-Coat registers more than one).  The real exchange
+folders are never touched.
 """
 
 import json
@@ -24,6 +25,7 @@ def _arg(name, default=""):
 
 
 EXCHANGE = _arg("--exchange")
+OTHER_ROOT = EXCHANGE + "_other"
 REPORT = _arg("--report")
 RESULTS = []
 
@@ -37,6 +39,7 @@ def check(name, condition, detail=""):
 
 
 def write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(text)
 
@@ -50,12 +53,20 @@ def mesh_count():
     return len([obj for obj in bpy.data.objects if obj.type == "MESH"])
 
 
+def norm(path):
+    return os.path.normcase(os.path.normpath(path))
+
+
 def main():
     os.makedirs(EXCHANGE, exist_ok=True)
+    os.makedirs(OTHER_ROOT, exist_ok=True)
 
     enabled = bpy.ops.preferences.addon_enable(module="coat_bridge")
     check("add-on enables", "FINISHED" in enabled, enabled)
     from coat_bridge import applink, bridge, transfer, watcher
+
+    # Keep the suite hermetic: 3D-Coat's real roots are replaced by two temp ones.
+    applink._candidate_exchange_folders = lambda: [os.path.normpath(EXCHANGE), os.path.normpath(OTHER_ROOT)]
 
     prefs = bpy.context.preferences.addons["coat_bridge"].preferences
     check("preferences reachable", prefs is not None)
@@ -68,16 +79,17 @@ def main():
     for gone in ("apply_textures", "preset", "interval", "skip_import", "skip_export"):
         check("no '%s' option left" % gone, not hasattr(prefs, gone))
 
+    check("both exchange roots are used",
+          [norm(root) for root in applink.exchange_roots(EXCHANGE)] == [norm(EXCHANGE), norm(OTHER_ROOT)],
+          applink.exchange_roots(EXCHANGE))
+
     # ---- format availability ----
     if not transfer.operator("export", "fbx"):
         transfer.ensure_module("fbx")
-    for fmt in ("obj", "ply", "stl"):
+    for fmt in ("obj", "ply", "stl", "fbx"):
         check("%s export/import available" % fmt,
               transfer.operator("export", fmt) is not None and transfer.operator("import", fmt) is not None,
               transfer.missing_reason(fmt))
-    check("fbx enabled on demand",
-          transfer.operator("export", "fbx") is not None and transfer.operator("import", "fbx") is not None,
-          transfer.missing_reason("fbx"))
 
     prefs.exchange_folder = EXCHANGE
     prefs.auto_pull = True
@@ -99,6 +111,7 @@ def main():
     # ---- send ----
     out_path = bridge.send(bpy.context)
     check("send writes the model", os.path.isfile(out_path), out_path)
+    check("send writes to the primary root", norm(os.path.dirname(out_path)) == norm(EXCHANGE), out_path)
     check("send writes the material library", os.path.isfile(os.path.splitext(out_path)[0] + ".mtl"))
     job = applink.import_txt(EXCHANGE)
     check("send writes import.txt", os.path.isfile(job))
@@ -109,16 +122,19 @@ def main():
     check("import.txt: skip flags", lines[3:] == ["[SkipImport]", "[SkipExport]"], lines)
     check("import.txt: nothing else", len(lines) == 5, lines)
     check("import.txt: posix paths only", "\\" not in "".join(lines), lines)
-    app_folder = applink.app_folder(EXCHANGE)
-    check("AppLink folder complete",
-          all(os.path.isfile(os.path.join(app_folder, name)) for name in ("run.txt", "extension.txt")),
-          os.listdir(app_folder) if os.path.isdir(app_folder) else "missing")
-    check("extension.txt follows the format", read(os.path.join(app_folder, "extension.txt")).strip() == "obj")
+    check("job file only in the primary root", not os.path.isfile(applink.import_txt(OTHER_ROOT)))
+    for root in (EXCHANGE, OTHER_ROOT):
+        folder = applink.app_folder(root)
+        check("AppLink folder complete in %s" % os.path.basename(root),
+              all(os.path.isfile(os.path.join(folder, name)) for name in ("run.txt", "extension.txt")),
+              os.listdir(folder) if os.path.isdir(folder) else "missing")
+    check("extension.txt follows the format",
+          read(os.path.join(applink.app_folder(EXCHANGE), "extension.txt")).strip() == "obj")
     check("send arms exactly one pending return", len(bridge.STATE["pending"]) == 1, bridge.STATE["pending"])
     check("UV set created for painting", len(cube.data.uv_layers) == 1)
     check("cube starts with 8 vertices", len(cube.data.vertices) == 8, len(cube.data.vertices))
 
-    # ---- simulate 3D-Coat returning a denser model ----
+    # ---- simulate 3D-Coat returning a denser model into the primary root ----
     bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=1.6)
     returned = bpy.context.active_object
     back_path = os.path.join(EXCHANGE, "coat_bridge_back.obj")
@@ -142,12 +158,31 @@ def main():
     check("returned file kept for the next round trip", os.path.isfile(back_path))
     check("second pull has nothing to do", bridge.pull(bpy.context) == [])
 
-    # ---- a foreign export.txt belongs to the official AppLink ----
+    # ---- the second root is watched too (3D-Coat exports into its own root) ----
+    own_app_signal = os.path.join(OTHER_ROOT, "BlenderBridge", "export.txt")
+    write(own_app_signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("second root: app folder signal pulled",
+          not os.path.isfile(own_app_signal) and any("BridgeCube" in m for m in messages), messages)
+
+    own_root_signal = os.path.join(OTHER_ROOT, "export.txt")
+    write(own_root_signal, back_path + "\n")
+    bridge.pull(bpy.context, force=True)
+    check("second root: plain export.txt pulled", not os.path.isfile(own_root_signal))
+
+    # ---- a signal owned by the official AppLink stays untouched ----
+    official = os.path.join(OTHER_ROOT, "Blender", "export.txt")
+    write(official, os.path.join(OTHER_ROOT, "Blender", "001.fbx") + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("official AppLink signal left alone", os.path.isfile(official), messages)
+    check("official signal did not import anything", mesh_count() == 1, mesh_count())
+    os.remove(official)
+
     foreign = os.path.join(EXCHANGE, "official_applink_model.obj")
     shutil.copy(back_path, foreign)
     write(signal, foreign + "\n")
     messages = bridge.pull(bpy.context, force=True)
-    check("foreign signal kept for the other add-on", os.path.isfile(signal), messages)
+    check("foreign path in the primary root kept", os.path.isfile(signal), messages)
     check("foreign model not imported", mesh_count() == 1, mesh_count())
     os.remove(signal)
 
@@ -155,7 +190,8 @@ def main():
     prefs.fmt = "fbx"
     fbx_out = bridge.send(bpy.context)
     check("fbx round trip exports", os.path.isfile(fbx_out), fbx_out)
-    check("extension.txt follows the format", read(os.path.join(app_folder, "extension.txt")).strip() == "fbx")
+    check("extension.txt follows the format",
+          read(os.path.join(applink.app_folder(EXCHANGE), "extension.txt")).strip() == "fbx")
     prefs.fmt = "obj"
     bridge.send(bpy.context)
 
@@ -178,7 +214,7 @@ def main():
     prefs.auto_pull = True
 
     # ---- linking, unlinking, error paths, status ----
-    check("unlink clears the link", _unlink_clears(cube, bpy))
+    check("unlink clears the link", _unlink_clears(cube))
     cube["coat_bridge_file"] = back_path
 
     prefs.exchange_folder = os.path.join(EXCHANGE, "does_not_exist")
@@ -190,11 +226,12 @@ def main():
     prefs.exchange_folder = EXCHANGE
 
     check("status text set", bool(bridge.status(bpy.context)), bridge.status(bpy.context))
-    check("details list the exchange folder",
-          any(line.startswith("Exchange:") for line in bridge.detail_lines(bpy.context)))
+    check("details list the job folder",
+          any(line.startswith("Job folder:") for line in bridge.detail_lines(bpy.context)),
+          bridge.detail_lines(bpy.context))
 
 
-def _unlink_clears(cube, bpy_module):
+def _unlink_clears(cube):
     cube["coat_bridge_file"] = "something"
     for obj in bpy.context.selected_objects:
         obj.select_set(False)

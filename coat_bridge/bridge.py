@@ -49,8 +49,10 @@ def detail_lines(context=None):
     p = prefs(context)
     if p is None:
         return ["Add-on preferences unavailable"]
-    exchange = applink.resolve_exchange(p.exchange_folder)
-    lines = ["Exchange: %s" % exchange]
+    roots = applink.exchange_roots(p.exchange_folder)
+    lines = ["Job folder: %s" % roots[0]]
+    for extra in roots[1:]:
+        lines.append("Also watching: %s" % extra)
     if STATE["pending"]:
         for path, info in STATE["pending"].items():
             lines.append("Waiting for: %s -> %s" % (os.path.basename(path), info["active"]))
@@ -68,9 +70,10 @@ def send(context):
     p = prefs(context)
     if p is None:
         raise RuntimeError("add-on preferences unavailable")
-    exchange = applink.resolve_exchange(p.exchange_folder)
-    if not os.path.isdir(exchange):
-        raise RuntimeError("exchange folder not found: %s (press Detect in the panel)" % exchange)
+    roots = applink.exchange_roots(p.exchange_folder)
+    primary = roots[0]
+    if not os.path.isdir(primary):
+        raise RuntimeError("exchange folder not found: %s (press Detect in the panel)" % primary)
 
     objects = _send_objects(context)
     active = context.view_layer.objects.active
@@ -85,16 +88,17 @@ def send(context):
             obj.data.uv_layers.new(name="UVMap", do_init=False)
 
     ext = transfer.spec(fmt)["ext"]
-    out_path = os.path.join(exchange, "%s_out.%s" % (applink.PREFIX, ext))
-    back_path = os.path.join(exchange, "%s_back.%s" % (applink.PREFIX, ext))
-    applink.ensure_folders(exchange, ext)
+    out_path = os.path.join(primary, "%s_out.%s" % (applink.PREFIX, ext))
+    back_path = os.path.join(primary, "%s_back.%s" % (applink.PREFIX, ext))
+    for root in roots:  # so 3D-Coat lists the target from every root it searches
+        applink.ensure_folders(root, ext)
 
     dropped = transfer.export_model(out_path, fmt, objects, p.apply_modifiers)
-    applink.write_import_txt(exchange, out_path, back_path, p.mode, p.skip_dialogs)
+    applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
 
     STATE["pending"][_norm(back_path)] = {"active": active.name, "objects": [o.name for o in objects]}
     STATE["last_send"] = time.time()
-    for candidate in applink.export_txt_candidates(exchange):
+    for candidate in applink.signal_files(roots):
         STATE["seen"].pop(candidate, None)
 
     note = "" if applink.is_coat_running() is not False else " - start 3D-Coat to pick it up"
@@ -110,22 +114,22 @@ def pull(context, force=False):
     p = prefs(context)
     if p is None:
         raise RuntimeError("add-on preferences unavailable")
-    exchange = applink.resolve_exchange(p.exchange_folder)
+    roots = applink.exchange_roots(p.exchange_folder)
     messages = []
 
-    for signal in applink.export_txt_candidates(exchange):
+    for signal in applink.signal_files(roots):
         if not os.path.isfile(signal):
             continue
         mtime = os.path.getmtime(signal)
         if not force and STATE["seen"].get(signal) == mtime:
             continue
         paths = applink.read_export_paths(signal)
-        ours = [path for path in paths if _is_ours(path, exchange)]
+        ours = [path for path in paths if _is_ours(path, roots)]
         foreign = [path for path in paths if path not in ours]
         if not ours:
             STATE["seen"][signal] = mtime
             if foreign:
-                messages.append("Left export.txt alone (not ours)")
+                messages.append("Left export.txt alone (not ours): %s" % os.path.dirname(signal))
             continue
 
         STATE["seen"][signal] = mtime
@@ -208,12 +212,13 @@ def _replace_mesh(target, source):
         target.data.uv_layers[0].active_render = True
 
 
-def _is_ours(path, exchange):
+def _is_ours(path, roots):
     if _norm(path) in STATE["pending"]:
         return True
     folder = os.path.normcase(os.path.normpath(os.path.dirname(path)))
-    if folder == os.path.normcase(os.path.normpath(applink.app_folder(exchange))):
-        return True
+    for root in roots:
+        if folder == os.path.normcase(os.path.normpath(applink.app_folder(root))):
+            return True
     return os.path.basename(path).startswith(applink.PREFIX)
 
 

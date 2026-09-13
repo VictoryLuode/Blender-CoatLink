@@ -52,6 +52,15 @@ def main():
 
     step("coat running at start", applink.is_coat_running())
 
+    # drop stale signals this bridge owns, so the wait below only sees the new one
+    roots = applink.exchange_roots(exchange)
+    for stale in applink.signal_files(roots):
+        if not os.path.isfile(stale):
+            continue
+        if any(bridge._is_ours(path, roots) for path in applink.read_export_paths(stale)):
+            os.remove(stale)
+            step("removed stale signal", stale)
+
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete()
     bpy.ops.mesh.primitive_cube_add(size=2, calc_uvs=True)
@@ -76,15 +85,20 @@ def main():
     if not consumed:
         step("hint", "job file still there: 3D-Coat did not pick it up within 120s")
 
-    signal = applink.export_txt_candidates(exchange)[0]
-    if os.path.isfile(signal):
-        os.remove(signal)
     step("waiting for the return", "up to %d s - press File > Bring object back in 3D-Coat" % timeout)
+    step("exchange roots", " | ".join(roots))
     deadline = time.time() + timeout
-    while time.time() < deadline and not os.path.isfile(signal):
+    signal = ""
+    while time.time() < deadline:
+        for candidate in applink.signal_files(roots):
+            if os.path.isfile(candidate):
+                signal = candidate
+                break
+        if signal:
+            break
         time.sleep(2)
 
-    if not os.path.isfile(signal):
+    if not signal:
         step("return received", "TIMEOUT - nothing came back")
     else:
         with open(signal, "r", encoding="utf-8", errors="replace") as handle:

@@ -15,6 +15,10 @@ First release.  Models only, by design.
   `<exchange>/BlenderBridge/{run.txt,extension.txt}` so 3D-Coat lists the target
   under `File > Export To`.
 * One `Skip dialogs` switch covers 3D-Coat's import and export dialogs.
-* Verified: 50-check headless suite (`tests/run_tests.sh`), plus a live round trip
-  against a running 3D-Coat (`tests/live_roundtrip.sh`) - 3D-Coat consumed the
-  job file and imported the model.
+* Handles 3D-Coat's two registered exchange roots: the job file goes to the
+  documented root, return signals are looked for in every root.
+* Verified: 58-check headless suite (`tests/run_tests.sh`), a real 3D-Coat export
+  pulled end to end (`tests/test_coat_export.sh`, 4280 vertices / 8556 polygons),
+  and a live round trip against a running 3D-Coat (`tests/live_roundtrip.sh`) in
+  which 3D-Coat consumed the job file, imported the model, and wrote its export
+  into `Documents/3DCoat/Exchange/BlenderBridge/`.

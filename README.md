@@ -66,22 +66,35 @@ folder, stores it in the add-on preferences and creates
 
 ## Notes
 
-* The two add-ons coexist: the official AppLink watches `Exchange/export.txt` and
-  `Exchange/Blender/`, Coat Bridge additionally owns `Exchange/BlenderBridge/`
-  and leaves any signal file it does not own untouched.
+* 3D-Coat registers **two** exchange folders and logs both on startup:
+  `Documents/AppLinks/3D-Coat/Exchange` (the documented one, which it reads job
+  files from) and `Documents/3DCoat/Exchange` (its own, which receives the
+  exports).  The bridge writes the job into the first and watches the return
+  signals in every registered root - otherwise a return through
+  `File > Export To > BlenderBridge` lands in the second root and is missed.
+* The two add-ons coexist: the official AppLink watches `.../export.txt` and
+  `.../Blender/`, Coat Bridge owns `.../BlenderBridge/` and leaves any signal
+  file it does not own untouched.
 * Everything it writes is prefixed `coat_bridge_`, so ownership is never guessed.
+* 3D-Coat ignores `extension.txt` in the app folder and hands back FBX through
+  `File > Export To`; the bridge reads the format from the returned file and
+  enables the FBX add-on on demand.
 * Nothing in the Blender scene is renamed, joined or deleted.
 
 ## Tests
 
 ```bash
-tests/run_tests.sh              # headless round trip, 50 checks
-tests/live_roundtrip.sh 900     # real 3D-Coat, waits for File > Bring object back
+tests/run_tests.sh                                   # headless round trip, 58 checks
+tests/test_coat_export.sh path/to/a/real/export.fbx   # return leg on a real 3D-Coat file
+tests/live_roundtrip.sh 900                           # real 3D-Coat, waits for your click
 ```
 
 `run_tests.sh` gives Blender a throwaway script folder and drives a full round
-trip against a temporary exchange folder: send, protocol files, in-place update,
-ignored foreign signal, format switch, watcher, error paths.
+trip against two temporary exchange roots: send, protocol files, in-place update,
+second-root signals, ignored foreign signals, format switch, watcher, error paths.
+
+`test_coat_export.sh` takes a file 3D-Coat really exported and checks the bridge
+pulls it - the second-regression check after a 3D-Coat update.
 
 `live_roundtrip.sh` sends a cube through the real exchange folder to the running
 3D-Coat, waits for the return and reports what came back.
