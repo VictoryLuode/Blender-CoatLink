@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.16.16
+
+* Persist export aliases on Blender objects; map multi-object returns independently, preserving Blender-side renamed targets and avoiding unrelated same-name objects. New return groups stay separate.
+* Single-object legacy return retains last-sent-target fallback. Coat-side renames without retained aliases cannot be reliably mapped.
+* Real Blender reversed-order / rename / collision regression passed; existing suite 113/113. Blender add-on 1.10.14.
+
 ## v1.16.15
 
 * Receiver-generated file-version receipts after successful Python imports; native AppLink imports bypassing these hooks remain unconfirmed. Hash cache avoids rehashing unchanged models every draw.

@@ -196,6 +196,9 @@ def send(context):
     for root in roots:  # so 3D-Coat lists the target from every root it searches
         applink.ensure_app_folder(root)
 
+    # Persistent per-object export aliases survive Blender-side renaming/reload.
+    for obj in objects:
+        obj["coat_bridge_source_name"] = obj.name
     dropped = transfer.export_model(out_path, fmt, objects, p.apply_modifiers, overrides)
     applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
 
@@ -419,49 +422,58 @@ def _import_and_link(context, path):
     if not arriving:
         raise RuntimeError("the import produced nothing we can see")
 
-    # Only objects that existed BEFORE import can be replacement targets.
-    # An OBJ often receives its filename as the object name; resolving that
-    # name after import used to select the arriving object and delete itself.
-    target_name = (STATE["target"] or {}).get("object")
-    if target_name not in before_names:
-        target_name = _stem(path) if _stem(path) in before_names else None
-    target = _object(target_name)
     names = []
-    if arriving:
-        source = _object(arriving[0])
-    else:
-        source = None
-    if target is not None and target.type == "MESH" and source is not None:
+    used = set()
+    for arriving_name in arriving:
+        source = _object(arriving_name)
+        if source is None or source.type != "MESH":
+            continue
+        # Blender adds .001 when a name is occupied. Match only registered
+        # bridge aliases, never arbitrary scene objects with a similar name.
+        matches = []
+        for existing_name in before_names:
+            existing = _object(existing_name)
+            if existing is None or existing.type != "MESH" or existing_name in used:
+                continue
+            alias = existing.get("coat_bridge_source_name")
+            if not alias:
+                continue
+            suffix = arriving_name[len(alias):] if arriving_name.startswith(alias) else ""
+            if arriving_name == alias or (suffix.startswith(".") and suffix[1:].isdigit()):
+                matches.append(existing)
+        target = matches[0] if len(matches) == 1 else None
+        # Retain legacy single-object linkage only for a genuinely single return.
+        if target is None and len(arriving) == 1 and not matches:
+            old_name = (STATE.get("target") or {}).get("object")
+            if old_name in before_names:
+                candidate = _object(old_name)
+                if candidate and candidate.type == "MESH":
+                    target = candidate
         file_materials = []
         if _strip_enabled():
-            # collect what the file brought, then keep it out of the target
-            file_materials = [slot.material for slot in source.material_slots if slot.material]
+            file_materials = list({slot.material for slot in source.material_slots if slot.material})
             source.data.materials.clear()
-        target_name = target.name
-        _replace_mesh(target, source)
-        scale_note = _match_scale(target)
-        live = _object(target_name)
-        if live is None:
-            raise RuntimeError("the target object disappeared during the import")
-        live["coat_bridge_file"] = path
-        # Removing the temp object pushes an undo step, and that invalidates every
-        # Python reference we hold - so nothing may be used across it, the target
-        # included.  Using it there is exactly the
-        # "StructRNA of type Object has been removed" failure.
-        bpy.data.objects.remove(source, do_unlink=True)
-        live = _object(target_name)
-        if live is None:
-            raise RuntimeError("the target object disappeared while cleaning up")
-        material_note = _strip_materials(live, file_materials)
-        notes = [note for note in (scale_note, material_note) if note]
-        names.append(live.name + (" (%s)" % " ".join(notes) if notes else ""))
-        arriving = arriving[1:]
-    for name in arriving:
-        extra = _object(name)
-        if extra is None:
-            continue
-        extra["coat_bridge_file"] = path
-        names.append(extra.name)
+        if target is not None:
+            target_name = target.name
+            used.add(target_name)
+            _replace_mesh(target, source)
+            scale_note = _match_scale(target) if len(arriving) == 1 else ""
+            bpy.data.objects.remove(source, do_unlink=True)
+            live = _object(target_name)
+            if live is None:
+                raise RuntimeError("target disappeared during mesh replacement")
+            material_note = _strip_materials(live, file_materials)
+            live["coat_bridge_file"] = path
+            notes = [part for part in (scale_note, material_note) if part]
+            names.append(live.name + (" (%s)" % " ".join(notes) if notes else ""))
+        else:
+            # Keep Blender's collision-safe name; do not rename an unrelated object.
+            source["coat_bridge_file"] = path
+            source["coat_bridge_source_name"] = arriving_name
+            _strip_materials(source, file_materials)
+            names.append(source.name)
+            if matches:
+                _log("ambiguous object association for %s; imported separately" % arriving_name)
     return names
 
 
