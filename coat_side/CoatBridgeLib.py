@@ -526,8 +526,6 @@ class CoatBridgePanel(object):
         items.append("PullFromBlender")
         items.append("---")
         items.append("#" + self.SizeLabel)
-        items.append("TargetSize,[0.001,1000]")
-        items.append("ApplySize")
         items.append("ReductionPercent,[0,100]")
         items.append("Textures,[#from 3D-Coat|#textures on|#textures off]")
         items.append("---")

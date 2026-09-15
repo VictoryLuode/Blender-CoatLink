@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.16.13
+
+* Remove TargetSize and ApplySize controls from the native 3D-Coat panel; retain read-only size display. No export or unit changes.
+* 3D-Coat logic 100/100, tools 29/29, installation smoke test passed. Installed library byte-verified.
+
 ## v1.16.12
 
 * Enable OBJ group splitting on return: 3D-Coat exports object boundaries as g records. Distinct groups become separate Blender Objects.

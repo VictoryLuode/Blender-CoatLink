@@ -231,8 +231,8 @@ def main():
           bridge.current_size())
     check("and shows it with units", bridge.size_line() == "Size: 2.000 x 1.000 x 0.500 m",
           bridge.size_line())
-    check("the panel carries a target-size field and an apply button",
-          "TargetSize,[0.001,1000]" in panel.ui() and "ApplySize" in panel.ui(), panel.ui())
+    check("the panel has no scene-scaling controls",
+          "TargetSize,[0.001,1000]" not in panel.ui() and "ApplySize" not in panel.ui(), panel.ui())
 
     coat.transforms = []
     panel.TargetSize = 4.0
