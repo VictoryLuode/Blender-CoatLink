@@ -29,7 +29,8 @@ RESULTS = []
 
 def check(name, condition, detail=""):
     RESULTS.append((name, bool(condition), detail))
-    print("%-4s %s%s" % ("PASS" if condition else "FAIL", name, "" if condition else "   <- %s" % detail))
+    print("%-4s %s%s" % ("PASS" if condition else "FAIL", name,
+                         "" if condition else "   <- %s" % (detail,)))
 
 
 def import_script():
@@ -219,6 +220,43 @@ def main():
     write_state({"format": "FBX"})
     check("a fresh state re-inserts the tool button", bridge.register_room_tools() == ["Voxels"])
 
+    # ---- the size block: read the object, scale it to a target ----
+    coat.current_size = [2.0, 1.0, 0.5]
+    check("the panel reads the current size", bridge.current_size()[:3] == (2.0, 1.0, 0.5),
+          bridge.current_size())
+    check("and shows it with units", bridge.size_line() == "Size: 2.000 x 1.000 x 0.500 m",
+          bridge.size_line())
+    check("the panel carries a target-size field and an apply button",
+          "TargetSize,[0.001,1000]" in panel.ui() and "ApplySize" in panel.ui(), panel.ui())
+
+    coat.transforms = []
+    panel.TargetSize = 4.0
+    panel.ApplySize()
+    check("applying scales the current object in 3D-Coat", len(coat.transforms) == 1, coat.transforms)
+    operation, origin, factor = coat.transforms[0]
+    check("it scales about the object's own centre", operation == "ScalingAt", coat.transforms[0])
+    check("by the ratio target/longest side", abs(factor - 2.0) < 1e-6, factor)
+    check("the status line reports the change", "2.000 -> 4.000" in panel.status, panel.status)
+    check("the log keeps the factor", "longest side 2.0000 -> 4.0000" in bridge.log_text(),
+          bridge.log_text()[-160:])
+
+    panel.TargetSize = 0
+    check("a zero target is refused", "above zero" in bridge.scale_to_size(0), bridge.scale_to_size(0))
+    check("a junk target is refused", "not a number" in bridge.scale_to_size("big"),
+          bridge.scale_to_size("big"))
+
+    coat.current_size = [0.0, 0.0, 0.0]
+    check("an empty object is not divided by zero",
+          "no measurable size" in bridge.scale_to_size(4.0), bridge.scale_to_size(4.0))
+    coat.current_size = [2.0, 1.0, 0.5]
+
+    saved_current = coat.Scene.current
+    coat.Scene.current = lambda: (_ for _ in ()).throw(RuntimeError("nothing selected"))
+    check("nothing selected is reported, not crashed",
+          bridge.size_line() == "Size: no object selected" and
+          "select something" in bridge.scale_to_size(4.0), bridge.size_line())
+    coat.Scene.current = saved_current
+
     # ---- 3D-Coat's own size / axis settings, shared with Blender ----
     info = bridge.coat_settings_info()
     check("the scene scale is read from 3D-Coat", info.get("scene_scale") == 1.0, info)
@@ -254,13 +292,18 @@ def main():
     check("the first export remembers the percentage from 3D-Coat",
           bridge.reduction_percent() == 40, bridge.load_state())
     check("and says so in the log", "remembered reduction 40%" in bridge.log_text(), bridge.log_text()[-200:])
+    # a freshly opened panel picks the stored value up (its layout is built from
+    # the panel's own attributes, so a panel that is merely constructed - not
+    # shown - must not be asked to persist anything)
+    bridge.set_reduction_percent(40)
+    check("that number field starts at the stored value",
+          bridge.CoatBridgePanel().ReductionPercent == 40,
+          bridge.CoatBridgePanel().ReductionPercent)
     check("the panel carries a native number field for the percentage",
           "ReductionPercent,[0,100]" in panel.ui(), panel.ui())
     check("the panel carries a native choice for textures",
           any(item.startswith("Textures,[") for item in panel.ui()), panel.ui())
-    check("that number field starts at the stored value",
-          bridge.CoatBridgePanel().ReductionPercent == 40,
-          bridge.CoatBridgePanel().ReductionPercent)
+    bridge.set_reduction_percent(40)
     panel.ReductionPercent = 35
     panel.process()
     check("a number typed in the panel is stored", bridge.reduction_percent() == 35, bridge.load_state())

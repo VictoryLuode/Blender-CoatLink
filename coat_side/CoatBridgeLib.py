@@ -386,6 +386,58 @@ def scene_scale_note():
         return "3D-Coat scale unknown (%s)" % exc
 
 
+def current_size():
+    """(x, y, z, units) of the element 3D-Coat has current, or None."""
+    try:
+        box = coat.Scene.current().Volume().calcWorldSpaceAABB()
+        return (float(box.GetSizeX()), float(box.GetSizeY()), float(box.GetSizeZ()),
+                str(coat.Scene.GetSceneUnits() or ""))
+    except Exception as exc:
+        log("size: could not measure the current object (%s)" % exc)
+        return None
+
+
+def size_line():
+    """The panel's size readout."""
+    measured = current_size()
+    if not measured:
+        return "Size: no object selected"
+    x, y, z, units = measured
+    return "Size: %.3f x %.3f x %.3f %s" % (x, y, z, units)
+
+
+def scale_to_size(target, only_if_larger=False):
+    """Scale the current element so its longest side measures `target`.
+
+    Everything happens inside 3D-Coat (mat4.ScalingAt about the object's own
+    centre, applied with transform_single), so nothing is exported, re-imported
+    or otherwise round-tripped to change a size.
+    """
+    try:
+        target = float(target)
+    except (TypeError, ValueError):
+        return "target size is not a number"
+    if target <= 0:
+        return "target size must be above zero"
+    measured = current_size()
+    if not measured:
+        return "select something in 3D-Coat first"
+    largest = max(measured[:3])
+    if largest <= 0:
+        return "the current object has no measurable size"
+    if only_if_larger and largest >= target:
+        return "already %.3f (target %.3f, left alone)" % (largest, target)
+    factor = target / largest
+    try:
+        element = coat.Scene.current()
+        box = element.Volume().calcWorldSpaceAABB()
+        element.transform_single(coat.mat4.ScalingAt(box.GetCenter(), factor))
+    except Exception as exc:
+        return "scaling failed: %s" % exc
+    log("size: longest side %.4f -> %.4f (x%.4f)" % (largest, target, factor))
+    return "Size %.3f -> %.3f (x%.4f)" % (largest, target, factor)
+
+
 def coat_settings_info():
     """3D-Coat's own size and axis settings, written into the state file so the
     Blender side can match them without anyone typing numbers.
@@ -465,16 +517,22 @@ class CoatBridgePanel(object):
         # 3D-Coat's own Autoexport example panel uses.
         self.ReductionPercent = reduction_percent()
         self.Textures = TEXTURES_CHOICES.index(export_textures())
+        self.TargetSize = 1.0            # the size to scale the current object to
+        self.SizeLabel = "Size: -"
         self.refresh_detail()
 
     # ---- layout -----------------------------------------------------------
 
     def ui(self):
+        self.process()          # refresh the readouts, like 3D-Coat's own panel
         items = []
         items.append("[1]")
         items.append("SendToBlender")
         items.append("PullFromBlender")
         items.append("---")
+        items.append("#" + self.SizeLabel)
+        items.append("TargetSize,[0.001,1000]")
+        items.append("ApplySize")
         items.append("ReductionPercent,[0,100]")
         items.append("Textures,[#from 3D-Coat|#textures on|#textures off]")
         items.append("---")
@@ -508,6 +566,10 @@ class CoatBridgePanel(object):
             wanted = TEXTURES_CHOICES[choice]
             if wanted != export_textures():
                 set_export_textures(wanted)
+        try:
+            self.SizeLabel = size_line()
+        except Exception as exc:            # a readout must never break the panel
+            self.SizeLabel = "Size: unavailable (%s)" % exc
         return False
 
     def refresh_detail(self):
@@ -592,6 +654,10 @@ class CoatBridgePanel(object):
             self._report("could not open the panel", REOPEN_HINT)
             return
         self._report(panel.status, REOPEN_HINT)
+
+    def ApplySize(self):
+        """Scale the current object so its longest side is the target size."""
+        self._report(scale_to_size(self.TargetSize), "")
 
     def Detect(self):
         root = primary_root()

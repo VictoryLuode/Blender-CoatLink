@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.16.0 - 2026-09-13
+
+A size block in 3D-Coat's panel.
+
+* The panel now reads the current object's size out of 3D-Coat itself
+  (`Scene.current().Volume().calcWorldSpaceAABB()`), shows it live, and has a
+  target-size field: type the size you want and `ApplySize` scales the object in
+  place (`mat4.ScalingAt(centre, factor)` + `transform_single`, so it grows about
+  its own centre and does not wander).  Nothing is exported, re-imported or
+  round-tripped to change a size.
+* Refusals are explicit rather than silent: a zero or non-numeric target, a
+  degenerate object, and "nothing selected" each say what happened; the factor
+  goes into the log.
+* Still no Qt and no extra window: the panel is 3D-Coat's own dialog and the
+  controls are native (`Name,[min,max]` number fields, droplists, buttons).
+* 3D-Coat suite 102 checks; the test harness no longer dies when a check passes
+  a tuple as its detail.
+
 ## v1.15.0 - 2026-09-13
 
 One format, one axis rule, both directions.

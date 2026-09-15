@@ -116,12 +116,56 @@ class FakeCoat(object):
             return types.SimpleNamespace(name=lambda: os.path.splitext(os.path.basename(path))[0])
 
         # coat.Scene.importMesh(...) - an attribute, exactly like the API
+        self.current_size = [2.0, 1.0, 0.5]     # what 3D-Coat measures
+        self.transforms = []
+
+        class _Box(object):
+            def __init__(self, size):
+                self.size = size
+
+            def GetSizeX(self):
+                return self.size[0]
+
+            def GetSizeY(self):
+                return self.size[1]
+
+            def GetSizeZ(self):
+                return self.size[2]
+
+            def GetCenter(self):
+                return types.SimpleNamespace(x=0.0, y=0.0, z=0.0)
+
+        class _Volume(object):
+            def __init__(self, size):
+                self.size = size
+
+            def calcWorldSpaceAABB(self):
+                return _Box(self.size)
+
+        class _Element(object):
+            def __init__(self, fake):
+                self.fake = fake
+
+            def Volume(self):
+                return _Volume(self.fake.current_size)
+
+            def transform_single(self, matrix):
+                self.fake.transforms.append(matrix)
+
         self.Scene = types.SimpleNamespace(importMesh=_import_mesh,
                                            GetSceneUnits=lambda: "m",
-                                           GetSceneScale=lambda: 1.0)
+                                           GetSceneScale=lambda: 1.0,
+                                           current=lambda: _Element(self))
 
     def dialog(self):
         return FakeDialog(self.dialog_log)
+
+
+class FakeMat4(object):
+    """Records how the bridge asked 3D-Coat to scale something."""
+
+    def ScalingAt(self, origin, factor):
+        return ("ScalingAt", origin, factor)
 
 
 def build_environment(tmp):
@@ -134,6 +178,7 @@ def build_environment(tmp):
     os.path.expanduser = fake_expanduser
 
     coat = FakeCoat()
+    coat.mat4 = FakeMat4()
     sys.modules["coat"] = coat
     cmd = types.ModuleType("CMD")
     cmd.calls = []
