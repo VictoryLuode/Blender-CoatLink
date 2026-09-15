@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.16.4 - 2026-09-13
+
+The 3D-Coat button icons are light now.
+
+* The four tool-strip icons were mid grey (`#9A9A9A`, copied from 3D-Coat's own
+  buttons).  They are near-white (`#E8E8E8`) now - the icon shapes and their
+  antialiasing are untouched, only the colour changed, so nothing about the
+  buttons' geometry moved.
+* Recolouring is done on the pixels with the alpha channel preserved, and the
+  result is verified by reading the colours back out of both the source and the
+  installed copies.
+
 ## v1.16.3 - 2026-09-13
 
 "StructRNA of type Object has been removed" on pull.
