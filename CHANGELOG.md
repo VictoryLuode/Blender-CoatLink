@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.16.12
+
+* Enable OBJ group splitting on return: 3D-Coat exports object boundaries as g records. Distinct groups become separate Blender Objects.
+* Real Blender regression: Hull and Turret become two meshes. Existing suite 113/113.
+* Blender add-on 1.10.11.
+
 ## v1.16.11
 
 * Auto pull deduplicates successful file versions across delayed mirror signals (canonical path, nanosecond mtime and size). Modified exports still import; explicit manual pull can repeat. Session cache bounded to 128 paths.

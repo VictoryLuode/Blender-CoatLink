@@ -32,7 +32,7 @@ FORMATS = {
         },
         "import_kwargs": {
             "use_split_objects": True,
-            "use_split_groups": False,
+            "use_split_groups": True,
             "forward_axis": "NEGATIVE_Z",
             "up_axis": "Y",
             "global_scale": 1.0,
