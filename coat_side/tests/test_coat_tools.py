@@ -122,7 +122,7 @@ def main():
     check("the log mentions the buttons", "tool CoatBridge_Send" in log_text and "tool CoatBridge_Pull" in log_text,
           log_text[-200:])
     check("the log records 3D-Coat's own scene scale",
-          "3D-Coat units=m scale=1.0" in log_text, log_text[-200:])
+          "coat settings: scale=1.0 units=m" in log_text, log_text[-200:])
     check("the scale note survives a missing API",
           isinstance(lib.scene_scale_note(), str) and lib.scene_scale_note() != "")
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.16.1 - 2026-09-13
+
+Cleanup after the audit, and the version rule.
+
+* Deleted the parked Qt panel and its tests (no Qt, no extra window - it had no
+  business staying in the tree), the stale `CoatBridgeDialog.py` (also removed
+  from an installed 3D-Coat and from `install.sh`'s stale list), and the
+  decision mock-up in `docs/`.
+* Removed a dead helper and made every action log 3D-Coat's scale/units/axis once
+  instead of twice.
+* README brought back in line with reality: what each side looks like now, what
+  the bridge handles quietly (scale, axis, reduction, textures, size), the real
+  sizes of both halves.
+* From here the version only ever moves in the last place (`v1.16.1`, `v1.16.2`,
+  ...); the first two numbers are the user's to allow.  Blender add-on 1.10.1.
+
 ## v1.16.0 - 2026-09-13
 
 A size block in 3D-Coat's panel.

@@ -22,7 +22,7 @@ from fake_coat import FakeCoat, build_environment  # shared fake 3D-Coat API
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LIB = os.path.join(HERE, "..", "CoatBridgeLib.py")
-DIALOG_ENTRY = os.path.join(HERE, "..", "CoatBridgeDialog.py")
+PANEL_ENTRY = os.path.join(HERE, "..", "CoatBridge_Setup.py")
 
 RESULTS = []
 
@@ -56,7 +56,7 @@ def main():
     # ---- the dialog entry runs unconditionally, the way 3D-Coat runs a script ----
     import runpy
 
-    runpy.run_path(DIALOG_ENTRY)
+    runpy.run_path(PANEL_ENTRY)
     steps = [name for name, _args in coat.dialog_log]
     check("panel is shown when run as a script", bool(steps) and steps[-1] == "show", steps)
     check("panel caption matches the Blender side",
@@ -168,9 +168,14 @@ def main():
     check("layout tells the user how to reopen the panel",
           any(bridge.REOPEN_HINT in item for item in items), items)
 
-    # ---- menu registration (main() already ran it on import) ----
+    # ---- menu registration (the panel entry already ran it) ----
+    bridge.save_state({"menus": [], "tools": []})   # forget the entry's registration
+    coat.menu_inserted = False      # and that 3D-Coat reports the menu missing again
+    coat.inserted = []
     check("first run registers Scripts and Windows",
-          coat.inserted[:2] == [("Scripts", "CoatBridge", ""), ("Windows", "CoatBridge", "")], coat.inserted)
+          bridge.register_menu_item() == ["Scripts", "Windows"]
+          and coat.inserted[:2] == [("Scripts", "CoatBridge", ""), ("Windows", "CoatBridge", "")],
+          (bridge.load_state().get("menus"), coat.inserted))
     check("registering again adds nothing", bridge.register_menu_item() == [])
     check("the menu record is kept in the state file",
           bridge.load_state().get("menus") == ["Scripts", "Windows"], bridge.load_state())

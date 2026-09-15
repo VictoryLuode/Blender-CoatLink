@@ -54,7 +54,7 @@ REDUCTION_SLIDER = "$DecimationParams::ReductionPercent"
 REDUCTION_KEY = "reduction"
 
 #: the export dialog's "export textures" checkbox (documented as an import.txt
-#: option in applinks.rst, settable through coat.CMD.SetBoolField)
+#: option listed in applinks.rst, settable with the CMD module's SetBoolField)
 TEXTURES_FIELD = "$ExportOpt::ExportTextures"
 TEXTURES_KEY = "textures"
 
@@ -277,11 +277,6 @@ def export_note():
     return " (%s)" % ", ".join(bits) if bits else ""
 
 
-def reduction_note():
-    """Short note for the status line / log, "" when reduction is off."""
-    percent = reduction_percent()
-    return "" if percent <= 0 else " (keep %d%%)" % percent
-
 
 def capture_reduction():
     """Read the percentage 3D-Coat's export dialog is showing and remember it.
@@ -487,8 +482,8 @@ def run_action(tool_id):
     action = getattr(panel, method, None)
     if action is None:
         return "unknown action: %s" % tool_id
-    log("tool %s -> %s | %s" % (tool_id, label, scene_scale_note()))
-    coat_settings_info()
+    log("tool %s -> %s" % (tool_id, label))
+    coat_settings_info()          # also logs 3D-Coat's scale/units/axis
     try:
         action()
     except Exception as exc:

@@ -7,8 +7,7 @@
 #   <scripts>/CoatBridge/CoatBridgeLib.py       the exchange logic + actions
 #   <scripts>/CoatBridge/CoatBridge_Send.py     tool button: send to Blender
 #   <scripts>/CoatBridge/CoatBridge_Pull.py     tool button: pull from Blender
-#   <scripts>/CoatBridge/CoatBridge_Setup.py    tool button: find the folder
-#   <scripts>/CoatBridge/CoatBridgeDialog.py    optional Scripts-menu dialog
+#   <scripts>/CoatBridge/CoatBridge_Setup.py    tool button + Scripts-menu entry (opens the panel)
 #   <scripts>/ExtraMenuItems/CoatBridgeTools.xml   the tool buttons (per room)
 #   <scripts>/ExtraMenuItems/CoatBridge.xml        the Scripts menu entry
 #   <3dcoat>/data/Textures/icons64/CoatBridge*.png the button icons
@@ -29,12 +28,12 @@ fi
 
 DIR="$TARGET/CoatBridge"
 mkdir -p "$DIR"
-rm -f "$DIR/CoatBridge.py" "$DIR/CoatBridgeQt.py"   # earlier layouts
+rm -f "$DIR/CoatBridge.py" "$DIR/CoatBridgeQt.py" "$DIR/CoatBridgeDialog.py"   # earlier layouts
 cp "$REPO/coat_side/CoatBridgeLib.py" \
    "$REPO/coat_side/CoatBridge_Send.py" \
    "$REPO/coat_side/CoatBridge_Pull.py" \
    "$REPO/coat_side/CoatBridge_Setup.py" \
-   "$REPO/coat_side/CoatBridgeDialog.py" "$DIR/"
+   "$DIR/"
 rm -rf "$DIR/__pycache__"
 
 MENU_DIR="$TARGET/ExtraMenuItems"
@@ -51,7 +50,7 @@ cat > "$MENU_DIR/CoatBridge.xml" <<XML
 		<MenuItem>CoatBridge</MenuItem>
 		<inRoom></inRoom>
 		<inSection></inSection>
-		<Command>script:$WIN_DIR/CoatBridgeDialog.py</Command>
+		<Command>script:$WIN_DIR/CoatBridge_Setup.py</Command>
 	</ExtraMenuItem>
 </ClassArray.ExtraMenuItem>
 XML
@@ -69,6 +68,6 @@ fi
 
 echo "scripts: $DIR"
 echo "buttons: $MENU_DIR/CoatBridgeTools.xml  (Voxels + Paint tool panels)"
-echo "menu   : $MENU_DIR/CoatBridge.xml  (Scripts > Coat Bridge, optional dialog)"
+echo "menu   : $MENU_DIR/CoatBridge.xml  (Scripts > Coat Bridge: opens the panel)"
 echo
 echo "Restart 3D-Coat, then look at the end of the tool list in the Sculpt room."

@@ -8,13 +8,38 @@ their UIs are deliberately mirrors of each other:
 
 | | Blender side | 3D-Coat side |
 | --- | --- | --- |
-| Where | **Coat Bridge** button in the top bar (right-hand group) | Panel pinned to the **top-right** of the viewport |
-| Shape | popover menu | non-modal dialog, 320 px wide |
-| First row | `Send to 3D-Coat` / `Pull from 3D-Coat` | `Send to Blender` / `Pull from Blender` |
-| Options | `Open as`, toggles | - (one format, nothing to pick) |
+| Where | **Coat Bridge** menu, then **Send** and **Pull** next to it, in the top bar | three buttons at the end of the room tool list (Sculpt / Paint) |
+| Shape | popover menu + two one-click buttons | buttons, plus a native panel opened from the tool strip |
+| One click | `Send` / `Pull` on the bar itself | `Send to Blender` / `Pull from Blender` |
+| Options | `Open as`, `Axis`, `3D-Coat scale`, `Auto pull`, `Skip dialogs`, `Modifiers`, `Match scale`, `No materials` | `Size` readout, `TargetSize` + `ApplySize`, `ReductionPercent`, `Textures` |
 | Utilities | `Detect`, `Folder`, `Start 3D-Coat`, `Unlink` | `Detect`, `Folder`, `Start Blender` |
 | Last row | status + details box | status + details line |
-| Source | `coat_bridge/` (Blender add-on) | `coat_side/CoatBridge.py` (+ menu XML) |
+| Source | `coat_bridge/` (Blender add-on, 6 files) | `coat_side/CoatBridgeLib.py` + 3 entry scripts + tool XML |
+
+The 3D-Coat panel is 3D-Coat's **own** dialog (`coat.dialog()...topRight()`), never
+a window of ours and never Qt - the parked Qt panel was deleted.  Its controls are
+native too, using the layout 3D-Coat's shipped Autoexport panel uses:
+`Name,[min,max]` is a number field, `Name,[#a|#b]` a droplist, `Name` a checkbox.
+
+### What the two sides quietly handle for you
+
+* **Scale.** 3D-Coat exports in natural units and divides an incoming model by its
+  scene scale, which is why a model from Blender used to arrive small.  The
+  Blender side reads 3D-Coat's own `SceneScale` from its state file and multiplies
+  the model by it, so 2 m in Blender is 2 units in 3D-Coat.  `3D-Coat scale` in
+  the menu overrides it (0 = use 3D-Coat's number).
+* **Axis.** 3D-Coat's `SwapYZ` ("swap the Y and Z scene axes", for Z-up
+  applications) is detected the same way and the OBJ axes are matched - the same
+  rule for the export and the import, which is what keeps the two directions
+  from drifting apart.  `Axis` can force either convention.
+* **Reduction.** 3D-Coat's export dialog is never seen: a percentage typed in the
+  panel (0-100, the share of triangles to keep) goes into 3D-Coat's own
+  decimation slider and the dialog's OK is pressed for you.  Left at 0 the first
+  export reads the value the dialog is showing and remembers it instead.
+* **Textures.** A droplist, so the model can go back with or without them.
+* **Size.** The panel shows the current object's size live and `ApplySize` scales
+  it to `TargetSize` about its own centre - all inside 3D-Coat, nothing is
+  round-tripped to change a size.
 
 ## The exchange, in full
 
@@ -25,7 +50,7 @@ Documents/AppLinks/3D-Coat/Exchange/     <- job file goes here (3D-Coat polls th
         run.txt                                 empty marker: makes the folder appear in File > Export To
         bridge.obj                              the model we send (fixed name, overwritten each send)
         export.txt                              3D-Coat writes it when it sends a model back
-        001.fbx                                 whatever 3D-Coat exported, named by 3D-Coat
+        bridge.obj                               what 3D-Coat sends back (OBJ both ways)
 
 Documents/3DCoat/Exchange/               <- 3D-Coat's own root, also written to
     BlenderBridge/                           the same three files; the bridge watches both roots
@@ -45,7 +70,7 @@ AppLink that ships inside 3D-Coat (`data/ToolsPresets/InstallAppLinks/Blender4x/
 | Bakes textures and builds its own node groups | Nothing to do with textures |
 | `3DC2Blender` helper directory, applink object pools, folder size limits | one fixed file name |
 | `extension.txt`, `preset.txt`, parameter files, a 12-folder state layout | `import.txt` + the model - nothing else |
-| 4200 lines across 7 files | 900 lines across 6 files |
+| 4200 lines across 7 files | 1286 (Blender) + 1016 (3D-Coat) lines, tests excluded |
 
 ## Requirements
 
