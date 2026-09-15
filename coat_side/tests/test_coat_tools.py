@@ -95,16 +95,27 @@ def main():
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
 
-    coat.scene_imports.clear()
-    for _click in range(2):
+    # the pop is deferred to the next frame, so let the Qt event loop run
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance() or QApplication([])
+
+    def click_with_queue():
         with open(lib.import_txt(job_root), "w", encoding="utf-8", newline="\n") as handle:
             handle.write(queued + "\n" + queued + "\n[ppp]\n")
         click_entry("CoatBridgePkg.CoatBridge_Pull", "CoatBridge_Pull.py")
 
-    check("the entry drops itself from the module cache",
+    coat.scene_imports.clear()
+    click_with_queue()
+    check("the first click runs the action", coat.scene_imports == [queued], coat.scene_imports)
+    app.processEvents()
+    check("the entry leaves the module cache on the next frame",
           "CoatBridgePkg.CoatBridge_Pull" not in sys.modules, list(sys.modules)[:3])
+    click_with_queue()
     check("the second click runs the action again",
           coat.scene_imports == [queued, queued], coat.scene_imports)
+    app.processEvents()
+    check("the module cache stays clean", "CoatBridgePkg.CoatBridge_Pull" not in sys.modules)
 
     # ---- the log black box records what happened ----
     log_text = open(lib.log_path(), encoding="utf-8").read()

@@ -21,9 +21,22 @@ lib.register_room_tools()
 lib.show_panel()
 
 
-# 3D-Coat imports a script by module name and Python then caches it, so a second
-# click on the same menu item / tool button would do nothing.  Dropping ourselves
-# from sys.modules makes the next click import and run this file again.  Guarded,
-# because runpy (used by the tests and by "run this file") owns its own key.
-if __name__ not in ("__main__", "<run_path>"):
-    sys.modules.pop(__name__, None)
+def _allow_rerun():
+    """3D-Coat imports a script by module name and Python then caches it, so a
+    second click on the same menu item / tool button would do nothing.
+
+    Dropping ourselves from sys.modules makes the next click import and run this
+    file again - but only from the NEXT FRAME, never during the import itself
+    (popping mid-import makes the importer raise KeyError).
+    """
+    if __name__ in ("__main__", "<run_path>"):
+        return  # runpy and direct execution cache nothing
+    try:
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(0, lambda: sys.modules.pop(__name__, None))
+    except Exception:
+        pass  # no Qt in this build: the entry simply runs once per session
+
+
+_allow_rerun()
