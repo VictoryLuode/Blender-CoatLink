@@ -20,7 +20,7 @@ import traceback
 import bpy
 from mathutils import Matrix, Vector
 
-from . import applink, transfer
+from . import applink, transfer, receipts
 
 ROOT = __package__.split(".")[0]
 
@@ -53,6 +53,12 @@ def prefs(context=None):
 
 
 def status(context=None):
+    target = STATE.get("target") or {}
+    path = target.get("file")
+    if path:
+        receipt = receipts.received(path, "3dcoat")
+        if receipt:
+            return "3D-Coat received: %s" % ", ".join(receipt["objects"])
     return STATE["message"]
 
 
@@ -304,7 +310,10 @@ def _pull_once(context, force):
                         except OSError:
                             pass
                 return []  # a delayed mirror signal, not a new export
+            receipt_version = receipts.fingerprint(path)
             imported = _import_and_link(context, path)
+            if imported:
+                receipts.acknowledge(path, "blender", receipt_version, imported)
             if imported:
                 versions[key] = version
                 if len(versions) > 128:

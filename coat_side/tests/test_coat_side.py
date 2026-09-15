@@ -324,7 +324,7 @@ def main():
     check("the export dialog is still confirmed for the user",
           ("$DialogButton#1",) in coat.ui.cmd.calls, coat.ui.cmd.calls[-3:])
     check("the slider really holds our value", cmd.sliders.get(slider) == 50.0, cmd.sliders)
-    check("the status line reports the reduction", "keep 50%" in panel.status, panel.status)
+    check("the status line reports the reduction", "reduction requested 50%" in panel.status, panel.status)
 
     # 0 in the number field hands the choice back to 3D-Coat's own dialog
     panel.ReductionPercent = 0

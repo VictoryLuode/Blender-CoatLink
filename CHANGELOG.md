@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.16.15
+
+* Receiver-generated file-version receipts after successful Python imports; native AppLink imports bypassing these hooks remain unconfirmed. Hash cache avoids rehashing unchanged models every draw.
+* Filter model discovery by extension so receipt sidecars are never imported.
+* Correct reduction wording to removed percentage based on official auto_export.cpp. Selected-volume remaining-face estimate explicitly unverified for AppLink export.
+* Read-only Coat diagnostic supplied; live Coat verification blocked because application was not running.
+* Blender 1.10.13; tests 113/113, Coat simulated 101/101 + 29/29, receipt tests and installation smoke passed.
+
 ## v1.16.14
 
 * Compact native panels: advanced/maintenance settings hidden by default; Blender keeps transfer shortcuts on top bar instead of duplicating them.

@@ -22,6 +22,9 @@
 # 3D-Coat registers more than one exchange root, so both are handled.
 
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import CoatBridgeReceipts as receipts
 import subprocess
 import sys
 import time
@@ -172,6 +175,8 @@ def sent_models(root):
     for name in os.listdir(folder):
         if not name.lower().startswith(MODEL_NAME.lower() + "."):
             continue
+        if os.path.splitext(name)[1].lower() not in (".obj", ".fbx", ".ply", ".stl"):
+            continue
         path = os.path.join(folder, name)
         found.append((os.path.getmtime(path), path))
     return [path for _mtime, path in sorted(found, reverse=True)]
@@ -270,7 +275,7 @@ def export_note():
     bits = []
     percent = reduction_percent()
     if percent > 0:
-        bits.append("keep %d%%" % percent)
+        bits.append("reduction requested %d%% (unverified)" % percent)
     textures = export_textures()
     if textures is not None:
         bits.append("textures %s" % ("on" if textures else "off"))
@@ -528,6 +533,13 @@ class CoatBridgePanel(object):
         items.append("---")
         items.append("#" + self.SizeLabel)
         items.append("ReductionPercent,[0,100]")
+        try:
+            count = int(coat.Scene.current().Volume().getPolycount())
+            estimate = round(count * (100 - self.ReductionPercent) / 100)
+            items.append("##Selected: %d faces; estimated remaining: %d" % (count, estimate))
+        except Exception:
+            items.append("##Selected face count unavailable")
+        items.append("##Reduction % = removed; estimate only, export not verified")
         items.append("Textures,[#from 3D-Coat|#textures on|#textures off]")
         items.append("---")
         items.append("Advanced")
@@ -539,7 +551,11 @@ class CoatBridgePanel(object):
             items.append("StartBlender")
             items.append("RemoveLauncher")
         items.append("---")
-        items.append("#" + self.status)
+        receipt = None
+        root = primary_root()
+        if root:
+            receipt = receipts.received(model_path(root, EXPORT_FORMAT), "blender")
+        items.append("#" + ("Blender received: " + ", ".join(receipt["objects"]) if receipt else self.status))
         if self.Advanced and self.detail:
             items.append("##" + self.detail)
         items.append("##" + REOPEN_HINT)
@@ -634,12 +650,15 @@ class CoatBridgePanel(object):
 
         root, model = candidates[0]
         try:
+            receipt_version = receipts.fingerprint(model)
             element = coat.Scene.importMesh(model)
         except Exception as exc:
             self._report("Import failed: %s" % exc, os.path.basename(model))
             return
         consumed = consume_import(root, model)
         name = _element_name(element) or os.path.basename(model)
+        if element is not None:
+            receipts.acknowledge(model, "3dcoat", receipt_version, [name])
         self._report("Pulled %s from %s" % (name, os.path.basename(model)),
                      "queue file consumed" if consumed else "queue file left alone")
 

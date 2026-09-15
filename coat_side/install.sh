@@ -30,6 +30,7 @@ DIR="$TARGET/CoatBridge"
 mkdir -p "$DIR"
 rm -f "$DIR/CoatBridge.py" "$DIR/CoatBridgeQt.py" "$DIR/CoatBridgeDialog.py"   # earlier layouts
 cp "$REPO/coat_side/CoatBridgeLib.py" \
+   "$REPO/coat_side/CoatBridgeReceipts.py" \
    "$REPO/coat_side/CoatBridge_Send.py" \
    "$REPO/coat_side/CoatBridge_Pull.py" \
    "$REPO/coat_side/CoatBridge_Setup.py" \
