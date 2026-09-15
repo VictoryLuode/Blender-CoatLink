@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.7.0 - 2026-09-13
+
+Scale and units: a returned model now comes back at the size it left.
+
+* Cause: 3D-Coat exports with its own scene scale - `Scene.GetSceneScale()` is
+  documented as "the length of 1 scene unit when you export the scene" - so a
+  round trip can come home at a fixed multiple (x100 with FBX is the classic).
+* Blender side: `send` records the model's world-space bounding-box diagonal and
+  each pulled model is measured against it.  A difference bigger than 2% is scaled
+  away (about the world origin, geometry only) and reported in the status as
+  `scale x0.01`; the new `Match scale` toggle (on by default) can switch it off.
+  Sane-guarded: factors beyond x1000 are reported but left alone.
+* Both sides write the numbers to one shared log,
+  `Documents/3DCoat/CoatBridge.log`: the Blender side logs the sent size and the
+  correction, the 3D-Coat side logs its own `units=... scale=...` on every action,
+  so a future mismatch can be read off instead of guessed.
+* Tests: Blender suite 73 checks (a return that is 1.6x too big is asserted to be
+  rescaled back to exactly the sent size; a same-size return is left alone; the
+  toggle is exercised), 3D-Coat suite 52 + 29 + 26.
+
 ## v1.6.0 - 2026-09-13
 
 No window at all: the bridge is now three buttons in 3D-Coat's own tool panel.

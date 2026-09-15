@@ -6,7 +6,7 @@
 bl_info = {
     "name": "Coat Bridge",
     "author": "VictoryLuode",
-    "version": (1, 2, 0),
+    "version": (1, 3, 0),
     "blender": (4, 2, 0),
     "location": "Top Bar > Coat Bridge",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
@@ -69,6 +69,11 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
         name="Apply modifiers",
         description="Export evaluated meshes (modifiers applied)",
         default=False,
+    )
+    match_scale: BoolProperty(
+        name="Match scale on pull",
+        description="Measure the returned model against the sent one and undo a unit mismatch (3D-Coat scene units are not always metres)",
+        default=True,
     )
 
     def draw(self, context):

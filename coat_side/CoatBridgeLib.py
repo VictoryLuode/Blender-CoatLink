@@ -227,6 +227,19 @@ ACTION_LABELS = {
 }
 
 
+def scene_scale_note():
+    """3D-Coat's export scale and unit name.
+
+    Scene.GetSceneScale() is documented as "the length of 1 scene unit when you
+    export the scene", which is exactly the factor that makes a model come home at
+    a different size - so it goes into the log on every action.
+    """
+    try:
+        return "3D-Coat units=%s scale=%s" % (coat.Scene.GetSceneUnits(), coat.Scene.GetSceneScale())
+    except Exception as exc:
+        return "3D-Coat scale unknown (%s)" % exc
+
+
 def add_translations():
     """Give the tool buttons readable labels.  3D-Coat shows the raw id until a
     translation exists, so every action calls this when it runs."""
@@ -246,7 +259,7 @@ def run_action(tool_id):
     action = getattr(panel, method, None)
     if action is None:
         return "unknown action: %s" % tool_id
-    log("tool %s -> %s" % (tool_id, label))
+    log("tool %s -> %s | %s" % (tool_id, label, scene_scale_note()))
     try:
         action()
     except Exception as exc:

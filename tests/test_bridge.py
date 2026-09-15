@@ -8,6 +8,7 @@ folders are never touched.
 """
 
 import json
+import math
 import os
 import shutil
 import sys
@@ -147,6 +148,8 @@ def main():
               not os.path.isfile(os.path.join(folder, "extension.txt")))
     check("send remembers the target object", bridge.STATE["target"]["object"] == "BridgeCube",
           bridge.STATE["target"])
+    sent_diagonal = bridge.STATE["target"].get("diagonal") or 0.0
+    check("send records the size for the scale check", abs(sent_diagonal - math.sqrt(3) * 2) < 0.02, sent_diagonal)
     check("UV set created for painting", len(cube.data.uv_layers) == 1)
     check("cube starts with 8 vertices", len(cube.data.vertices) == 8, len(cube.data.vertices))
 
@@ -173,6 +176,40 @@ def main():
     check("no stray imported object", mesh_count() == 1, mesh_count())
     check("returned file kept for the next round trip", os.path.isfile(back_path))
     check("second pull has nothing to do", bridge.pull(bpy.context) == [])
+    check("a size mismatch is undone on the way back", "scale x" in " ".join(messages), messages)
+    check("the model is exactly the size it was sent at",
+          abs(bridge._diagonal(cube) - sent_diagonal) < 0.02,
+          (bridge._diagonal(cube), sent_diagonal))
+
+    # ---- a return at the same size is left alone ----
+    bridge.send(bpy.context)
+    transfer.export_model(back_path, "obj", [cube], apply_modifiers=False)
+    write(signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("a same-size return is not rescaled", "scale x" not in " ".join(messages), messages)
+
+    # ---- and the whole check can be switched off ----
+    prefs.match_scale = False
+    bridge.send(bpy.context)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=6, radius=5.0)
+    bigger = bpy.context.active_object
+    transfer.export_model(back_path, "obj", [bigger], apply_modifiers=False)
+    big_diagonal = bridge._diagonal(bigger)
+    bpy.data.objects.remove(bigger, do_unlink=True)
+    write(signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("with Match scale off the returned size is kept",
+          abs(bridge._diagonal(cube) - big_diagonal) < 0.05 and "scale x" not in " ".join(messages),
+          (round(bridge._diagonal(cube), 3), round(big_diagonal, 3), messages))
+    prefs.match_scale = True
+
+    # ---- and the whole round trip is written to the shared log ----
+    log_path = applink.shared_log_path()
+    check("the shared log exists", os.path.isfile(log_path), log_path)
+    if os.path.isfile(log_path):
+        log_text = read(log_path)
+        check("the log records the send size", "sent BridgeCube" in log_text, log_text[-200:])
+        check("the log records the correction", "scale matched" in log_text, log_text[-200:])
 
     # ---- the second root is watched too (3D-Coat exports into its own root) ----
     own_app_signal = os.path.join(OTHER_ROOT, "BlenderBridge", "export.txt")

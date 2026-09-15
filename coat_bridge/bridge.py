@@ -17,10 +17,15 @@ import os
 import time
 
 import bpy
+from mathutils import Matrix, Vector
 
 from . import applink, transfer
 
 ROOT = __package__.split(".")[0]
+
+#: a returned model is rescaled when its size differs from the sent one by more
+#: than this fraction (3D-Coat scene units are not always metres)
+SCALE_TOLERANCE = 0.02
 
 STATE = {
     "target": None,     # {"object": name, "file": path} of the last send
@@ -94,10 +99,12 @@ def send(context):
     dropped = transfer.export_model(out_path, fmt, objects, p.apply_modifiers)
     applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
 
-    STATE["target"] = {"object": active.name, "file": out_path}
+    STATE["target"] = {"object": active.name, "file": out_path, "diagonal": _diagonal(objects[0])}
     STATE["last_send"] = time.time()
     for candidate in applink.signal_files(roots):
         STATE["seen"].pop(candidate, None)
+    _log("sent %s: %s diagonal %.4f m" % (active.name, os.path.basename(out_path),
+                                          STATE["target"]["diagonal"] or 0.0))
 
     note = "" if applink.is_coat_running() is not False else " - start 3D-Coat to pick it up"
     merged = "" if len(objects) == 1 else " (%d merged)" % len(objects)
@@ -183,9 +190,10 @@ def _import_and_link(context, path):
     names = []
     if target is not None and target.type == "MESH":
         _replace_mesh(target, imported[0])
+        note = _match_scale(target)
         target["coat_bridge_file"] = path
         bpy.data.objects.remove(imported[0], do_unlink=True)
-        names.append(target.name)
+        names.append(target.name + (" (%s)" % note if note else ""))
         imported = imported[1:]
     for extra in imported:
         extra["coat_bridge_file"] = path
@@ -208,6 +216,62 @@ def _replace_mesh(target, source):
     target.matrix_world = source.matrix_world
     if target.data.uv_layers:
         target.data.uv_layers[0].active_render = True
+
+
+def _diagonal(obj):
+    """World-space bounding-box diagonal of a mesh object, in scene units."""
+    bpy.context.view_layer.update()
+    matrix = obj.matrix_world
+    corners = [matrix @ Vector(corner) for corner in obj.bound_box]
+    if not corners:
+        return 0.0
+    size = Vector((
+        max(c.x for c in corners) - min(c.x for c in corners),
+        max(c.y for c in corners) - min(c.y for c in corners),
+        max(c.z for c in corners) - min(c.z for c in corners),
+    ))
+    return size.length
+
+
+def _match_scale(target):
+    """Undo a unit mismatch on the way back.
+
+    3D-Coat exports with its own scene scale (Scene.GetSceneScale(): "the length
+    of 1 scene unit when you export the scene"), so a model often comes home at a
+    fixed multiple - x100 with FBX is the classic one.  Measure the returned
+    geometry against the size that was sent and scale it back; report the factor
+    so the mismatch is visible instead of mysterious.
+    """
+    p = prefs()
+    if p is not None and not p.match_scale:
+        return ""
+    reference = (STATE["target"] or {}).get("diagonal") or 0.0
+    size = _diagonal(target)
+    if reference <= 0.0 or size <= 0.0:
+        return ""
+    ratio = reference / size
+    if abs(ratio - 1.0) <= SCALE_TOLERANCE:
+        _log("scale ok: %.4f m (sent %.4f m)" % (size, reference))
+        return ""
+    if ratio > 1000.0 or ratio < 0.001:
+        _log("scale x%.6g looks wrong - left alone (%.4f m vs sent %.4f m)" % (ratio, size, reference))
+        return "scale x%.4g left alone" % ratio
+    matrix = target.matrix_world.inverted() @ Matrix.Scale(ratio, 4) @ target.matrix_world
+    target.data.transform(matrix)
+    target.data.update()
+    _log("scale matched: x%.6g (%.4f m -> %.4f m)" % (ratio, size, reference))
+    return "scale x%.6g" % ratio
+
+
+def _log(message):
+    """Append a line to the log the 3D-Coat side writes too."""
+    try:
+        path = applink.shared_log_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8", newline="\n") as handle:
+            handle.write("%s | blender | %s\n" % (time.strftime("%H:%M:%S"), message))
+    except Exception:
+        pass  # logging must never break a transfer
 
 
 def _is_ours(path, roots):

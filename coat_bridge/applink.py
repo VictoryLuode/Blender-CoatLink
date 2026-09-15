@@ -145,6 +145,12 @@ def import_txt(root):
     return os.path.join(root, "import.txt")
 
 
+def shared_log_path():
+    """The log both sides of the bridge write to (the 3D-Coat user folder), so a
+    scale mismatch or a silent failure can be diagnosed in one place."""
+    return os.path.join(_documents_bases()[0], "3DCoat", "CoatBridge.log")
+
+
 def signal_files(roots):
     """Where a returned model is announced, in every root.
 

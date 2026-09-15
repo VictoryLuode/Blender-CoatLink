@@ -92,7 +92,9 @@ class FakeCoat(object):
             return types.SimpleNamespace(name=lambda: os.path.splitext(os.path.basename(path))[0])
 
         # coat.Scene.importMesh(...) - an attribute, exactly like the API
-        self.Scene = types.SimpleNamespace(importMesh=_import_mesh)
+        self.Scene = types.SimpleNamespace(importMesh=_import_mesh,
+                                           GetSceneUnits=lambda: "m",
+                                           GetSceneScale=lambda: 1.0)
 
     def dialog(self):
         return FakeDialog(self.dialog_log)

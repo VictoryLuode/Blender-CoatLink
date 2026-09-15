@@ -91,6 +91,22 @@ panel's `RemoveLauncher` button takes all of that back out again.
 | Space-panel buttons | no | `show_space_panel("*Subset")` only takes built-in subsets |
 | **Right-hand dock column (VoxTree / Layers / Multires / ...)** | **no** | those are built-in window ids in each room's `Layout.xml`; the Python API has no call to register a window, `ui.enableWindow()` only toggles built-ins, and the Qt manager only undocks built-ins |
 
+## Scale and units
+
+3D-Coat exports with its own scene scale (`Scene.GetSceneScale()`: "the length of
+1 scene unit when you export the scene"), so a model can come home at a fixed
+multiple - x100 with FBX is the classic one.  The bridge does not rely on either
+side being configured correctly:
+
+* on send it records the model's size (world-space bounding-box diagonal),
+* on pull it measures the model that came back and scales it to the recorded size
+  when the two differ by more than 2% (reported in the status as `scale x0.01`),
+* `Match scale` in the menu turns that off; a factor beyond x1000 is reported but
+  not applied,
+* both sides append to `Documents/3DCoat/CoatBridge.log` - the Blender side logs
+  the sent size and the correction, the 3D-Coat side logs its own
+  `units=... scale=...`, so the real factor is always readable.
+
 ## Use
 
 Everything is in one place: the **Coat Bridge** button in the top bar, in the
