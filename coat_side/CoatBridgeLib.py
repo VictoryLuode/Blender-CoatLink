@@ -39,7 +39,11 @@ PANEL_CAPTION = "Coat Bridge"
 VERSION = "1.4.0"
 #: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
 #: there is nothing to choose - Blender reads the returned file by extension.
-EXPORT_FORMAT = "fbx"
+#: The model 3D-Coat hands back.  OBJ both ways on purpose: the axis rule then
+#: applies to both directions identically.  (An FBX carries its own up-axis
+#: declaration, an OBJ does not, so mixing the two formats meant the two
+#: directions could never be made to agree.)
+EXPORT_FORMAT = "obj"
 
 #: 3D-Coat's own decimation slider.  This is the id the shipped scripts use -
 #: UserPrefs/Scripts/mm_export.as and CoreAPI/Templates/CoreAPI_Export/

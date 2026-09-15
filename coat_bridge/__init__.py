@@ -6,7 +6,7 @@
 bl_info = {
     "name": "Coat Bridge",
     "author": "VictoryLuode",
-    "version": (1, 9, 0),
+    "version": (1, 10, 0),
     "blender": (4, 2, 0),
     "location": "Top Bar > Coat Bridge",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
@@ -72,7 +72,7 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
     )
     axis_mode: EnumProperty(
         name="Axis",
-        description="Which axis convention to use when talking to 3D-Coat",
+        description="Axis convention for the model going out and coming back (OBJ carries no axis of its own, so this one rule covers both directions)",
         items=[
             ("auto", "Auto (match 3D-Coat)", "Follow 3D-Coat's own swap Y/Z setting"),
             ("normal", "Normal (Y up)", "Blender's own convention"),

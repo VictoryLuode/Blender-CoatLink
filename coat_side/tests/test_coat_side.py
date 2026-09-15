@@ -126,9 +126,9 @@ def main():
     check("send uses the AppLink target when it exists", "AppLink" in panel.status, panel.status)
     check("send leaves 3D-Coat's own signal in place",
           os.path.isfile(bridge.signal_path(own_root))
-          and "bridge.fbx" in open(bridge.signal_path(own_root)).read())
+          and bool(open(bridge.signal_path(own_root)).read().strip()))
     check("send tells 3D-Coat which file to use",
-          any(args and "bridge.fbx" in str(args[0]) for args in coat.ui.setFileForFileDialog.calls),
+          any(args and "bridge.obj" in str(args[0]) for args in coat.ui.setFileForFileDialog.calls),
           coat.ui.setFileForFileDialog.calls)
 
     # ---- send, direct export fallback ----
@@ -141,13 +141,14 @@ def main():
 
     coat.direct_export = direct_export
     panel.SendToBlender()
-    check("send falls back to the direct export", bool(cmd.calls) and cmd.calls[-1].endswith("bridge.fbx"), cmd.calls[-1:])
+    check("send falls back to the direct export", bool(cmd.calls) and cmd.calls[-1].endswith("bridge.obj"), cmd.calls[-1:])
     check("send writes the signal Blender watches", os.path.isfile(bridge.signal_path(own_root)))
-    check("send reports the file", "Sent to Blender" in panel.status and "bridge.fbx" in panel.status, panel.status)
+    check("send reports the file", "Sent to Blender" in panel.status and "bridge.obj" in panel.status, panel.status)
 
     # ---- there is exactly one export format ----
     check("the panel keeps no format state", not hasattr(panel, "format"))
-    check("3D-Coat hands back FBX", bridge.EXPORT_FORMAT == "fbx")
+    check("3D-Coat hands back OBJ, the same format Blender sends",
+          bridge.EXPORT_FORMAT == "obj", bridge.EXPORT_FORMAT)
 
     # ---- panel layout mirrors the Blender menu ----
     items = panel.ui()

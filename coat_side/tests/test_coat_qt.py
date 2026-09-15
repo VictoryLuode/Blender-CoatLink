@@ -80,7 +80,7 @@ def main():
     coat.direct_export = direct_export
     window.send_button.click()
     app.processEvents()
-    check("Send to Blender exports a model", any(path.endswith("bridge.fbx") for path in cmd.calls), cmd.calls)
+    check("Send to Blender exports a model", any(path.endswith("bridge.obj") for path in cmd.calls), cmd.calls)
     check("Send writes the signal Blender watches", os.path.isfile(CoatBridge.signal_path(own_root)))
     check("Send reports in the status line", "Sent to Blender" in window.status_label.text(),
           window.status_label.text())
@@ -100,7 +100,7 @@ def main():
     check("Send prefers 3D-Coat's AppLink target when it exists",
           "AppLink" in window.status_label.text(), window.status_label.text())
     check("Send tells 3D-Coat which file to use",
-          any(args and "bridge.fbx" in str(args[0]) for args in coat.ui.setFileForFileDialog.calls))
+          any(args and "bridge.obj" in str(args[0]) for args in coat.ui.setFileForFileDialog.calls))
     coat.applink_present = False
 
     # ---- Pull from Blender ----

@@ -65,7 +65,7 @@ def main():
     coat.direct_export = lambda path: open(path, "w", encoding="utf-8").write("# exported\n")
     coat.dialog_log.clear()
     status = lib.run_action("CoatBridge_Send")
-    check("send exports a model", any(path.endswith("bridge.fbx") for path in cmd.calls), cmd.calls)
+    check("send exports a model", any(path.endswith("bridge.obj") for path in cmd.calls), cmd.calls)
     check("send writes the signal Blender watches", os.path.isfile(lib.signal_path(own_root)))
     check("send reports the result", "Sent to Blender" in status, status)
     check("send opens no dialog", coat.dialog_log == [], coat.dialog_log)

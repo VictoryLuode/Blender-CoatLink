@@ -94,8 +94,21 @@ def transfer_scale(context):
     return value, "3D-Coat scene scale"
 
 
-def axis_swap(context, p=None):
-    """True/False/None: None means "leave Blender's own convention alone"."""
+#: formats that carry their own up-axis declaration (FBX does) - for those the
+#: file decides and the bridge keeps its hands off
+SELF_DESCRIBING_AXES = ("fbx",)
+
+
+def axis_swap(context, p=None, fmt=None):
+    """True/False/None for the axis convention; None = leave it to the file.
+
+    OBJ has no axis metadata, so there the bridge must say which convention the
+    file is in - one rule, used for the export and the import alike, which is
+    what keeps the two directions from drifting apart.  FBX declares its own
+    axes, so overriding them there is how a model ends up rotated twice.
+    """
+    if fmt in SELF_DESCRIBING_AXES:
+        return None
     p = p or prefs(context)
     if p is None:
         return None
@@ -130,7 +143,7 @@ def send(context):
             obj.data.uv_layers.new(name="UVMap", do_init=False)
 
     scale, scale_from = transfer_scale(context)
-    swap = axis_swap(context, p)
+    swap = axis_swap(context, p, fmt)
     overrides = {"global_scale": scale}
     overrides.update(transfer.axis_overrides(fmt, "export", swap))
 
@@ -230,7 +243,7 @@ def _import_and_link(context, path):
     if not transfer.ensure_module(fmt):
         raise RuntimeError(transfer.missing_reason(fmt) or "%s unavailable" % fmt)
     imported, dropped = transfer.import_model(
-        path, fmt, transfer.axis_overrides(fmt, "import", axis_swap(context)))
+        path, fmt, transfer.axis_overrides(fmt, "import", axis_swap(context, fmt=fmt)))
     if dropped:
         STATE["log"].append("dropped import options: %s" % ", ".join(dropped))
 

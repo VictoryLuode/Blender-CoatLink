@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.15.0 - 2026-09-13
+
+One format, one axis rule, both directions.
+
+* Measured from a real round trip: the model Blender sent was 0.12 m across and
+  the file 3D-Coat returned (FBX) was **empty**, and the two directions used
+  different formats - OBJ out, FBX back.  An FBX declares its own up-axis while
+  an OBJ does not, so the two directions could never be made to agree on
+  orientation.
+* 3D-Coat now hands the model back as **OBJ too**, so the axis rule (the `Axis`
+  setting, fed by 3D-Coat's own swap-Y/Z option) applies to the export and the
+  import identically.  This is what was meant to keep the two from drifting.
+* Blender still reads an FBX return (any older or hand-made file), but no longer
+  overrides the axes of a format that carries its own - that is how a model ends
+  up rotated twice.
+* Blender addon 1.10.0.  Suites: Blender 90 checks; 3D-Coat 88 + 29 + 24.
+
 ## v1.14.0 - 2026-09-13
 
 Size and axis: detected on the 3D-Coat side, matched on the Blender side.
