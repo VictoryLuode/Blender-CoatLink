@@ -7,7 +7,7 @@
 # already pumps Qt events every frame (cModules/QT/QT.py -> app.processEvents()),
 # so a plain script can create a window and it stays interactive: no cExtension,
 # no event loop of our own, no second process, no IPC.  Every button talks to the
-# 3D-Coat API directly through the shared logic in CoatBridge.py.
+# 3D-Coat API directly through the shared logic in lib.py.
 #
 # Layout mirrors the Blender add-on's menu:
 #
@@ -28,7 +28,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() el
 if _HERE and _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-import CoatBridge  # exchange logic + actions (no UI)
+import CoatBridgeLib as lib  # exchange logic + actions (no UI)
 
 WINDOW_TITLE = "Coat Bridge"
 WINDOW_WIDTH = 320
@@ -63,7 +63,7 @@ if not QT_ERROR:
 
 
     class BridgeWindow(QMainWindow):
-        """The panel.  Everything it does is one call into CoatBridge."""
+        """The panel.  Everything it does is one call into lib."""
 
         def __init__(self, bridge):
             super().__init__()
@@ -92,7 +92,7 @@ if not QT_ERROR:
             row = QHBoxLayout()
             row.addWidget(QLabel("Format"))
             self.format_box = QComboBox()
-            self.format_box.addItems(list(CoatBridge.FORMAT_ITEMS))
+            self.format_box.addItems(list(lib.FORMAT_ITEMS))
             self.format_box.setCurrentText(self.bridge.format)
             self.format_box.currentTextChanged.connect(self._set_format)
             row.addWidget(self.format_box, 1)
@@ -125,7 +125,7 @@ if not QT_ERROR:
             column.addWidget(self.status_label)
             self.detail_label = _small(self.bridge.detail)
             column.addWidget(self.detail_label)
-            column.addWidget(_small(CoatBridge.REOPEN_HINT))
+            column.addWidget(_small(lib.REOPEN_HINT))
             column.addStretch(1)
 
             self._apply_saved_geometry()
@@ -148,7 +148,7 @@ if not QT_ERROR:
 
         def _set_format(self, text):
             self.bridge.format = text
-            CoatBridge.save_state({"format": text})
+            lib.save_state({"format": text})
             self.refresh()
 
         def refresh(self):
@@ -159,7 +159,7 @@ if not QT_ERROR:
         # ---- geometry -----------------------------------------------------
 
         def _apply_saved_geometry(self):
-            saved = CoatBridge.load_state().get(STATE_KEY)
+            saved = lib.load_state().get(STATE_KEY)
             if isinstance(saved, list) and len(saved) == 4:
                 try:
                     self.setGeometry(*[int(value) for value in saved])
@@ -175,7 +175,7 @@ if not QT_ERROR:
 
         def closeEvent(self, event):
             geometry = self.geometry()
-            CoatBridge.save_state({STATE_KEY: [geometry.x(), geometry.y(),
+            lib.save_state({STATE_KEY: [geometry.x(), geometry.y(),
                                                geometry.width(), geometry.height()]})
             if _window[0] is self:
                 _window[0] = None
@@ -186,10 +186,10 @@ def main():
     """Open the panel, or bring the open one to the front."""
     if QT_ERROR:
         # no Qt in this build of 3D-Coat: the native dialog still works
-        return CoatBridge.show_panel(force=True)
+        return lib.show_panel(force=True)
 
     if QApplication.instance() is None:
-        return CoatBridge.show_panel(force=True)
+        return lib.show_panel(force=True)
 
     existing = _window[0]
     if existing is not None:
@@ -198,15 +198,16 @@ def main():
         existing.activateWindow()
         return existing
 
-    CoatBridge.register_menu_item()
-    CoatBridge.register_room_tools()
-    window = BridgeWindow(CoatBridge.CoatBridgePanel())
+    lib.register_menu_item()
+    lib.register_room_tools()
+    window = BridgeWindow(lib.CoatBridgePanel())
     _window[0] = window
     window.show()
     return window
 
 
-# 3D-Coat runs scripts through runpy, so __name__ is "<run_path>"; importing this
-# module (from a test, or from the next version of the panel) must not open it.
-if __name__ in ("__main__", "<run_path>"):
-    main()
+# 3D-Coat imports the script as a module and then runs it, so the call below is
+# unconditional - exactly like every script 3D-Coat ships.  Importing this file
+# from a test therefore opens the panel; use CoatBridgeLib for the logic.
+lib.log("entry CoatBridgeQt as %r" % __name__)
+main()

@@ -15,6 +15,7 @@ import tempfile
 import shutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+QT_ENTRY = os.path.join(HERE, "..", "CoatBridgeQt.py")
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..")))
 
@@ -38,13 +39,15 @@ def main():
     coat, cmd = fake_coat.build_environment(tmp)
     app = QApplication.instance() or QApplication([])
 
-    # ---- importing must not do anything visible ----
-    import CoatBridge
-    check("importing the logic module opens no dialog", coat.dialog_log == [], coat.dialog_log)
+    # ---- the logic module is import-safe, the entry runs when 3D-Coat runs it ----
+    import CoatBridgeLib
+    CoatBridge = CoatBridgeLib  # the name the checks below use
 
-    import CoatBridgeQt
-    check("Qt is available in this interpreter", CoatBridgeQt.QT_ERROR == "", CoatBridgeQt.QT_ERROR)
-    check("importing the panel opens no window", CoatBridgeQt._window[0] is None)
+    import runpy
+
+    namespace = runpy.run_path(QT_ENTRY)
+    check("the Qt entry reports no Qt problem", namespace["QT_ERROR"] == "", namespace["QT_ERROR"])
+    check("running the entry opens a window", namespace["_window"][0] is not None)
 
     # ---- a model Blender queued, like the real workflow ----
     folder = CoatBridge.ensure_folder(job_root)
@@ -55,10 +58,9 @@ def main():
         handle.write(queued + "\n" + queued + "\n[ppp]\n")
 
     # ---- the panel ----
-    window = CoatBridgeQt.main()
-    check("main() returns the panel", window is not None and window.windowTitle() == "Coat Bridge",
-          window and window.windowTitle())
-    check("opening twice raises the same window", CoatBridgeQt.main() is window)
+    window = namespace["_window"][0]
+    check("the window is titled Coat Bridge", window.windowTitle() == "Coat Bridge", window.windowTitle())
+    check("opening twice raises the same window", namespace["main"]() is window)
     check("panel shows the stored format", window.format_box.currentText() == CoatBridge.load_state().get("format", "FBX"),
           window.format_box.currentText())
     check("panel has both transfer buttons",
@@ -141,19 +143,24 @@ def main():
     window.move(123, 77)
     window.close()
     app.processEvents()
-    check("closing clears the singleton", CoatBridgeQt._window[0] is None)
-    again = CoatBridgeQt.main()
+    check("closing clears the singleton", namespace["_window"][0] is None)
+    again = namespace["main"]()
     check("reopening restores the position", (again.x(), again.y()) == (123, 77), (again.x(), again.y()))
     again.close()
 
-    # ---- without Qt the native dialog still works ----
-    original_error = CoatBridgeQt.QT_ERROR
-    CoatBridgeQt.QT_ERROR = "no Qt in this build"
+    # ---- without Qt the entry falls back to the native dialog ----
+    # (runpy returns a copy of the globals, so the fallback is tested on the real
+    # module object where QT_ERROR can actually be flipped)
+    import CoatBridgeQt as qt_entry
+
+    qt_entry._window[0].close()
+    original_error = qt_entry.QT_ERROR
+    qt_entry.QT_ERROR = "no Qt in this build"
     coat.dialog_log.clear()
-    CoatBridgeQt.main()
+    qt_entry.main()
     check("without Qt it falls back to the native dialog",
           any(name == "show" for name, _args in coat.dialog_log), coat.dialog_log)
-    CoatBridgeQt.QT_ERROR = original_error
+    qt_entry.QT_ERROR = original_error
 
     failed = [item for item in RESULTS if not item[1]]
     print("\nRESULT: %d/%d checks passed" % (len(RESULTS) - len(failed), len(RESULTS)))

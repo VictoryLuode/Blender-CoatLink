@@ -24,6 +24,7 @@
 import os
 import subprocess
 import sys
+import time
 
 import coat
 
@@ -157,6 +158,30 @@ def sent_models(root):
 # --------------------------------------------------------------------------
 # settings (plain json next to the 3D-Coat user data, no coat API needed)
 # --------------------------------------------------------------------------
+
+def log_path():
+    """A small append-only log next to the 3D-Coat user data, so a silent
+    failure inside 3D-Coat can be diagnosed from outside."""
+    return os.path.join(documents_bases()[0], "3DCoat", "CoatBridge.log")
+
+
+def log(message):
+    try:
+        LINES = 400
+        path = log_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if os.path.isfile(path):
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                lines = handle.read().splitlines()
+            if len(lines) > LINES:
+                with open(path, "w", encoding="utf-8", newline="\n") as handle:
+                    handle.write("\n".join(lines[-LINES // 2:]) + "\n")
+        with open(path, "a", encoding="utf-8", newline="\n") as handle:
+            handle.write("%s | %s\n" % (time.strftime("%H:%M:%S"), message))
+        return True
+    except Exception:
+        return False
+
 
 def state_path():
     base = documents_bases()[0]
@@ -390,6 +415,7 @@ class CoatBridgePanel(object):
         return os.path.isfile(path)
 
     def _report(self, status, detail):
+        log(status + (" | " + detail if detail else ""))
         self.status = status
         self.detail = detail
         try:
@@ -540,9 +566,3 @@ def main():
     register_menu_item()
     register_room_tools()
     show_panel()
-
-
-# 3D-Coat runs scripts through runpy, so __name__ is "<run_path>"; running the
-# file directly (or importing it as a module) must not open the panel.
-if __name__ in ("__main__", "<run_path>"):
-    main()

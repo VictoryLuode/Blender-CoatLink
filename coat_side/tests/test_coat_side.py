@@ -21,7 +21,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fake_coat import FakeCoat, build_environment  # shared fake 3D-Coat API
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCRIPT = os.path.join(HERE, "..", "CoatBridge.py")
+LIB = os.path.join(HERE, "..", "CoatBridgeLib.py")
+DIALOG_ENTRY = os.path.join(HERE, "..", "CoatBridgeDialog.py")
 
 RESULTS = []
 
@@ -32,7 +33,7 @@ def check(name, condition, detail=""):
 
 
 def import_script():
-    spec = importlib.util.spec_from_file_location("coat_bridge_3dcoat", SCRIPT)
+    spec = importlib.util.spec_from_file_location("coat_bridge_lib", LIB)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -51,10 +52,10 @@ def main():
     # ---- importing must do nothing: 3D-Coat runs the file as a script ----
     check("importing the module opens nothing", coat.dialog_log == [], coat.dialog_log)
 
-    # ---- now run it the way 3D-Coat does (runpy -> __name__ == "<run_path>") ----
+    # ---- the dialog entry runs unconditionally, the way 3D-Coat runs a script ----
     import runpy
 
-    runpy.run_path(SCRIPT)
+    runpy.run_path(DIALOG_ENTRY)
     steps = [name for name, _args in coat.dialog_log]
     check("panel is shown when run as a script", bool(steps) and steps[-1] == "show", steps)
     check("panel caption matches the Blender side",

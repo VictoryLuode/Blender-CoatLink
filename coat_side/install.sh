@@ -20,7 +20,8 @@ fi
 
 DIR="$TARGET/CoatBridge"
 mkdir -p "$DIR"
-cp "$REPO/coat_side/CoatBridge.py" "$REPO/coat_side/CoatBridgeQt.py" "$DIR/"
+rm -f "$DIR/CoatBridge.py"  # renamed to CoatBridgeLib.py
+cp "$REPO/coat_side/CoatBridgeLib.py" "$REPO/coat_side/CoatBridgeQt.py" "$REPO/coat_side/CoatBridgeDialog.py" "$DIR/"
 rm -rf "$DIR/__pycache__"
 
 MENU_DIR="$TARGET/ExtraMenuItems"
@@ -39,7 +40,7 @@ cat > "$MENU_DIR/CoatBridge.xml" <<XML
 </ClassArray.ExtraMenuItem>
 XML
 
-echo "script : $DIR/CoatBridgeQt.py  (the Qt panel; CoatBridge.py holds the logic)"
+echo "script : $DIR/CoatBridgeQt.py  (Qt panel; CoatBridgeLib.py = logic, CoatBridgeDialog.py = native fallback)"
 echo "menu   : $MENU_DIR/CoatBridge.xml  (Scripts > Coat Bridge)"
 
 ICON_DIR="$COAT/data/Textures/icons64"

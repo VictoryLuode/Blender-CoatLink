@@ -1,18 +1,20 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Check every 3D-Coat API call in CoatBridge.py against the shipped stubs.
+"""Check every 3D-Coat API call in the coat_side scripts against the shipped stubs.
 
 3D-Coat ships complete type stubs (UserPrefs/PythonAPI/coat.pyi and CMD.pyi).
 Parsing them is the cheapest way to be sure a script only calls things that
 exist - a typo in an API name fails silently inside 3D-Coat otherwise.
 
-    python coat_side/tests/check_coat_api.py [path/to/CoatBridge.py] [path/to/PythonAPI]
+    python coat_side/tests/check_coat_api.py [script ...] [--api DIR]
 """
 
+import glob
 import os
 import re
 import sys
 
-DEFAULT_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "CoatBridge.py")
+HERE = os.path.dirname(os.path.abspath(__file__))
+COAT_SIDE = os.path.abspath(os.path.join(HERE, ".."))
 DEFAULT_API = r"D:\Program Files\3DCoat-2026\UserPrefs\PythonAPI"
 
 CLASS_RE = re.compile(r"^class\s+([A-Za-z_][A-Za-z0-9_]*)")
@@ -21,6 +23,10 @@ FUNC_RE = re.compile(r"^def\s+([A-Za-z_][A-Za-z0-9_]*)")
 
 CALL_RE = re.compile(r"\bcoat\.([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_]*))?")
 CMD_CALL_RE = re.compile(r"\bCMD\.([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def default_scripts():
+    return sorted(glob.glob(os.path.join(COAT_SIDE, "*.py")))
 
 
 def parse_stub(path):
@@ -45,29 +51,18 @@ def parse_stub(path):
     return classes, functions
 
 
-def main():
-    script_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SCRIPT
-    api_dir = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_API
-    coat_pyi = os.path.join(api_dir, "coat.pyi")
-    cmd_pyi = os.path.join(api_dir, "CMD.pyi")
-    for path in (script_path, coat_pyi, cmd_pyi):
-        if not os.path.isfile(path):
-            print("missing file: %s" % path)
-            return 2
-
-    classes, functions = parse_stub(coat_pyi)
-    _cmd_classes, cmd_functions = parse_stub(cmd_pyi)
-
+def check_script(script_path, classes, functions, cmd_functions):
+    """Returns (checked names, problems) for one script."""
     text = open(script_path, "r", encoding="utf-8").read()
-    # ignore the import lines themselves
+    # ignore the import line itself
     body = "\n".join(line for line in text.splitlines() if not line.strip().startswith("import "))
 
-    checked, problems = [], []
+    checked, problems = set(), []
     for match in CALL_RE.finditer(body):
         first, second = match.group(1), match.group(2)
         if second is None:
             if first in classes or first in functions:
-                checked.append("coat." + first)
+                checked.add("coat." + first)
             else:
                 problems.append("coat.%s is neither a class nor a function" % first)
             continue
@@ -77,17 +72,44 @@ def main():
         if second not in classes[first]:
             problems.append("coat.%s.%s - class '%s' has no member '%s'" % (first, second, first, second))
             continue
-        checked.append("coat.%s.%s" % (first, second))
+        checked.add("coat.%s.%s" % (first, second))
 
     for match in CMD_CALL_RE.finditer(body):
         name = match.group(1)
         if name in cmd_functions:
-            checked.append("CMD." + name)
+            checked.add("CMD." + name)
         else:
             problems.append("CMD.%s - not declared in CMD.pyi" % name)
 
-    print("checked %d API reference(s) in %s" % (len(set(checked)), os.path.basename(script_path)))
-    for name in sorted(set(checked)):
+    return checked, problems
+
+
+def main():
+    args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
+    api_dir = DEFAULT_API
+    if "--api" in sys.argv:
+        api_dir = sys.argv[sys.argv.index("--api") + 1]
+
+    scripts = args or default_scripts()
+    coat_pyi = os.path.join(api_dir, "coat.pyi")
+    cmd_pyi = os.path.join(api_dir, "CMD.pyi")
+    for path in [coat_pyi, cmd_pyi] + scripts:
+        if not os.path.isfile(path):
+            print("missing file: %s" % path)
+            return 2
+
+    classes, functions = parse_stub(coat_pyi)
+    _cmd_classes, cmd_functions = parse_stub(cmd_pyi)
+
+    total, problems = set(), []
+    for script_path in scripts:
+        checked, found = check_script(script_path, classes, functions, cmd_functions)
+        total |= checked
+        problems += ["%s: %s" % (os.path.basename(script_path), problem) for problem in found]
+        print("%-22s %2d API reference(s)" % (os.path.basename(script_path), len(checked)))
+
+    print("\n%d distinct API reference(s) checked:" % len(total))
+    for name in sorted(total):
         print("  ok  %s" % name)
     if problems:
         print("\n%d problem(s):" % len(problems))
