@@ -366,6 +366,37 @@ def main():
     check("foreign model not imported", mesh_count() == 1, mesh_count())
     os.remove(signal)
 
+    # ---- one trip, one model: 3D-Coat leaves a signal in BOTH roots ----
+    # (and the returned file matches no object, which is when a double import
+    #  shows up as two copies in the scene rather than one replaced mesh)
+    imported_paths = []
+    real_import = transfer.import_model
+
+    def counting_import(path, fmt, overrides=None):
+        imported_paths.append(path)
+        return real_import(path, fmt, overrides)
+
+    transfer.import_model = counting_import
+    lone_path = applink.model_path(EXCHANGE, "obj", name="lone_return")
+    transfer.export_model(lone_path, "obj", [cube], apply_modifiers=False)
+    both = [os.path.join(EXCHANGE, "BlenderBridge", "export.txt"),
+            os.path.join(OTHER_ROOT, "BlenderBridge", "export.txt")]
+    for target in both:
+        write(target, lone_path + "\n")
+    before = mesh_count()
+    messages = bridge.pull(bpy.context, force=True)
+    check("a signal in both roots imports the model exactly once", len(imported_paths) == 1,
+          imported_paths)
+    check("so no extra object is left behind", mesh_count() <= before, (before, mesh_count()))
+    check("both signals are consumed", not any(os.path.isfile(target) for target in both),
+          [os.path.isfile(target) for target in both])
+    check("and it is reported once", len([m for m in messages if "Pulled" in m]) <= 1, messages)
+    transfer.import_model = real_import
+    for obj in list(bpy.data.objects):          # drop what that test added
+        if obj.type == "MESH" and obj.name != cube.name:
+            bpy.data.objects.remove(obj, do_unlink=True)
+    os.remove(lone_path)
+
     # ---- whatever 3D-Coat returns is read by its extension ----
     bridge.send(bpy.context)
     transfer.export_model(back_path_fbx, "fbx", [cube], apply_modifiers=False)

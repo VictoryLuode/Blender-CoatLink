@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.16.2 - 2026-09-13
+
+A pull imports one model, not one per signal.
+
+* Reported: the same model sometimes landed in Blender twice.  Cause found and
+  reproduced in a test: 3D-Coat leaves a signal in **both** exchange roots (and
+  can write the model into both), and the pull imported once per signal - same
+  path twice, two "Pulled" lines, two passes over the same mesh.
+* The pull now reads every signal first and then imports exactly **one** model,
+  the newest, marking all the signals as seen and consuming the ones that list
+  nothing foreign.  A deliberate re-pull (the button) still works, and a signal
+  the official AppLink owns is still left alone.
+* Regression checks: a signal in both roots imports exactly once, leaves no extra
+  object behind, consumes both signals, and reports it once.
+* Blender add-on 1.10.2.  Blender suite 94 checks.
+
 ## v1.16.1 - 2026-09-13
 
 Cleanup after the audit, and the version rule.

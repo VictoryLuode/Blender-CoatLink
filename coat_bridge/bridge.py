@@ -178,12 +178,22 @@ def send(context):
 
 
 def pull(context, force=False):
-    """Consume a returned model.  Returns the list of messages produced."""
+    """Consume the returned model.  Returns the list of messages produced.
+
+    One trip means one model: the protocol uses a single fixed file name, and
+    3D-Coat leaves a signal in **both** exchange roots (and can write the model
+    into both as well).  So all the signals are read first and then exactly one
+    model - the newest - is imported.  Importing per signal is what used to make
+    the same model land in Blender twice.
+    """
     p = prefs(context)
     if p is None:
         raise RuntimeError("add-on preferences unavailable")
     roots = applink.exchange_roots(p.exchange_folder)
     messages = []
+    candidates = []          # (mtime, path)
+    already = set()          # a path listed by more than one signal
+    handled = []             # (signal, may be removed: it lists nothing foreign)
 
     for signal in applink.signal_files(roots):
         if not os.path.isfile(signal):
@@ -194,34 +204,45 @@ def pull(context, force=False):
         paths = applink.read_export_paths(signal)
         ours = [path for path in paths if _is_ours(path, roots)]
         foreign = [path for path in paths if path not in ours]
+        STATE["seen"][signal] = mtime
         if not ours:
-            STATE["seen"][signal] = mtime
             if foreign:
                 messages.append("Ignored export.txt outside BlenderBridge: %s" % os.path.basename(paths[0]))
             continue
-
-        STATE["seen"][signal] = mtime
-        imported = []
+        handled.append((signal, not foreign))
         for path in ours:
+            if path in already:
+                continue
+            already.add(path)
             if not os.path.isfile(path):
                 messages.append("returned file is missing: %s" % os.path.basename(path))
                 continue
-            try:
-                imported += _import_and_link(context, path)
-            except Exception as exc:
-                messages.append("import failed for %s: %s" % (os.path.basename(path), exc))
-        if imported and not foreign:
-            try:
-                os.remove(signal)
-            except OSError:
-                pass
-        if imported:
-            STATE["last_pull"] = time.time()
-            note = "Pulled %s from %s" % (", ".join(imported), os.path.basename(paths[0]))
-            messages.append(note)
-            _set_message(note)
-        elif messages:
-            _set_message(messages[-1])
+            candidates.append((os.path.getmtime(path), path))
+
+    imported = []
+    if candidates:
+        candidates.sort(reverse=True)
+        path = candidates[0][1]
+        try:
+            imported = _import_and_link(context, path)
+        except Exception as exc:
+            messages.append("import failed for %s: %s" % (os.path.basename(path), exc))
+    else:
+        path = ""
+
+    if imported:
+        for signal, removable in handled:      # the trip is used up
+            if removable:
+                try:
+                    os.remove(signal)
+                except OSError:
+                    pass
+        STATE["last_pull"] = time.time()
+        note = "Pulled %s from %s" % (", ".join(imported), os.path.basename(path))
+        messages.append(note)
+        _set_message(note)
+    elif messages:
+        _set_message(messages[-1])
 
     STATE["log"] += [msg for msg in messages if msg not in STATE["log"]]
     return messages
