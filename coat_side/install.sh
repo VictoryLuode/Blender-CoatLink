@@ -20,12 +20,12 @@ fi
 
 DIR="$TARGET/CoatBridge"
 mkdir -p "$DIR"
-cp "$REPO/coat_side/CoatBridge.py" "$DIR/"
+cp "$REPO/coat_side/CoatBridge.py" "$REPO/coat_side/CoatBridgeQt.py" "$DIR/"
 rm -rf "$DIR/__pycache__"
 
 MENU_DIR="$TARGET/ExtraMenuItems"
 mkdir -p "$MENU_DIR"
-WIN_PATH="$(cygpath -m "$DIR/CoatBridge.py")"
+WIN_PATH="$(cygpath -m "$DIR/CoatBridgeQt.py")"
 
 cat > "$MENU_DIR/CoatBridge.xml" <<XML
 <ClassArray.ExtraMenuItem>
@@ -39,7 +39,7 @@ cat > "$MENU_DIR/CoatBridge.xml" <<XML
 </ClassArray.ExtraMenuItem>
 XML
 
-echo "script : $DIR/CoatBridge.py"
+echo "script : $DIR/CoatBridgeQt.py  (the Qt panel; CoatBridge.py holds the logic)"
 echo "menu   : $MENU_DIR/CoatBridge.xml  (Scripts > Coat Bridge)"
 
 ICON_DIR="$COAT/data/Textures/icons64"

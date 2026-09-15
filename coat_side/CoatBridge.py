@@ -542,4 +542,7 @@ def main():
     show_panel()
 
 
-main()
+# 3D-Coat runs scripts through runpy, so __name__ is "<run_path>"; running the
+# file directly (or importing it as a module) must not open the panel.
+if __name__ in ("__main__", "<run_path>"):
+    main()

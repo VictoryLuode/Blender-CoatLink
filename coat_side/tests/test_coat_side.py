@@ -17,6 +17,9 @@ import sys
 import tempfile
 import types
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fake_coat import FakeCoat, build_environment  # shared fake 3D-Coat API
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(HERE, "..", "CoatBridge.py")
 
@@ -26,116 +29,6 @@ RESULTS = []
 def check(name, condition, detail=""):
     RESULTS.append((name, bool(condition), detail))
     print("%-4s %s%s" % ("PASS" if condition else "FAIL", name, "" if condition else "   <- %s" % detail))
-
-
-class Recorder(object):
-    def __init__(self, name):
-        self.name = name
-        self.calls = []
-
-    def __call__(self, *args, **kwargs):
-        self.calls.append(args)
-        return self.return_value(*args, **kwargs) if hasattr(self, "return_value") else None
-
-
-class FakeDialog(object):
-    """Chainable recorder for coat.dialog().caption(...).topRight()...show()."""
-
-    def __init__(self, log):
-        self.log = log
-
-    def _step(self, name, *args):
-        self.log.append((name, args))
-        return self
-
-    def caption(self, text):
-        return self._step("caption", text)
-
-    def noModal(self):
-        return self._step("noModal")
-
-    def topRight(self):
-        return self._step("topRight")
-
-    def width(self, value):
-        return self._step("width", value)
-
-    def buttons(self, text):
-        return self._step("buttons", text)
-
-    def params(self, value):
-        return self._step("params", value)
-
-    def process(self, callback):
-        return self._step("process", callback)
-
-    def onPress(self, callback):
-        return self._step("onPress", callback)
-
-    def show(self):
-        return self._step("show")
-
-
-class FakeCoat(object):
-    def __init__(self):
-        self.dialog_log = []
-        self.ui = types.SimpleNamespace()
-        self.io = types.SimpleNamespace()
-        self.scene_imports = []
-        self.state_file = ""
-        self.applink_present = False
-        self.applink_export = None       # callable(root) simulating 3D-Coat's own export
-        self.direct_export = None        # callable(path) simulating CMD export
-        self.messages = []
-        self.menu_inserted = False
-        self.inserted = []
-
-        self.ui.cmd = Recorder("ui.cmd")
-        self.ui.setFileForFileDialog = Recorder("ui.setFileForFileDialog")
-        self.ui.showInfoMessage = lambda text, ms: self.messages.append(text)
-        self.ui.checkIfMenuItemInserted = lambda menu_id: self.menu_inserted
-        self.ui.addTranslation = Recorder("ui.addTranslation")
-        self.ui.insertInMenu = lambda menu, menu_id, path: self.inserted.append((menu, menu_id, path))
-        self.ui.insertInToolset = Recorder("ui.insertInToolset")
-        self.ui.removeCommandFromMenu = Recorder("ui.removeCommandFromMenu")
-        self.ui.presentInUI = lambda target: self.applink_present
-
-        self.io.step = lambda frames: None
-        self.io.listBlenderInstallFolders = lambda: []
-
-        def _import_mesh(path):
-            self.scene_imports.append(path)
-            return types.SimpleNamespace(name=lambda: os.path.splitext(os.path.basename(path))[0])
-
-        # coat.Scene.importMesh(...) - an attribute, exactly like the API
-        self.Scene = types.SimpleNamespace(importMesh=_import_mesh)
-
-    def dialog(self):
-        return FakeDialog(self.dialog_log)
-
-
-def build_environment(tmp):
-    """Redirect ~ to the temp tree and install the fake modules."""
-    real_expanduser = os.path.expanduser
-
-    def fake_expanduser(path):
-        return tmp if path == "~" else real_expanduser(path)
-
-    os.path.expanduser = fake_expanduser
-
-    coat = FakeCoat()
-    sys.modules["coat"] = coat
-    cmd = types.ModuleType("CMD")
-    cmd.calls = []
-
-    def export_objects_and_textures(path):
-        cmd.calls.append(path)
-        if coat.direct_export:
-            coat.direct_export(path)
-
-    cmd.ExportObjectsAndTextures = export_objects_and_textures
-    sys.modules["CMD"] = cmd
-    return coat, cmd
 
 
 def import_script():
@@ -155,9 +48,15 @@ def main():
     coat, cmd = build_environment(tmp)
     bridge = import_script()
 
-    # ---- the script ran on import like 3D-Coat would run it ----
+    # ---- importing must do nothing: 3D-Coat runs the file as a script ----
+    check("importing the module opens nothing", coat.dialog_log == [], coat.dialog_log)
+
+    # ---- now run it the way 3D-Coat does (runpy -> __name__ == "<run_path>") ----
+    import runpy
+
+    runpy.run_path(SCRIPT)
     steps = [name for name, _args in coat.dialog_log]
-    check("panel is shown on import", steps[-1] == "show", steps)
+    check("panel is shown when run as a script", bool(steps) and steps[-1] == "show", steps)
     check("panel caption matches the Blender side",
           any(name == "caption" and args[0] == "Coat Bridge" for name, args in coat.dialog_log))
     check("panel is pinned to the top-right", "topRight" in steps and "noModal" in steps)

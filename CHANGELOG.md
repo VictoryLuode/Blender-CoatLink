@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.5.0 - 2026-09-13
+
+The 3D-Coat panel is now a Qt window inside 3D-Coat's process.
+
+* `coat_side/CoatBridgeQt.py`: a PySide6 `QMainWindow` built the way 3D-Coat's own
+  Python panels (Python Terminal, Data Tree, AI Assistant) are built.  No
+  cExtension and no event loop of our own are needed: 3D-Coat's shipped `QT`
+  extension already calls `app.processEvents()` every frame
+  (`cModules/QT/QT.py`), so a plain script can own a live window, in the same
+  process, with direct access to the `coat` API.
+* The window mirrors the Blender menu: `Send to Blender`, `Pull from Blender`,
+  `Format [FBX|OBJ]`, `Detect`, `Folder`, `Start Blender`, `Remove launcher`,
+  plus a status/detail/hint block.  It remembers its position, starts next to the
+  right-hand panel column, refreshes the status twice a second, and a second
+  `Scripts > Coat Bridge` just raises the open window.
+* `CoatBridge.py` was split into logic + actions and only runs when 3D-Coat runs
+  it (`runpy` -> `__name__ == "<run_path>"`), so the Qt panel can import it.
+  If Qt is missing, the panel falls back to the native dialog.
+* Corrected an earlier claim: the dock/tab row (Layers / FPS-monitor /
+  Extensions / Object Inspector) is built into 3D-Coat and cannot be extended by
+  third parties - 3D-Coat's own Python panels are windows too, not tabs.
+* Tests without 3D-Coat: `coat_side/tests/run_tests.sh` runs the API check, 52
+  logic checks and 27 Qt checks - the Qt suite builds the real window offscreen
+  on 3D-Coat's own Python and clicks every button.
+* Blender side unchanged (65 checks).
+
 ## v1.4.0 - 2026-09-13
 
 Where the 3D-Coat launcher can live, after checking every option the host offers.
