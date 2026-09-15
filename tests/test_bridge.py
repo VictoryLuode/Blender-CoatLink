@@ -493,6 +493,36 @@ def main():
             bpy.data.objects.remove(obj, do_unlink=True)
     os.remove(lone_path)
 
+    # ---- the TARGET going stale mid-import (that is the real one: removing the
+    #      temp object pushes an undo step, and Blender then invalidates every
+    #      Python reference - with "import without materials" on, the target was
+    #      used again straight after and the whole pull failed) ----
+    prefs.strip_materials = True
+    real_replace = bridge._replace_mesh
+
+    def stale_target_replace(target, source):
+        name = target.name
+        real_replace(target, source)
+        data = target.data
+        bpy.data.objects.remove(target, do_unlink=True)      # undo push: refs die
+        replacement = bpy.data.objects.new(name, data)
+        bpy.context.scene.collection.objects.link(replacement)
+
+    bridge._replace_mesh = stale_target_replace
+    transfer.export_model(back_path, "obj", [cube], apply_modifiers=False)
+    write(signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("a target that goes stale mid-import is survived",
+          any("Pulled" in message for message in messages), messages)
+    pulled = [message for message in messages if "Pulled" in message]
+    pulled_name = pulled[0].split()[1] if pulled else ""
+    cube = bpy.data.objects.get(pulled_name)     # our own reference died with it
+    check("the geometry arrived on the re-created object",
+          cube is not None and len(cube.data.vertices) > 0,
+          cube.name if cube else "gone")
+    bridge._replace_mesh = real_replace
+    prefs.strip_materials = False
+
     # ---- a reference that goes stale during the import must not break the pull ----
     # (Blender invalidates Python references when an operator pushes an undo step,
     #  which is exactly what "StructRNA of type Object has been removed" means)

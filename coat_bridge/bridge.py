@@ -15,6 +15,7 @@ left alone, so the official 3D-Coat AppLink can stay enabled.
 
 import os
 import time
+import traceback
 
 import bpy
 from mathutils import Matrix, Vector
@@ -293,6 +294,10 @@ def _pull_once(context, force):
             imported = _import_and_link(context, path)
         except Exception as exc:
             messages.append("import failed for %s: %s" % (os.path.basename(path), exc))
+            _log("import failed for %s: %s" % (os.path.basename(path), exc))
+            _log("import traceback:\n%s" % traceback.format_exc().strip())
+            _log("import context: target=%r objects=%d" % (
+                (STATE.get("target") or {}).get("object"), len(bpy.data.objects)))
     else:
         path = ""
 
@@ -394,14 +399,24 @@ def _import_and_link(context, path):
             # collect what the file brought, then keep it out of the target
             file_materials = [slot.material for slot in source.material_slots if slot.material]
             source.data.materials.clear()
+        target_name = target.name
         _replace_mesh(target, source)
         scale_note = _match_scale(target)
-        target["coat_bridge_file"] = path
+        live = _object(target_name)
+        if live is None:
+            raise RuntimeError("the target object disappeared during the import")
+        live["coat_bridge_file"] = path
+        # Removing the temp object pushes an undo step, and that invalidates every
+        # Python reference we hold - so nothing may be used across it, the target
+        # included.  Using it there is exactly the
+        # "StructRNA of type Object has been removed" failure.
         bpy.data.objects.remove(source, do_unlink=True)
-        # only now can the imported materials be collected (nothing references them)
-        material_note = _strip_materials(target, file_materials)
+        live = _object(target_name)
+        if live is None:
+            raise RuntimeError("the target object disappeared while cleaning up")
+        material_note = _strip_materials(live, file_materials)
         notes = [note for note in (scale_note, material_note) if note]
-        names.append(target.name + (" (%s)" % " ".join(notes) if notes else ""))
+        names.append(live.name + (" (%s)" % " ".join(notes) if notes else ""))
         arriving = arriving[1:]
     for name in arriving:
         extra = _object(name)
@@ -456,6 +471,12 @@ def _match_scale(target):
     p = prefs()
     if p is not None and not p.match_scale:
         return ""
+    try:
+        target = _object(target.name)
+    except ReferenceError:
+        return "size check skipped (the object went away)"
+    if target is None:
+        return "size check skipped (the object went away)"
     reference = (STATE["target"] or {}).get("diagonal") or 0.0
     size = _diagonal(target)
     if reference <= 0.0 or size <= 0.0:

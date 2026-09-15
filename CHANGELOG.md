@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.16.8 - 2026-09-13
+
+"StructRNA of type Object has been removed" on pull - the real one this time.
+
+* Cause: removing the temporary imported object pushes an undo step, and Blender
+  invalidates **every** Python reference when that happens - including the target
+  we were working on.  With `Import without materials` on, the target was used
+  again immediately after that removal, and the whole pull failed there.  (v1.16.3
+  re-resolved the objects once at the start; it had to happen *after* the removal
+  too.)
+* The target is now re-resolved by name after every step that can kill a
+  reference, and `_match_scale` re-resolves its own object as well, so a reference
+  that dies mid-flight is "the object went away" instead of a failed pull.
+* A failed import now writes the **traceback** and the context (target name, object
+  count) into the shared log - the message alone could not say which line failed.
+* Regression test: a target that is invalidated mid-import is survived and the
+  geometry still lands on the re-created object.
+* Blender add-on 1.10.7.  Suite 113 checks.
+
 ## v1.16.7 - 2026-09-13
 
 "the model never arrives" - the return can come from 3D-Coat's own pool.
