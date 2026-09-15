@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.16.10
+
+* Failed or missing returned models no longer permanently acknowledge their signal. Automatic pull retries without requiring a new export.txt.
+* Real Blender regression covers delayed model creation and transient import failure. Existing 113 checks pass.
+* Blender add-on 1.10.9; no UI or unit-setting changes.
+
 ## v1.16.9
 
 * Fix first return / deleted target: resolve replacement targets only among objects existing before import. Never delete an arriving object as its own temporary source.

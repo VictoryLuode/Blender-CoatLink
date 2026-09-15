@@ -312,8 +312,14 @@ def _pull_once(context, force):
         note = "Pulled %s from %s" % (", ".join(imported), os.path.basename(path))
         messages.append(note)
         _set_message(note)
-    elif messages:
-        _set_message(messages[-1])
+    else:
+        # A signal is not an acknowledgement until its model was imported.
+        # Exporters may publish the signal before finishing the model. Leave
+        # unsuccessful owned signals retryable even if export.txt is unchanged.
+        for signal, _removable in handled:
+            STATE["seen"].pop(signal, None)
+        if messages:
+            _set_message(messages[-1])
 
     # record the outcome where both sides can read it: a silent pull cannot be
     # diagnosed, and the watcher's idle ticks must not fill the file
