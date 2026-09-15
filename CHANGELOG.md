@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.16.9
+
+* Fix first return / deleted target: resolve replacement targets only among objects existing before import. Never delete an arriving object as its own temporary source.
+* Real Blender regression covers first import and repeated import with absent/stale target names.
+* Blender add-on 1.10.8. UI and 3D-Coat settings unchanged.
+
 ## v1.16.8 - 2026-09-13
 
 "StructRNA of type Object has been removed" on pull - the real one this time.

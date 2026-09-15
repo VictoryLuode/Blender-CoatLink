@@ -387,7 +387,13 @@ def _import_and_link(context, path):
     if not arriving:
         raise RuntimeError("the import produced nothing we can see")
 
-    target = _object((STATE["target"] or {}).get("object")) or _object(_stem(path))
+    # Only objects that existed BEFORE import can be replacement targets.
+    # An OBJ often receives its filename as the object name; resolving that
+    # name after import used to select the arriving object and delete itself.
+    target_name = (STATE["target"] or {}).get("object")
+    if target_name not in before_names:
+        target_name = _stem(path) if _stem(path) in before_names else None
+    target = _object(target_name)
     names = []
     if arriving:
         source = _object(arriving[0])
