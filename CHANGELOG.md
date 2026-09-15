@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.16.3 - 2026-09-13
+
+"StructRNA of type Object has been removed" on pull.
+
+* The import pushes an undo step, and Blender invalidates the Python references
+  to objects when it does - so the object `import_model()` handed back could
+  already be dead, and touching it failed the whole pull.  Reproduced in a test
+  (the failure message came out identical to the one on screen).
+* The pull now takes the arriving objects' **names** from the scene instead of
+  from those references (strings cannot go stale), and resolves the target and
+  the temp object by name through `_object()`, which treats a dead struct as
+  "gone" rather than as an error.
+* A pull can no longer run twice at once: the watcher's timer and a click used to
+  be able to overlap on the same model.  A second call while one is running is
+  skipped.
+* Blender add-on 1.10.3.  Suite 97 checks.
+
 ## v1.16.2 - 2026-09-13
 
 A pull imports one model, not one per signal.

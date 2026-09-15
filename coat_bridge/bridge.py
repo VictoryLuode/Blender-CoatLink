@@ -177,6 +177,11 @@ def send(context):
     return out_path
 
 
+#: a pull in progress: the watcher's timer and a click can arrive together, and
+#: two overlapping passes fight over the same objects
+PULLING = [False]
+
+
 def pull(context, force=False):
     """Consume the returned model.  Returns the list of messages produced.
 
@@ -186,6 +191,16 @@ def pull(context, force=False):
     model - the newest - is imported.  Importing per signal is what used to make
     the same model land in Blender twice.
     """
+    if PULLING[0]:
+        return []            # one at a time: the other pass owns the model
+    PULLING[0] = True
+    try:
+        return _pull_once(context, force)
+    finally:
+        PULLING[0] = False
+
+
+def _pull_once(context, force):
     p = prefs(context)
     if p is None:
         raise RuntimeError("add-on preferences unavailable")
@@ -259,36 +274,66 @@ def _send_objects(context):
     return visible
 
 
+def _object(name):
+    """Fetch an object by name and make sure the struct is still alive.
+
+    Blender invalidates Python references to objects when an operator pushes an
+    undo step, so a reference captured before an import can raise
+    "StructRNA of type Object has been removed" afterwards.  Everything that
+    spans a bpy call goes through here.
+    """
+    if not name:
+        return None
+    obj = bpy.data.objects.get(name)
+    if obj is None:
+        return None
+    try:
+        obj.name          # touching it raises ReferenceError when it is gone
+    except ReferenceError:
+        return None
+    return obj
+
+
 def _import_and_link(context, path):
     fmt = transfer.format_from_path(path)
     if not transfer.ensure_module(fmt):
         raise RuntimeError(transfer.missing_reason(fmt) or "%s unavailable" % fmt)
+    # The import pushes an undo step, so the object references it hands back can
+    # already be dead (touching one is what raises "StructRNA of type Object has
+    # been removed").  Take the names from the scene instead of from those
+    # references: they are strings and cannot go stale.
+    before_names = {obj.name for obj in bpy.data.objects}
     imported, dropped = transfer.import_model(
         path, fmt, transfer.axis_overrides(fmt, "import", axis_swap(context, fmt=fmt)))
     if dropped:
         STATE["log"].append("dropped import options: %s" % ", ".join(dropped))
+    arriving = [obj.name for obj in bpy.data.objects if obj.name not in before_names]
 
-    target_name = (STATE["target"] or {}).get("object")
-    target = bpy.data.objects.get(target_name) if target_name else None
-    if target is None:
-        target = bpy.data.objects.get(_stem(path))
+    target = _object((STATE["target"] or {}).get("object")) or _object(_stem(path))
     names = []
-    if target is not None and target.type == "MESH":
+    if arriving:
+        source = _object(arriving[0])
+    else:
+        source = None
+    if target is not None and target.type == "MESH" and source is not None:
         file_materials = []
         if _strip_enabled():
             # collect what the file brought, then keep it out of the target
-            file_materials = [slot.material for slot in imported[0].material_slots if slot.material]
-            imported[0].data.materials.clear()
-        _replace_mesh(target, imported[0])
+            file_materials = [slot.material for slot in source.material_slots if slot.material]
+            source.data.materials.clear()
+        _replace_mesh(target, source)
         scale_note = _match_scale(target)
         target["coat_bridge_file"] = path
-        bpy.data.objects.remove(imported[0], do_unlink=True)
+        bpy.data.objects.remove(source, do_unlink=True)
         # only now can the imported materials be collected (nothing references them)
         material_note = _strip_materials(target, file_materials)
         notes = [note for note in (scale_note, material_note) if note]
         names.append(target.name + (" (%s)" % " ".join(notes) if notes else ""))
-        imported = imported[1:]
-    for extra in imported:
+        arriving = arriving[1:]
+    for name in arriving:
+        extra = _object(name)
+        if extra is None:
+            continue
         extra["coat_bridge_file"] = path
         names.append(extra.name)
     return names

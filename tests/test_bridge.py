@@ -397,6 +397,42 @@ def main():
             bpy.data.objects.remove(obj, do_unlink=True)
     os.remove(lone_path)
 
+    # ---- a reference that goes stale during the import must not break the pull ----
+    # (Blender invalidates Python references when an operator pushes an undo step,
+    #  which is exactly what "StructRNA of type Object has been removed" means)
+    real_import = transfer.import_model
+
+    def stale_import(path, fmt, overrides=None):
+        objects, dropped = real_import(path, fmt, overrides)
+        for obj in objects:
+            name, data = obj.name, obj.data
+            bpy.data.objects.remove(obj, do_unlink=True)          # dead reference
+            replacement = bpy.data.objects.new(name, data)         # same name, new struct
+            bpy.context.scene.collection.objects.link(replacement)
+        return objects, dropped        # ...and hand the dead ones back
+
+    transfer.import_model = stale_import
+    write(signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("a stale reference during the import is survived",
+          any("Pulled" in message for message in messages), messages)
+    transfer.import_model = real_import
+
+    # ---- the watcher's timer and a click must not pull at the same time ----
+    passes = []
+
+    def reentrant_import(path, fmt, overrides=None):
+        passes.append(path)
+        bridge.pull(bpy.context, force=True)      # the watcher firing mid-flight
+        return real_import(path, fmt, overrides)
+
+    transfer.import_model = reentrant_import
+    write(signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("a pull that arrives while one is running is skipped", len(passes) == 1, passes)
+    check("and the first one still finishes", any("Pulled" in message for message in messages), messages)
+    transfer.import_model = real_import
+
     # ---- whatever 3D-Coat returns is read by its extension ----
     bridge.send(bpy.context)
     transfer.export_model(back_path_fbx, "fbx", [cube], apply_modifiers=False)
