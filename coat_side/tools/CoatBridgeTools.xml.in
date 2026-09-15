@@ -1,0 +1,55 @@
+<!--
+  Coat Bridge tool buttons.
+
+  Dropped into 3D-Coat's ExtraMenuItems folder: an entry with an empty MenuPath
+  and an inRoom/inSection lands in that room's tool panel instead of a menu.
+  One entry per button per room, so the buttons appear in every room listed here
+  without any script having to run first (and they survive a restart).
+
+  install.sh substitutes the script-dir placeholder in every Command below with
+  the absolute install path.
+-->
+<ClassArray.ExtraMenuItem>
+	<ExtraMenuItem>
+		<MenuPath></MenuPath>
+		<MenuItem>CoatBridge_Send</MenuItem>
+		<inRoom>Voxels</inRoom>
+		<inSection>*</inSection>
+		<Command>script:__SCRIPT_DIR__/CoatBridge_Send.py</Command>
+	</ExtraMenuItem>
+	<ExtraMenuItem>
+		<MenuPath></MenuPath>
+		<MenuItem>CoatBridge_Pull</MenuItem>
+		<inRoom>Voxels</inRoom>
+		<inSection>*</inSection>
+		<Command>script:__SCRIPT_DIR__/CoatBridge_Pull.py</Command>
+	</ExtraMenuItem>
+	<ExtraMenuItem>
+		<MenuPath></MenuPath>
+		<MenuItem>CoatBridge_Setup</MenuItem>
+		<inRoom>Voxels</inRoom>
+		<inSection>*</inSection>
+		<Command>script:__SCRIPT_DIR__/CoatBridge_Setup.py</Command>
+	</ExtraMenuItem>
+	<ExtraMenuItem>
+		<MenuPath></MenuPath>
+		<MenuItem>CoatBridge_Send</MenuItem>
+		<inRoom>Paint</inRoom>
+		<inSection>*</inSection>
+		<Command>script:__SCRIPT_DIR__/CoatBridge_Send.py</Command>
+	</ExtraMenuItem>
+	<ExtraMenuItem>
+		<MenuPath></MenuPath>
+		<MenuItem>CoatBridge_Pull</MenuItem>
+		<inRoom>Paint</inRoom>
+		<inSection>*</inSection>
+		<Command>script:__SCRIPT_DIR__/CoatBridge_Pull.py</Command>
+	</ExtraMenuItem>
+	<ExtraMenuItem>
+		<MenuPath></MenuPath>
+		<MenuItem>CoatBridge_Setup</MenuItem>
+		<inRoom>Paint</inRoom>
+		<inSection>*</inSection>
+		<Command>script:__SCRIPT_DIR__/CoatBridge_Setup.py</Command>
+	</ExtraMenuItem>
+</ClassArray.ExtraMenuItem>

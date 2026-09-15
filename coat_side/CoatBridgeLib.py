@@ -216,6 +216,50 @@ def save_state(data):
 
 
 # --------------------------------------------------------------------------
+# headless actions, for the tool-panel buttons (no UI at all)
+# --------------------------------------------------------------------------
+
+#: tool id -> label shown in the room tool panel (and in the hotkey editor)
+ACTION_LABELS = {
+    "CoatBridge_Send": ("SendToBlender", "Send to Blender"),
+    "CoatBridge_Pull": ("PullFromBlender", "Pull from Blender"),
+    "CoatBridge_Setup": ("Detect", "Coat Bridge: setup"),
+}
+
+
+def add_translations():
+    """Give the tool buttons readable labels.  3D-Coat shows the raw id until a
+    translation exists, so every action calls this when it runs."""
+    for tool_id, (_method, label) in ACTION_LABELS.items():
+        try:
+            coat.ui.addTranslation(tool_id, label)
+        except Exception:
+            pass
+
+
+def run_action(tool_id):
+    """Run one bridge action headless and report the outcome with 3D-Coat's own
+    floating message - no window, no dialog."""
+    method, label = ACTION_LABELS.get(tool_id, ("", tool_id))
+    add_translations()
+    panel = CoatBridgePanel()
+    action = getattr(panel, method, None)
+    if action is None:
+        return "unknown action: %s" % tool_id
+    log("tool %s -> %s" % (tool_id, label))
+    try:
+        action()
+    except Exception as exc:
+        panel.status = "%s failed: %s" % (label, exc)
+        log(panel.status)
+    try:
+        coat.ui.showInfoMessage(panel.status, 3000)
+    except Exception:
+        pass
+    return panel.status
+
+
+# --------------------------------------------------------------------------
 # the panel
 # --------------------------------------------------------------------------
 

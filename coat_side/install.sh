@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 # Install the 3D-Coat side of Coat Bridge into 3D-Coat's user script folder.
 #
-#   coat_side/install.sh [scripts-dir]
+#   coat_side/install.sh [scripts-dir] [3dcoat-install-dir]
 #
-# Default target: Documents/3DCoat/UserPrefs/Scripts (where 3D-Coat 2026 keeps
-# user scripts).  Copies CoatBridge.py and writes the menu entry XML that makes
-# it appear in the Scripts menu; nothing else is touched.
+# What lands where:
+#   <scripts>/CoatBridge/CoatBridgeLib.py       the exchange logic + actions
+#   <scripts>/CoatBridge/CoatBridge_Send.py     tool button: send to Blender
+#   <scripts>/CoatBridge/CoatBridge_Pull.py     tool button: pull from Blender
+#   <scripts>/CoatBridge/CoatBridge_Setup.py    tool button: find the folder
+#   <scripts>/CoatBridge/CoatBridgeDialog.py    optional Scripts-menu dialog
+#   <scripts>/ExtraMenuItems/CoatBridgeTools.xml   the tool buttons (per room)
+#   <scripts>/ExtraMenuItems/CoatBridge.xml        the Scripts menu entry
+#   <3dcoat>/data/Textures/icons64/CoatBridge*.png the button icons
+#
+# The tool buttons are plain scripts that act directly and report with 3D-Coat's
+# own floating message: no window, no dialog, nothing outside the program.
 
 set -euo pipefail
 
@@ -20,13 +29,20 @@ fi
 
 DIR="$TARGET/CoatBridge"
 mkdir -p "$DIR"
-rm -f "$DIR/CoatBridge.py"  # renamed to CoatBridgeLib.py
-cp "$REPO/coat_side/CoatBridgeLib.py" "$REPO/coat_side/CoatBridgeQt.py" "$REPO/coat_side/CoatBridgeDialog.py" "$DIR/"
+rm -f "$DIR/CoatBridge.py" "$DIR/CoatBridgeQt.py"   # earlier layouts
+cp "$REPO/coat_side/CoatBridgeLib.py" \
+   "$REPO/coat_side/CoatBridge_Send.py" \
+   "$REPO/coat_side/CoatBridge_Pull.py" \
+   "$REPO/coat_side/CoatBridge_Setup.py" \
+   "$REPO/coat_side/CoatBridgeDialog.py" "$DIR/"
 rm -rf "$DIR/__pycache__"
 
 MENU_DIR="$TARGET/ExtraMenuItems"
 mkdir -p "$MENU_DIR"
-WIN_PATH="$(cygpath -m "$DIR/CoatBridgeQt.py")"
+WIN_DIR="$(cygpath -m "$DIR")"
+
+sed "s#__SCRIPT_DIR__#$WIN_DIR#g" \
+    "$REPO/coat_side/tools/CoatBridgeTools.xml.in" > "$MENU_DIR/CoatBridgeTools.xml"
 
 cat > "$MENU_DIR/CoatBridge.xml" <<XML
 <ClassArray.ExtraMenuItem>
@@ -35,24 +51,24 @@ cat > "$MENU_DIR/CoatBridge.xml" <<XML
 		<MenuItem>CoatBridge</MenuItem>
 		<inRoom></inRoom>
 		<inSection></inSection>
-		<Command>script:$WIN_PATH</Command>
+		<Command>script:$WIN_DIR/CoatBridgeDialog.py</Command>
 	</ExtraMenuItem>
 </ClassArray.ExtraMenuItem>
 XML
 
-echo "script : $DIR/CoatBridgeQt.py  (Qt panel; CoatBridgeLib.py = logic, CoatBridgeDialog.py = native fallback)"
-echo "menu   : $MENU_DIR/CoatBridge.xml  (Scripts > Coat Bridge)"
-
 ICON_DIR="$COAT/data/Textures/icons64"
 if [ -d "$ICON_DIR" ]; then
-    if cp "$REPO/coat_side/icon/CoatBridge.png" "$ICON_DIR/CoatBridge.png" 2>/dev/null; then
-        echo "icon   : $ICON_DIR/CoatBridge.png"
-    else
-        echo "icon   : skipped, $ICON_DIR is not writable (the tool button shows text only)" >&2
-    fi
+    for name in CoatBridge.png CoatBridge_Send.png CoatBridge_Pull.png CoatBridge_Setup.png; do
+        cp "$REPO/coat_side/icon/$name" "$ICON_DIR/$name" 2>/dev/null \
+            || echo "icon not writable, skipped: $name" >&2
+    done
+    echo "icons  : $ICON_DIR/CoatBridge_*.png"
 else
-    echo "icon   : skipped, $ICON_DIR not found" >&2
+    echo "icons  : skipped, $ICON_DIR not found" >&2
 fi
 
+echo "scripts: $DIR"
+echo "buttons: $MENU_DIR/CoatBridgeTools.xml  (Voxels + Paint tool panels)"
+echo "menu   : $MENU_DIR/CoatBridge.xml  (Scripts > Coat Bridge, optional dialog)"
 echo
-echo "In 3D-Coat: run Scripts > Coat Bridge (or restart 3D-Coat so the menu picks it up)."
+echo "Restart 3D-Coat, then look at the end of the tool list in the Sculpt room."

@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.6.0 - 2026-09-13
+
+No window at all: the bridge is now three buttons in 3D-Coat's own tool panel.
+
+* `CoatBridge_Send.py`, `CoatBridge_Pull.py`, `CoatBridge_Setup.py`: plain scripts
+  that act directly (export, import, find the folder) and report with 3D-Coat's
+  own floating message.  Nothing opens: no dialog, no window, no second process.
+* `tools/CoatBridgeTools.xml.in` -> `ExtraMenuItems/CoatBridgeTools.xml`: an entry
+  with an empty `MenuPath` plus `inRoom`/`inSection` lands in that room's tool
+  panel, so the buttons are declared by file (they survive a restart) instead of
+  being injected by a run-once API call.  Voxels and Paint for now.
+* Icons: `CoatBridge_Send.png` (arrow leaving a wall), `CoatBridge_Pull.png`
+  (arrow arriving), `CoatBridge_Setup.png` (magnifier) in `data/Textures/icons64/`,
+  grey glyphs like the shipped tool icons.
+* The in-process Qt window is no longer installed (code and its 26 tests stay in
+  the repo as an optional reference).  The `Scripts > Coat Bridge` entry now
+  opens 3D-Coat's own native dialog, which is optional.
+* Labels: 3D-Coat shows the raw id until a translation exists, so every button
+  calls `addTranslation` when it runs; if the labels still read as ids, switch to
+  `insertInToolset`, which labels them at injection time.
+* Tests: `coat_side/tests/run_tests.sh` now also runs the tool-button suite
+  (23 checks) - it runs each button headless, verifies the message, the signal
+  file, the queue handling and the log, and validates the XML (ids, rooms,
+  script paths).
+
 ## v1.5.0 - 2026-09-13
 
 The 3D-Coat panel is now a Qt window inside 3D-Coat's process.
