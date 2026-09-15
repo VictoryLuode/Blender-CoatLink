@@ -382,6 +382,36 @@ def scene_scale_note():
         return "3D-Coat scale unknown (%s)" % exc
 
 
+def coat_settings_info():
+    """3D-Coat's own size and axis settings, written into the state file so the
+    Blender side can match them without anyone typing numbers.
+
+    Scene.GetSceneScale() is documented as "the length of 1 scene unit when you
+    export the scene", and 3D-Coat's export option ApplyMeasurementScale applies
+    exactly that factor to hand out natural units - so a model coming in from
+    Blender looks small by that factor until the sender multiplies by it.
+    SwapYZ is 3D-Coat's "swap the Y and Z scene axes" option (for Z-up
+    applications such as Rhino or 3ds Max).
+    """
+    info = {}
+    readers = (
+        ("scene_scale", lambda: float(coat.Scene.GetSceneScale())),
+        ("scene_units", lambda: str(coat.Scene.GetSceneUnits())),
+        ("swap_yz", lambda: bool(coat.settings.getBool("SwapYZ"))),
+    )
+    for key, reader in readers:
+        try:
+            info[key] = reader()
+        except Exception as exc:
+            info[key] = None
+            log("coat settings: could not read %s (%s)" % (key, exc))
+    save_state({"coat": info})
+    log("coat settings: scale=%s units=%s swap Y/Z=%s" % (info.get("scene_scale"),
+                                                          info.get("scene_units"),
+                                                          info.get("swap_yz")))
+    return info
+
+
 def add_translations():
     """Give the tool buttons readable labels.  3D-Coat shows the raw id until a
     translation exists, so every action calls this when it runs."""
@@ -402,6 +432,7 @@ def run_action(tool_id):
     if action is None:
         return "unknown action: %s" % tool_id
     log("tool %s -> %s | %s" % (tool_id, label, scene_scale_note()))
+    coat_settings_info()
     try:
         action()
     except Exception as exc:
@@ -488,6 +519,7 @@ class CoatBridgePanel(object):
 
     def SendToBlender(self):
         """Export the current model into our folder and hand Blender the path."""
+        coat_settings_info()
         root = primary_root()
         if not root:
             self._report("exchange folder not found - press Detect", "")
@@ -521,6 +553,7 @@ class CoatBridgePanel(object):
     def PullFromBlender(self):
         """Import the model Blender sent to us: the queue file wins, so we take
         exactly what Blender asked for rather than whatever is newest."""
+        coat_settings_info()
         roots = exchange_roots()
         queued = [(root, read_import_model(root)) for root in roots]
         queued = [(root, model) for root, model in queued if model and os.path.isfile(model)]

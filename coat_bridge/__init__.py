@@ -6,7 +6,7 @@
 bl_info = {
     "name": "Coat Bridge",
     "author": "VictoryLuode",
-    "version": (1, 8, 0),
+    "version": (1, 9, 0),
     "blender": (4, 2, 0),
     "location": "Top Bar > Coat Bridge",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
@@ -15,7 +15,7 @@ bl_info = {
 }
 
 import bpy
-from bpy.props import BoolProperty, EnumProperty, IntProperty, StringProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, StringProperty
 
 from . import transfer, ui, watcher
 
@@ -63,6 +63,22 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
         name="Apply modifiers",
         description="Export evaluated meshes (modifiers applied)",
         default=False,
+    )
+    coat_scale: FloatProperty(
+        name="3D-Coat scale",
+        description="Multiply the model on the way to 3D-Coat.  0 = use the scene scale 3D-Coat reports",
+        default=0.0,
+        min=0.0,
+    )
+    axis_mode: EnumProperty(
+        name="Axis",
+        description="Which axis convention to use when talking to 3D-Coat",
+        items=[
+            ("auto", "Auto (match 3D-Coat)", "Follow 3D-Coat's own swap Y/Z setting"),
+            ("normal", "Normal (Y up)", "Blender's own convention"),
+            ("swap", "Swap Y/Z", "Z-up convention"),
+        ],
+        default="auto",
     )
     strip_materials: BoolProperty(
         name="Import without materials",

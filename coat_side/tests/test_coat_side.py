@@ -218,6 +218,22 @@ def main():
     write_state({"format": "FBX"})
     check("a fresh state re-inserts the tool button", bridge.register_room_tools() == ["Voxels"])
 
+    # ---- 3D-Coat's own size / axis settings, shared with Blender ----
+    info = bridge.coat_settings_info()
+    check("the scene scale is read from 3D-Coat", info.get("scene_scale") == 1.0, info)
+    check("so are the units", info.get("scene_units") == "m", info)
+    check("and the swap Y/Z option", info.get("swap_yz") is True, info)
+    check("they land in the state file Blender reads",
+          (bridge.load_state().get("coat") or {}).get("swap_yz") is True, bridge.load_state())
+    check("the log records them", "coat settings: scale=" in bridge.log_text(), bridge.log_text()[-160:])
+
+    saved = coat.settings_values
+    coat.settings_values = {}          # a 3D-Coat build without that option
+    info = bridge.coat_settings_info()
+    check("a missing setting is reported, not fatal", info.get("swap_yz") is None, info)
+    check("the readable settings still come through", info.get("scene_scale") == 1.0, info)
+    coat.settings_values = saved
+
     # ---- the reduction percentage (3D-Coat's own slider) ----
     slider = bridge.REDUCTION_SLIDER
     check("the slider id is 3D-Coat's own", slider == "$DecimationParams::ReductionPercent", slider)

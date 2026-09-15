@@ -30,6 +30,7 @@ Reference: "3D-Coat AppLinks specifications" (applinks.rst), shipped with
 
 import ctypes
 import glob
+import json
 import os
 import platform
 import subprocess
@@ -197,6 +198,29 @@ def read_export_paths(path):
             continue
         out.append(os.path.normpath(chunk))
     return out
+
+
+def coat_state():
+    """What the 3D-Coat side last wrote about itself (scene scale, units, the
+    swap-Y/Z option) - it keeps this in its own state file, which we only read.
+
+    Both applications run on the same machine, so this is how the Blender side
+    learns 3D-Coat's settings without asking the user: the 3D-Coat side refreshes
+    it on every action.
+    """
+    for base in _documents_bases():
+        path = os.path.join(base, "3DCoat", "CoatBridge.json")
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, ValueError):
+            continue
+        state = data.get("coat") if isinstance(data, dict) else None
+        if isinstance(state, dict):
+            return state
+    return {}
 
 
 def find_coat_executable():

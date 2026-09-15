@@ -99,6 +99,15 @@ class FakeCoat(object):
         self.ui.removeCommandFromMenu = Recorder("ui.removeCommandFromMenu")
         self.ui.presentInUI = lambda target: self.applink_present
 
+        self.settings = types.SimpleNamespace()
+        self.settings_values = {"SwapYZ": True}
+
+        def get_bool(name):
+            if name not in self.settings_values:
+                raise KeyError(name)
+            return self.settings_values[name]
+
+        self.settings.getBool = get_bool
         self.io.step = lambda frames: None
         self.io.listBlenderInstallFolders = lambda: []
 

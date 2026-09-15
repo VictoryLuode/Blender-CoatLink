@@ -12,6 +12,7 @@ import math
 import os
 import shutil
 import sys
+import tempfile
 
 import bpy
 
@@ -252,6 +253,82 @@ def main():
           [mat.name for mat in bpy.data.materials])
     check("the pull says materials were dropped", any("no materials" in message for message in messages), messages)
     prefs.strip_materials = False
+
+    # ---- 3D-Coat's scale and axis: detected, then matched ----
+    def obj_points(path):
+        points = set()
+        for line in read(path).splitlines():
+            if line.startswith("v "):
+                parts = line.split()
+                points.add(tuple(round(float(value), 4) for value in parts[1:4]))
+        return points
+
+    coat_home = tempfile.mkdtemp(prefix="coat_state.")
+    os.makedirs(os.path.join(coat_home, "3DCoat"), exist_ok=True)
+
+    def write_coat_state(info):
+        write(os.path.join(coat_home, "3DCoat", "CoatBridge.json"), json.dumps({"coat": info}))
+
+    applink_bases = applink._documents_bases
+    applink._documents_bases = lambda: [coat_home]
+    prefs.coat_scale = 0.0
+    prefs.axis_mode = "auto"
+
+    check("without 3D-Coat's state the bridge stays neutral",
+          bridge.transfer_scale(bpy.context)[0] == 1.0 and bridge.axis_swap(bpy.context) is None,
+          (bridge.transfer_scale(bpy.context), bridge.axis_swap(bpy.context)))
+
+    write_coat_state({"scene_scale": 100.0, "scene_units": "m", "swap_yz": True})
+    scale, origin = bridge.transfer_scale(bpy.context)
+    check("3D-Coat's scene scale is picked up", scale == 100.0 and "3D-Coat" in origin, (scale, origin))
+    check("its swap Y/Z option is picked up", bridge.axis_swap(bpy.context) is True,
+          bridge.axis_swap(bpy.context))
+
+    # the plain model, then the same model as 3D-Coat wants it
+    prefs.coat_scale = 1.0
+    prefs.axis_mode = "normal"
+    plain_path = bridge.send(bpy.context)
+    plain = obj_points(plain_path)
+    prefs.coat_scale = 0.0
+    prefs.axis_mode = "auto"
+    scaled_path = bridge.send(bpy.context)
+    scaled = obj_points(scaled_path)
+
+    def biggest(points):
+        return max(abs(value) for point in points for value in point)
+
+    def normalised(points, factor):
+        return {tuple(value / factor for value in point) for point in points}
+
+    def same_points(left, right, tolerance=0.01):
+        left, right = sorted(left), sorted(right)
+        return len(left) == len(right) and all(
+            all(abs(a - b) < tolerance for a, b in zip(one, other))
+            for one, other in zip(left, right))
+
+    check("the model is sent 100x bigger, as 3D-Coat's own scale demands",
+          abs(biggest(scaled) / biggest(plain) - 100.0) < 0.5, (biggest(plain), biggest(scaled)))
+    check("and the Y/Z axes really are swapped in the file",
+          same_points(normalised(scaled, 100.0), {(x, z, y) for x, y, z in plain}),
+          (sorted(plain)[:2], sorted(normalised(scaled, 100.0))[:2]))
+    check("the send says what it did", "x100" in bridge.STATE["message"] and "swap Y/Z" in bridge.STATE["message"],
+          bridge.STATE["message"])
+    check("the log says where the scale came from",
+          "3D-Coat scene scale" in read(applink.shared_log_path()), read(applink.shared_log_path()).splitlines()[-1:])
+
+    # a manual scale still wins, and "normal" axis means untouched
+    prefs.coat_scale = 2.5
+    prefs.axis_mode = "normal"
+    manual_path = bridge.send(bpy.context)
+    manual = obj_points(manual_path)
+    check("a manual scale overrides 3D-Coat's number",
+          abs(biggest(manual) / biggest(plain) - 2.5) < 0.01, (biggest(plain), biggest(manual)))
+    check("and no axis swap is applied then", same_points(normalised(manual, 2.5), plain),
+          sorted(manual)[:2])
+
+    prefs.coat_scale = 0.0
+    prefs.axis_mode = "auto"
+    applink._documents_bases = applink_bases
 
     # ---- and the whole round trip is written to the shared log ----
     log_path = applink.shared_log_path()

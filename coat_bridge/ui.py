@@ -155,6 +155,8 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
 
         column.separator(factor=1.2)
         column.prop(p, "mode", text="Open as")
+        column.prop(p, "axis_mode", text="Axis")
+        column.prop(p, "coat_scale", text="3D-Coat scale")
 
         column.separator(factor=1.2)
         grid = column.grid_flow(row_major=True, columns=2, even_columns=True, align=True)

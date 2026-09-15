@@ -85,6 +85,33 @@ FORMATS = {
 
 #: formats we can READ back (3D-Coat decides what it returns); see SEND_FORMAT
 #: in bridge.py for the one we send with
+#: how each format names its axes, and what "1 unit up" means per convention.
+#: Blender's own default is NEGATIVE_Z forward / Y up; 3D-Coat's "swap Y and Z"
+#: option is for Z-up applications, so that is the other pair.
+AXIS_NAMES = {
+    "obj": {"export": ("forward_axis", "up_axis"), "import": ("forward_axis", "up_axis"),
+            "normal": ("NEGATIVE_Z", "Y"), "swapped": ("Y", "Z")},
+    "fbx": {"export": ("axis_forward", "axis_up"), "import": ("axis_forward", "axis_up"),
+            "normal": ("-Z", "Y"), "swapped": ("Y", "Z")},
+}
+
+
+def axis_overrides(fmt, which, swap):
+    """The operator kwargs for one axis convention, or {} when the format has
+    no axis setting (or the bridge is not being asked to change anything)."""
+    if swap is None:
+        return {}
+    names = AXIS_NAMES.get(fmt)
+    if not names:
+        return {}
+    forward, up = names["swapped"] if swap else names["normal"]
+    keys = names[which]
+    overrides = {keys[0]: forward, keys[1]: up}
+    if fmt == "fbx" and which == "import":
+        overrides["use_manual_orientation"] = True  # the axes only apply then
+    return overrides
+
+
 def spec(fmt):
     return FORMATS.get(fmt) or FORMATS["obj"]
 
@@ -138,8 +165,12 @@ def select_only(objects):
     bpy.context.view_layer.objects.active = objects[0]
 
 
-def export_model(filepath, fmt, objects, apply_modifiers=True):
-    """Export objects to filepath.  Returns the list of kwargs that were dropped."""
+def export_model(filepath, fmt, objects, apply_modifiers=True, overrides=None):
+    """Export objects to filepath.  Returns the list of kwargs that were dropped.
+
+    `overrides` carries the scale/axis the other side asked for (see
+    axis_overrides).
+    """
     if not objects:
         raise RuntimeError("nothing selected to export")
     op = operator("export", fmt)
@@ -147,19 +178,22 @@ def export_model(filepath, fmt, objects, apply_modifiers=True):
         raise RuntimeError(missing_reason(fmt) or "export operator unavailable")
 
     kwargs = dict(spec(fmt)["export_kwargs"])
+    kwargs.update({key: value for key, value in (overrides or {}).items() if value is not None})
     if not apply_modifiers:
         kwargs.pop("apply_modifiers", None)
     select_only(objects)
     return _call(op, filepath, kwargs, "%s export" % fmt.upper())
 
 
-def import_model(filepath, fmt):
+def import_model(filepath, fmt, overrides=None):
     """Import filepath, returning the objects that appeared."""
     op = operator("import", fmt)
     if op is None:
         raise RuntimeError(missing_reason(fmt) or "import operator unavailable")
     before = {obj.name for obj in bpy.data.objects}
-    dropped = _call(op, filepath, dict(spec(fmt)["import_kwargs"]), "%s import" % fmt.upper())
+    kwargs = dict(spec(fmt)["import_kwargs"])
+    kwargs.update({key: value for key, value in (overrides or {}).items() if value is not None})
+    dropped = _call(op, filepath, kwargs, "%s import" % fmt.upper())
     new = [obj for obj in bpy.data.objects if obj.name not in before]
     if not new:
         raise RuntimeError("import produced no objects (%s)" % os.path.basename(filepath))

@@ -141,6 +141,7 @@ It opens a popup holding the whole bridge.
 | Skip dialogs | Let 3D-Coat import and export with its current settings |
 | Modifiers | Export evaluated meshes |
 | No materials | A pulled model arrives as bare geometry (its materials are dropped) |
+| Axis / scale | read from 3D-Coat (swap Y/Z + scene scale) and applied on the way out |
 | Export settings | live in 3D-Coat's panel: reduction percentage + textures, applied without its dialog |
 | Detect | Find the exchange folder and prepare the AppLink folder |
 | Folder | Show the exchange folder in the file browser |

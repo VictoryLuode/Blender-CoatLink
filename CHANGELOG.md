@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.14.0 - 2026-09-13
+
+Size and axis: detected on the 3D-Coat side, matched on the Blender side.
+
+* **Scale.** 3D-Coat's `ApplyMeasurementScale` exports in natural units, which
+  means an incoming model is divided by its scene scale and arrives small by
+  exactly that factor.  The 3D-Coat side now writes its own numbers
+  (`Scene.GetSceneScale()`, `GetSceneUnits()`, and the `SwapYZ` option) into its
+  state file on every action, and Blender reads that file and sends the model
+  multiplied by the scene scale - so a 2 m cube is 2 scene units in 3D-Coat.
+  `3D-Coat scale` in the menu overrides it (0 = use 3D-Coat's own number).
+* **Axis.** `SwapYZ` - 3D-Coat's "swap the Y and Z scene axes" option for Z-up
+  applications - is picked up the same way.  The OBJ exporter/importer is given
+  the matching `forward_axis`/`up_axis` pair (`NEGATIVE_Z`/`Y` normally,
+  `Y`/`Z` when 3D-Coat swaps), so the model keeps its orientation.  `Axis` in the
+  menu can force either convention.
+* Verified through Blender's real exporter, not by inspection: the tests parse
+  the OBJ Blender wrote and check the coordinates are 100x bigger and that Y/Z
+  are exchanged, plus the manual override and the "no data from 3D-Coat" default.
+* Blender addon 1.9.0.  Suites: Blender 90 checks; 3D-Coat 88 + 29 tool + 24 Qt.
+
 ## v1.13.0 - 2026-09-13
 
 Send and Pull on the bar itself.

@@ -72,6 +72,41 @@ def detail_lines(context=None):
     return lines
 
 
+def transfer_scale(context):
+    """(factor, where it came from) for the trip to 3D-Coat.
+
+    3D-Coat's export applies its scene scale to reach natural units, so on the
+    way in it divides by it: the model arrives small by exactly that factor.  The
+    0 default here means "use what 3D-Coat reports", so nobody has to know the
+    number; a positive value overrides it (and is the escape hatch if a
+    particular 3D-Coat build reports something odd).
+    """
+    p = prefs(context)
+    if p is not None and p.coat_scale > 0:
+        return float(p.coat_scale), "set here"
+    reported = applink.coat_state().get("scene_scale")
+    try:
+        value = float(reported)
+    except (TypeError, ValueError):
+        return 1.0, "3D-Coat has not reported its scale yet"
+    if value <= 0:
+        return 1.0, "3D-Coat reported an unusable scale (%s)" % reported
+    return value, "3D-Coat scene scale"
+
+
+def axis_swap(context, p=None):
+    """True/False/None: None means "leave Blender's own convention alone"."""
+    p = p or prefs(context)
+    if p is None:
+        return None
+    if p.axis_mode == "swap":
+        return True
+    if p.axis_mode == "normal":
+        return False
+    reported = applink.coat_state().get("swap_yz")
+    return None if reported is None else bool(reported)
+
+
 def send(context):
     """Export the selection (or every visible mesh) and queue it for 3D-Coat."""
     p = prefs(context)
@@ -94,25 +129,36 @@ def send(context):
         if not obj.data.uv_layers:  # 3D-Coat painting needs a UV set
             obj.data.uv_layers.new(name="UVMap", do_init=False)
 
+    scale, scale_from = transfer_scale(context)
+    swap = axis_swap(context, p)
+    overrides = {"global_scale": scale}
+    overrides.update(transfer.axis_overrides(fmt, "export", swap))
+
     ext = transfer.spec(fmt)["ext"]
     out_path = applink.model_path(primary, ext)
     back_path = applink.model_path(primary, ext, name="bridge_back")
     for root in roots:  # so 3D-Coat lists the target from every root it searches
         applink.ensure_app_folder(root)
 
-    dropped = transfer.export_model(out_path, fmt, objects, p.apply_modifiers)
+    dropped = transfer.export_model(out_path, fmt, objects, p.apply_modifiers, overrides)
     applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
 
     STATE["target"] = {"object": active.name, "file": out_path, "diagonal": _diagonal(objects[0])}
     STATE["last_send"] = time.time()
     for candidate in applink.signal_files(roots):
         STATE["seen"].pop(candidate, None)
-    _log("sent %s: %s diagonal %.4f m" % (active.name, os.path.basename(out_path),
-                                          STATE["target"]["diagonal"] or 0.0))
+    applied = []
+    if scale != 1.0:
+        applied.append("x%s (%s)" % (_trim(scale), scale_from))
+    if swap is not None:
+        applied.append("swap Y/Z" if swap else "Y up")
+    where = " [%s]" % ", ".join(applied) if applied else ""
+    _log("sent %s: %s diagonal %.4f m%s" % (active.name, os.path.basename(out_path),
+                                            STATE["target"]["diagonal"] or 0.0, where))
 
     note = "" if applink.is_coat_running() is not False else " - start 3D-Coat to pick it up"
     merged = "" if len(objects) == 1 else " (%d merged)" % len(objects)
-    _set_message("Sent %s%s -> %s%s" % (active.name, merged, os.path.basename(out_path), note))
+    _set_message("Sent %s%s -> %s%s%s" % (active.name, merged, os.path.basename(out_path), note, where))
     if dropped:
         STATE["log"].append("dropped unsupported options: %s" % ", ".join(dropped))
     return out_path
@@ -183,7 +229,8 @@ def _import_and_link(context, path):
     fmt = transfer.format_from_path(path)
     if not transfer.ensure_module(fmt):
         raise RuntimeError(transfer.missing_reason(fmt) or "%s unavailable" % fmt)
-    imported, dropped = transfer.import_model(path, fmt)
+    imported, dropped = transfer.import_model(
+        path, fmt, transfer.axis_overrides(fmt, "import", axis_swap(context)))
     if dropped:
         STATE["log"].append("dropped import options: %s" % ", ".join(dropped))
 
@@ -273,6 +320,12 @@ def _match_scale(target):
     target.data.update()
     _log("scale matched: x%.6g (%.4f m -> %.4f m)" % (ratio, size, reference))
     return "scale x%.6g" % ratio
+
+
+def _trim(value):
+    """100.0 -> "100" but 0.01 stays readable."""
+    text = ("%.6f" % float(value)).rstrip("0").rstrip(".")
+    return text or "0"
 
 
 def _strip_enabled():
