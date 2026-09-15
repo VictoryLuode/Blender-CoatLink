@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.12.0 - 2026-09-13
+
+A number field in 3D-Coat's panel - typed, not captured.
+
+* The reduction percentage is now a **native number field in the panel**
+  (`ReductionPercent,[0,100]`), and textures a native droplist (3D-Coat decides
+  / on / off) - both in 3D-Coat's own dialog, still no Qt and no extra window.
+  The layout syntax comes from 3D-Coat's shipped Autoexport example panel:
+  `Name,[min,max]` is a number field bound to that attribute, `Name,[#a|#b]` a
+  droplist, `Name,group1` a radio group, `Name,folder` / `Name,save:*.fbx` file
+  pickers.  (`coat.dialog()` itself only documents buttons, which is why the
+  earlier version had to capture the value from 3D-Coat's dialog instead of
+  typing it - that capture still runs when the field is left at 0.)
+* Typing a number stores it (`panel.process()` persists every frame), and every
+  export pushes it into 3D-Coat's own decimation slider and presses OK, so the
+  export dialog is never seen.  0 hands the choice back to 3D-Coat's dialog.
+* 3D-Coat side suite: 81 checks (the panel really carries the two controls, the
+  number field starts at the stored value, typing stores it, the droplist
+  tri-state round-trips, and the export path still fills 3D-Coat's dialog in).
+
 ## v1.11.0 - 2026-09-13
 
 The export settings live in 3D-Coat, where the export happens.

@@ -223,7 +223,7 @@ def main():
     check("the slider id is 3D-Coat's own", slider == "$DecimationParams::ReductionPercent", slider)
 
     # nothing stored yet: the export dialog is left alone, nothing is pressed
-    bridge.clear_reduction()
+    bridge.set_reduction_percent(0)
     coat.applink_present = True
     cmd.calls = []
     panel.SendToBlender()
@@ -237,8 +237,17 @@ def main():
     check("the first export remembers the percentage from 3D-Coat",
           bridge.reduction_percent() == 40, bridge.load_state())
     check("and says so in the log", "remembered reduction 40%" in bridge.log_text(), bridge.log_text()[-200:])
-    check("the panel shows the stored percentage", "keep 40%" in bridge.reduction_line(),
-          bridge.reduction_line())
+    check("the panel carries a native number field for the percentage",
+          "ReductionPercent,[0,100]" in panel.ui(), panel.ui())
+    check("the panel carries a native choice for textures",
+          any(item.startswith("Textures,[") for item in panel.ui()), panel.ui())
+    check("that number field starts at the stored value",
+          bridge.CoatBridgePanel().ReductionPercent == 40,
+          bridge.CoatBridgePanel().ReductionPercent)
+    panel.ReductionPercent = 35
+    panel.process()
+    check("a number typed in the panel is stored", bridge.reduction_percent() == 35, bridge.load_state())
+    bridge.set_reduction_percent(50)
 
     # from now on our value is pushed in and the dialog is confirmed automatically
     cmd.calls = []
@@ -251,10 +260,11 @@ def main():
     check("the slider really holds our value", cmd.sliders.get(slider) == 50.0, cmd.sliders)
     check("the status line reports the reduction", "keep 50%" in panel.status, panel.status)
 
-    # clearing it hands the choice back to 3D-Coat's dialog
-    check("clearing explains itself", "next export" in bridge.clear_reduction(), bridge.clear_reduction())
-    check("the panel says where the number will come from now",
-          "3D-Coat's dialog" in bridge.reduction_line(), bridge.reduction_line())
+    # 0 in the number field hands the choice back to 3D-Coat's own dialog
+    panel.ReductionPercent = 0
+    panel.process()
+    check("0 means 3D-Coat's dialog decides again", bridge.reduction_percent() == 0,
+          bridge.load_state())
 
     # ---- the texture switch (same idea, one state further) ----
     field = bridge.TEXTURES_FIELD
@@ -262,19 +272,20 @@ def main():
 
     bridge.set_export_textures(None)
     check("unset means 3D-Coat decides", bridge.export_textures() is None, bridge.export_textures())
-    check("and the panel says so", "from 3D-Coat's dialog" in bridge.textures_line(),
-          bridge.textures_line())
     cmd.calls = []
     panel.SendToBlender()
     check("with nothing set the textures field is untouched",
           ("bool", field, False) not in cmd.calls, [call for call in cmd.calls if isinstance(call, tuple)])
 
-    panel.ToggleTextures()
-    check("first click asks for textures on", bridge.export_textures() is True, bridge.export_textures())
-    panel.ToggleTextures()
-    check("second click asks for textures off", bridge.export_textures() is False, bridge.export_textures())
-    panel.ToggleTextures()
-    check("third click hands it back to 3D-Coat", bridge.export_textures() is None, bridge.export_textures())
+    panel.Textures = 1
+    panel.process()
+    check("the second entry asks for textures on", bridge.export_textures() is True, bridge.load_state())
+    panel.Textures = 2
+    panel.process()
+    check("the third entry asks for textures off", bridge.export_textures() is False, bridge.load_state())
+    panel.Textures = 0
+    panel.process()
+    check("the first entry hands it back to 3D-Coat", bridge.export_textures() is None, bridge.load_state())
 
     bridge.set_export_textures(False)
     cmd.calls = []
@@ -283,7 +294,6 @@ def main():
           [call for call in cmd.calls if isinstance(call, tuple)])
     check("3D-Coat really holds textures off", cmd.bools.get(field) is False, cmd.bools)
     check("the status line mentions textures", "textures off" in panel.status, panel.status)
-    check("the panel label follows", "Textures: off" in bridge.textures_line(), bridge.textures_line())
     bridge.set_export_textures(None)
 
     # ---- the Setup button opens 3D-Coat's own panel, never a Qt window ----
@@ -295,9 +305,9 @@ def main():
     steps = [name for name, _args in coat.dialog_log]
     check("Setup opens 3D-Coat's own dialog", "show" in steps and "caption" in steps, coat.dialog_log)
     check("the panel is anchored in 3D-Coat's window", "topRight" in steps, coat.dialog_log)
-    check("the panel carries our reduction button",
-          any("ClearReduction" in str(args) for _name, args in coat.dialog_log)
-          or "ClearReduction" in str(bridge.CoatBridgePanel().ui()), bridge.CoatBridgePanel().ui())
+    check("the panel carries the reduction controls",
+          any(str(item).startswith("ReductionPercent,") for item in bridge.CoatBridgePanel().ui()),
+          bridge.CoatBridgePanel().ui())
     check("Setup reports back", bool(status), status)
 
     # ---- blender lookup ----

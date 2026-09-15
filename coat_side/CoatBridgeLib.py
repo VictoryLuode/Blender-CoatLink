@@ -53,6 +53,9 @@ REDUCTION_KEY = "reduction"
 #: option in applinks.rst, settable through coat.CMD.SetBoolField)
 TEXTURES_FIELD = "$ExportOpt::ExportTextures"
 TEXTURES_KEY = "textures"
+
+#: the panel's native droplist: index -> stored value
+TEXTURES_CHOICES = (None, True, False)
 STATE_FILE = "CoatBridge.json"
 RUN_MARKER = "run.txt"
 MENU_ID = "CoatBridge"
@@ -313,13 +316,6 @@ def set_export_textures(value):
     return save_state({TEXTURES_KEY: stored})
 
 
-def textures_line():
-    value = export_textures()
-    if value is None:
-        return "Textures: from 3D-Coat's dialog"
-    return "Textures: %s (click to switch)" % ("on" if value else "off")
-
-
 def apply_textures():
     """Push the texture switch into 3D-Coat's export dialog.  "" when unset."""
     value = export_textures()
@@ -332,20 +328,6 @@ def apply_textures():
     except Exception as exc:
         return "textures %s failed: %s" % (value, exc)
     return "textures %s" % ("on" if value else "off")
-
-
-def reduction_line():
-    """What the panel shows for the reduction setting."""
-    percent = reduction_percent()
-    if percent <= 0:
-        return "Reduction: from 3D-Coat's dialog"
-    return "Reduction: keep %d%% (clear to re-pick)" % percent
-
-
-def clear_reduction():
-    """Forget the percentage so the next export shows 3D-Coat's own dialog again."""
-    set_reduction_percent(0)
-    return "reduction cleared - the next export picks it up from 3D-Coat"
 
 
 def apply_reduction(percent=None):
@@ -443,6 +425,11 @@ class CoatBridgePanel(object):
     def __init__(self):
         self.status = "Ready"
         self.detail = ""
+        # native controls: "Name,[min,max]" is a number field bound to the
+        # attribute, "Name,[#A|#B]" a droplist.  This is the layout syntax
+        # 3D-Coat's own Autoexport example panel uses.
+        self.ReductionPercent = reduction_percent()
+        self.Textures = TEXTURES_CHOICES.index(export_textures())
         self.refresh_detail()
 
     # ---- layout -----------------------------------------------------------
@@ -453,11 +440,9 @@ class CoatBridgePanel(object):
         items.append("SendToBlender")
         items.append("PullFromBlender")
         items.append("---")
+        items.append("ReductionPercent,[0,100]")
+        items.append("Textures,[#from 3D-Coat|#textures on|#textures off]")
         items.append("---")
-        items.append("#" + reduction_line())
-        items.append("ClearReduction")
-        items.append("#" + textures_line())
-        items.append("ToggleTextures")
         items.append("[1 1]")
         items.append("Detect")
         items.append("OpenFolder")
@@ -472,7 +457,22 @@ class CoatBridgePanel(object):
         return items
 
     def process(self):
-        """Called every frame while the panel is open."""
+        """Called every frame while the panel is open: store what was typed, so
+        the export uses it without ever asking again."""
+        try:
+            percent = int(getattr(self, "ReductionPercent", 0))
+        except (TypeError, ValueError):
+            percent = 0
+        if percent != reduction_percent():
+            set_reduction_percent(percent)
+        try:
+            choice = int(getattr(self, "Textures", 0))
+        except (TypeError, ValueError):
+            choice = 0
+        if 0 <= choice < len(TEXTURES_CHOICES):
+            wanted = TEXTURES_CHOICES[choice]
+            if wanted != export_textures():
+                set_export_textures(wanted)
         return False
 
     def refresh_detail(self):
@@ -555,16 +555,6 @@ class CoatBridgePanel(object):
             self._report("could not open the panel", REOPEN_HINT)
             return
         self._report(panel.status, REOPEN_HINT)
-
-    def ClearReduction(self):
-        """Forget the percentage so the next export asks 3D-Coat again."""
-        self._report(clear_reduction(), "")
-
-    def ToggleTextures(self):
-        """Cycle Textures: 3D-Coat decides -> on -> off -> 3D-Coat decides."""
-        value = export_textures()
-        set_export_textures(None if value is False else not value)
-        self._report(textures_line(), "")
 
     def Detect(self):
         root = primary_root()
