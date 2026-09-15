@@ -6,7 +6,7 @@
 bl_info = {
     "name": "Coat Bridge",
     "author": "VictoryLuode",
-    "version": (1, 10, 11),
+    "version": (1, 10, 12),
     "blender": (4, 2, 0),
     "location": "Top Bar > Coat Bridge",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
@@ -49,6 +49,7 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
         items=MODE_ITEMS,
         default="ppp",
     )
+    show_advanced: BoolProperty(name="Advanced", default=False)
     auto_pull: BoolProperty(
         name="Auto pull",
         description="Watch the exchange folder and take a returned model automatically",
@@ -94,7 +95,7 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "exchange_folder")
-        layout.label(text="The panel in the 3D view sidebar has the rest.", icon="INFO")
+        layout.label(text="Other settings are in the top-bar Coat Bridge menu.", icon="INFO")
 
 
 def register():

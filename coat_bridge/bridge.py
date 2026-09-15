@@ -326,7 +326,7 @@ def _pull_once(context, force):
                 except OSError:
                     pass
         STATE["last_pull"] = time.time()
-        note = "Pulled %s from %s" % (", ".join(imported), os.path.basename(path))
+        note = "Pulled %s from %s (%d objects)" % (", ".join(imported), os.path.basename(path), len(imported))
         messages.append(note)
         _set_message(note)
     else:

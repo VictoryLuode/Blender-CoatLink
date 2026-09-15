@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.16.14
+
+* Compact native panels: advanced/maintenance settings hidden by default; Blender keeps transfer shortcuts on top bar instead of duplicating them.
+* Normal Pull respects deduplication; force re-read is advanced-only. Empty receive offers an action; send notification says queued. Successful pull includes object count.
+* No receipt handshake or estimated polygon counts claimed; those remain unverified.
+* Blender 1.10.12; regression 113/113; Coat logic 101/101, tools 29/29 and install smoke passed.
+
 ## v1.16.13
 
 * Remove TargetSize and ApplySize controls from the native 3D-Coat panel; retain read-only size display. No export or unit changes.

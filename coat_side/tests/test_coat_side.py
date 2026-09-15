@@ -152,6 +152,7 @@ def main():
           bridge.EXPORT_FORMAT == "obj", bridge.EXPORT_FORMAT)
 
     # ---- panel layout mirrors the Blender menu ----
+    panel.Advanced = True
     items = panel.ui()
     plain = [item for item in items if not item.startswith(("[", "#", "---"))]
     for name in plain:

@@ -35,7 +35,7 @@ class COATBRIDGE_OT_send(bpy.types.Operator):
         except Exception as exc:
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
-        self.report({"INFO"}, "Sent to 3D-Coat: %s" % os.path.basename(path))
+        self.report({"INFO"}, "Queued for 3D-Coat: %s" % os.path.basename(path))
         return {"FINISHED"}
 
 
@@ -49,14 +49,16 @@ class COATBRIDGE_OT_pull(bpy.types.Operator):
     def poll(cls, context):
         return context.mode == "OBJECT"
 
+    force: bpy.props.BoolProperty(default=False)
+
     def execute(self, context):
         try:
-            messages = bridge.pull(context, force=True)
+            messages = bridge.pull(context, force=self.force)
         except Exception as exc:
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
         if not messages:
-            self.report({"INFO"}, "Nothing to pull yet")
+            self.report({"INFO"}, "No new model. Send from 3D-Coat first.")
         for message in messages:
             self.report({"INFO"}, message)
         return {"FINISHED"}
@@ -146,41 +148,27 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
             return
 
         column = layout.column(align=True)
-        row = column.row()
-        row.scale_y = 1.5
-        row.operator("coatbridge.send", icon="EXPORT")
-        row = column.row()
-        row.scale_y = 1.3
-        row.operator("coatbridge.pull", icon="IMPORT")
-
-        column.separator(factor=1.2)
-        column.prop(p, "mode", text="Open as")
-        column.prop(p, "axis_mode", text="Axis")
-        column.prop(p, "coat_scale", text="3D-Coat scale")
-
-        column.separator(factor=1.2)
-        grid = column.grid_flow(row_major=True, columns=2, even_columns=True, align=True)
-        grid.prop(p, "auto_pull", text="Auto pull")
-        grid.prop(p, "skip_dialogs", text="Skip dialogs")
-        grid.prop(p, "apply_modifiers", text="Modifiers")
-        grid.prop(p, "match_scale", text="Match scale")
-        grid.prop(p, "strip_materials", text="No materials")
-        grid.operator("coatbridge.detect", text="Detect")
-
-        column.separator(factor=1.2)
-        column.separator(factor=1.2)
-        row = column.row(align=True)
-        row.operator("coatbridge.open_folder", text="Folder", icon="FILE_FOLDER")
-        row.operator("coatbridge.launch", text="Start 3D-Coat", icon="PLAY")
-
-        box = layout.box()
-        box.label(text=bridge.status(context), icon="INFO")
-        for line in bridge.detail_lines(context)[1:4]:
-            box.label(text=line)
-
-        row = layout.row()
-        row.alignment = "RIGHT"
-        row.operator("coatbridge.unlink", text="Unlink selected", icon="UNLINKED")
+        column.prop(p, "mode", text="Import as")
+        column.prop(p, "auto_pull", text="Auto receive")
+        column.prop(p, "strip_materials", text="Without materials")
+        column.separator()
+        column.prop(p, "show_advanced", text="Advanced", icon="TRIA_DOWN" if p.show_advanced else "TRIA_RIGHT", emboss=False)
+        if p.show_advanced:
+            column.prop(p, "axis_mode", text="Axis")
+            column.prop(p, "coat_scale", text="Scale override (0 = auto)")
+            column.prop(p, "match_scale", text="Match scale")
+            column.prop(p, "apply_modifiers", text="Modifiers")
+            column.prop(p, "skip_dialogs", text="Skip dialogs")
+            row = column.row(align=True)
+            row.operator("coatbridge.detect", text="Detect")
+            row.operator("coatbridge.open_folder", text="Folder")
+            column.operator("coatbridge.launch", text="Start 3D-Coat")
+            column.operator("coatbridge.pull", text="Force re-read return signal").force = True
+            column.operator("coatbridge.unlink", text="Unlink selected")
+            for line in bridge.detail_lines(context)[1:4]:
+                column.label(text=line)
+        column.separator()
+        column.label(text=bridge.status(context), icon="INFO")
 
 
 CLASSES = (

@@ -514,6 +514,7 @@ class CoatBridgePanel(object):
         self.Textures = TEXTURES_CHOICES.index(export_textures())
         self.TargetSize = 1.0            # the size to scale the current object to
         self.SizeLabel = "Size: -"
+        self.Advanced = False
         self.refresh_detail()
 
     # ---- layout -----------------------------------------------------------
@@ -529,15 +530,17 @@ class CoatBridgePanel(object):
         items.append("ReductionPercent,[0,100]")
         items.append("Textures,[#from 3D-Coat|#textures on|#textures off]")
         items.append("---")
-        items.append("[1 1]")
-        items.append("Detect")
-        items.append("OpenFolder")
-        items.append("[1 1]")
-        items.append("StartBlender")
-        items.append("RemoveLauncher")
+        items.append("Advanced")
+        if self.Advanced:
+            items.append("[1 1]")
+            items.append("Detect")
+            items.append("OpenFolder")
+            items.append("[1 1]")
+            items.append("StartBlender")
+            items.append("RemoveLauncher")
         items.append("---")
         items.append("#" + self.status)
-        if self.detail:
+        if self.Advanced and self.detail:
             items.append("##" + self.detail)
         items.append("##" + REOPEN_HINT)
         return items
