@@ -273,20 +273,24 @@ def main():
     check("the menu record is kept in the state file",
           bridge.load_state().get("menus") == ["Scripts", "Windows"], bridge.load_state())
 
-    # a fresh state (entries gone) must bring both launchers back
+    # a fresh state (entries gone) must bring both launchers back.
+    # Write the file directly: save_state() merges on purpose, so it cannot
+    # drop a key - the test has to simulate the file itself.
+    import json as _json
+
+    def write_state(keys):
+        with open(bridge.state_path(), "w", encoding="utf-8", newline="\n") as handle:
+            _json.dump(keys, handle)
+
     coat.inserted = []
-    fresh = bridge.load_state()
-    fresh.pop("menus", None)
-    bridge.save_state(fresh)
+    write_state({"format": "FBX"})
     check("a fresh state re-registers both menus",
           bridge.register_menu_item() == ["Scripts", "Windows"] and len(coat.inserted) == 2, coat.inserted)
 
     # with the shipped XML in place, Scripts is reported as already provided
     coat.inserted = []
     coat.menu_inserted = True
-    fresh = bridge.load_state()
-    fresh.pop("menus", None)
-    bridge.save_state(fresh)
+    write_state({"format": "FBX"})
     check("an existing menu entry is detected instead of duplicated",
           bridge.register_menu_item() == ["Windows"] and coat.inserted == [("Windows", "CoatBridge", "")],
           coat.inserted)
