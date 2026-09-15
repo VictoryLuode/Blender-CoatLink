@@ -39,6 +39,13 @@ VERSION = "1.3.0"
 FORMAT_ITEMS = ("FBX", "OBJ")
 STATE_FILE = "CoatBridge.json"
 RUN_MARKER = "run.txt"
+MENU_ID = "CoatBridge"
+MENU_PATHS = ("Scripts", "Windows")  # launcher lives with the other script/window entries
+REOPEN_HINT = "reopen: Scripts > Coat Bridge"
+
+#: timestamp of the last time the panel was opened, so a double click cannot
+#: stack two panels (and a stale value never blocks a later reopen)
+_LAST_OPEN = [0.0]
 
 
 # --------------------------------------------------------------------------
@@ -167,12 +174,16 @@ def load_state():
 
 
 def save_state(data):
+    """Merge into the state file: the panel, the close handler and the menu
+    registration all write different keys and must not wipe each other."""
     try:
         import json
 
+        merged = load_state()
+        merged.update(data)
         os.makedirs(os.path.dirname(state_path()), exist_ok=True)
         with open(state_path(), "w", encoding="utf-8", newline="\n") as handle:
-            json.dump(data, handle, indent=2)
+            json.dump(merged, handle, indent=2)
         return True
     except Exception:
         return False
@@ -214,6 +225,7 @@ class CoatBridgePanel(object):
         items.append("#" + self.status)
         if self.detail:
             items.append("##" + self.detail)
+        items.append("##" + REOPEN_HINT)
         return items
 
     def process(self):
@@ -233,7 +245,6 @@ class CoatBridgePanel(object):
         parts = ["Folder: " + os.path.basename(root)]
         parts.append("waiting: " + os.path.basename(queued) if queued else "waiting: nothing")
         self.detail = " | ".join(parts)
-
     # ---- actions ----------------------------------------------------------
 
     def SendToBlender(self):
@@ -406,23 +417,65 @@ def find_blender_executable():
 # --------------------------------------------------------------------------
 
 def register_menu_item():
-    """Idempotent: the menu entry points back at this script.
+    """Make sure the launcher exists, and report which menus were added to.
 
-    The label comes from the translation table, so the item shows up as
-    "Coat Bridge" whether it was added here or by the shipped XML.
+    Scripts is usually already covered by the shipped XML; Windows is added
+    here so the panel also sits with the other window entries.  The list of
+    menus already handled is kept in the state file, because
+    checkIfMenuItemInserted() cannot tell one menu from another.
     """
+    state = load_state()
+    done = list(state.get("menus", []))
+    added = []
     try:
-        coat.ui.addTranslation("CoatBridge", PANEL_CAPTION)
-        if coat.ui.checkIfMenuItemInserted("CoatBridge"):
-            return False
-        coat.ui.insertInMenu("Scripts", "CoatBridge", "")
-        return True
+        coat.ui.addTranslation(MENU_ID, PANEL_CAPTION)
+    except Exception:
+        pass
+    for path in MENU_PATHS:
+        if path in done:
+            continue
+        if path == "Scripts" and _menu_present(MENU_ID):
+            done.append(path)  # the shipped XML already provides it
+            continue
+        try:
+            coat.ui.insertInMenu(path, MENU_ID, "")
+            done.append(path)
+            added.append(path)
+        except Exception:
+            pass
+    if done != state.get("menus", []):
+        state["menus"] = sorted(set(done))
+        save_state(state)
+    return added
+
+
+def _menu_present(menu_id):
+    try:
+        return bool(coat.ui.checkIfMenuItemInserted(menu_id))
     except Exception:
         return False
 
 
-def show_panel():
+def _on_press(button):
+    """The panel closed (button 1 = Close): remember the format for next time."""
+    try:
+        save_state({"format": _LAST_FORMAT[0], "menus": load_state().get("menus", [])})
+    except Exception:
+        pass
+
+
+def show_panel(force=False):
+    """Open the panel.  A second click within a couple of seconds is ignored so
+    a double click cannot stack two panels; a stale marker never blocks."""
+    import time
+
+    now = time.time()
+    if not force and now - _LAST_OPEN[0] < 3.0:
+        return None
+    _LAST_OPEN[0] = now
+
     panel = CoatBridgePanel()
+    _LAST_FORMAT[0] = panel.format
     coat.dialog() \
         .caption(PANEL_CAPTION) \
         .noModal() \
@@ -431,8 +484,14 @@ def show_panel():
         .buttons("Close") \
         .params(panel) \
         .process(panel.process) \
+        .onPress(_on_press) \
         .show()
-    save_state({"format": panel.format})
+    _on_press(1)
+    return panel
+
+
+#: the format the panel is currently showing, so the close handler can save it
+_LAST_FORMAT = ["FBX"]
 
 
 def main():

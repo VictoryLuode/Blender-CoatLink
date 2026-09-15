@@ -69,6 +69,9 @@ class FakeDialog(object):
     def process(self, callback):
         return self._step("process", callback)
 
+    def onPress(self, callback):
+        return self._step("onPress", callback)
+
     def show(self):
         return self._step("show")
 
@@ -259,14 +262,34 @@ def main():
           {"SendToBlender", "PullFromBlender", "Detect", "OpenFolder", "StartBlender"} <=
           {item.split(",", 1)[0] for item in plain}, plain)
     check("layout exposes the format droplist", "format,[FBX|OBJ]" in items, items)
-    check("layout ends with the status line", any(item.startswith("#") for item in items))
+    check("layout shows the status line", any(item.startswith("#") for item in items))
+    check("layout tells the user how to reopen the panel",
+          any(bridge.REOPEN_HINT in item for item in items), items)
 
-    # ---- menu registration is idempotent ----
-    coat.menu_inserted = False
-    check("menu item is inserted once", bridge.register_menu_item() is True and coat.inserted[-1][0:2] == ("Scripts", "CoatBridge"),
-          coat.inserted)
+    # ---- menu registration (main() already ran it on import) ----
+    check("first run registers Scripts and Windows",
+          coat.inserted[:2] == [("Scripts", "CoatBridge", ""), ("Windows", "CoatBridge", "")], coat.inserted)
+    check("registering again adds nothing", bridge.register_menu_item() == [])
+    check("the menu record is kept in the state file",
+          bridge.load_state().get("menus") == ["Scripts", "Windows"], bridge.load_state())
+
+    # a fresh state (entries gone) must bring both launchers back
+    coat.inserted = []
+    fresh = bridge.load_state()
+    fresh.pop("menus", None)
+    bridge.save_state(fresh)
+    check("a fresh state re-registers both menus",
+          bridge.register_menu_item() == ["Scripts", "Windows"] and len(coat.inserted) == 2, coat.inserted)
+
+    # with the shipped XML in place, Scripts is reported as already provided
+    coat.inserted = []
     coat.menu_inserted = True
-    check("menu item is not inserted twice", bridge.register_menu_item() is False)
+    fresh = bridge.load_state()
+    fresh.pop("menus", None)
+    bridge.save_state(fresh)
+    check("an existing menu entry is detected instead of duplicated",
+          bridge.register_menu_item() == ["Windows"] and coat.inserted == [("Windows", "CoatBridge", "")],
+          coat.inserted)
 
     # ---- blender lookup ----
     check("no Blender found -> empty path", bridge.find_blender_executable() == "")
