@@ -83,20 +83,10 @@ FORMATS = {
     },
 }
 
-FORMAT_ITEMS = [
-    ("obj", "OBJ - materials + UV, best for 3D-Coat painting", ""),
-    ("fbx", "FBX - needs the FBX add-on", ""),
-    ("ply", "PLY - geometry + UV, no materials", ""),
-    ("stl", "STL - geometry only", ""),
-]
-
-
+#: formats we can READ back (3D-Coat decides what it returns); see SEND_FORMAT
+#: in bridge.py for the one we send with
 def spec(fmt):
     return FORMATS.get(fmt) or FORMATS["obj"]
-
-
-def format_items():
-    return FORMAT_ITEMS
 
 
 def operator(which, fmt):

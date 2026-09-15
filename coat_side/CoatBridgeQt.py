@@ -89,15 +89,6 @@ if not QT_ERROR:
 
             column.addWidget(_separator())
 
-            row = QHBoxLayout()
-            row.addWidget(QLabel("Format"))
-            self.format_box = QComboBox()
-            self.format_box.addItems(list(lib.FORMAT_ITEMS))
-            self.format_box.setCurrentText(self.bridge.format)
-            self.format_box.currentTextChanged.connect(self._set_format)
-            row.addWidget(self.format_box, 1)
-            column.addLayout(row)
-
             column.addWidget(_separator())
 
             top = QHBoxLayout()
@@ -144,11 +135,6 @@ if not QT_ERROR:
             except Exception as exc:  # surfaced, never swallowed
                 self.bridge.status = "Error: %s" % exc
                 self.bridge.detail = ""
-            self.refresh()
-
-        def _set_format(self, text):
-            self.bridge.format = text
-            lib.save_state({"format": text})
             self.refresh()
 
         def refresh(self):

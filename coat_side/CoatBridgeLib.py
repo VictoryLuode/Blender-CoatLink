@@ -37,7 +37,9 @@ APP_FOLDER = "BlenderBridge"
 MODEL_NAME = "bridge"
 PANEL_CAPTION = "Coat Bridge"
 VERSION = "1.4.0"
-FORMAT_ITEMS = ("FBX", "OBJ")
+#: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
+#: there is nothing to choose - Blender reads the returned file by extension.
+EXPORT_FORMAT = "fbx"
 STATE_FILE = "CoatBridge.json"
 RUN_MARKER = "run.txt"
 MENU_ID = "CoatBridge"
@@ -281,14 +283,9 @@ class CoatBridgePanel(object):
     is the layout, methods whose names appear in that list become buttons."""
 
     def __init__(self):
-        state = load_state()
-        self.format = state.get("format", "FBX")
-        if self.format not in FORMAT_ITEMS:
-            self.format = "FBX"
         self.status = "Ready"
         self.detail = ""
         self.refresh_detail()
-        self._previous_format = self.format
 
     # ---- layout -----------------------------------------------------------
 
@@ -297,8 +294,6 @@ class CoatBridgePanel(object):
         items.append("[1]")
         items.append("SendToBlender")
         items.append("PullFromBlender")
-        items.append("---")
-        items.append("format,[%s]" % "|".join(FORMAT_ITEMS))
         items.append("---")
         items.append("[1 1]")
         items.append("Detect")
@@ -315,10 +310,6 @@ class CoatBridgePanel(object):
 
     def process(self):
         """Called every frame while the panel is open."""
-        if self.format != self._previous_format:
-            save_state({"format": self.format})
-            self._previous_format = self.format
-            self.refresh_detail()
         return False
 
     def refresh_detail(self):
@@ -342,7 +333,7 @@ class CoatBridgePanel(object):
             self._report("could not create the BlenderBridge folder", "")
             return
 
-        path = model_path(root, self.format.lower())
+        path = model_path(root, EXPORT_FORMAT)
         signal = signal_path(root)
         for _attempt in range(2):
             if os.path.isfile(signal):
@@ -582,9 +573,9 @@ def _menu_present(menu_id):
 
 
 def _on_press(button):
-    """The panel closed (button 1 = Close): remember the format for next time."""
+    """The panel closed (button 1 = Close): nothing to keep but the menu record."""
     try:
-        save_state({"format": _LAST_FORMAT[0], "menus": load_state().get("menus", [])})
+        save_state({"menus": load_state().get("menus", [])})
     except Exception:
         pass
 
@@ -600,7 +591,6 @@ def show_panel(force=False):
     _LAST_OPEN[0] = now
 
     panel = CoatBridgePanel()
-    _LAST_FORMAT[0] = panel.format
     coat.dialog() \
         .caption(PANEL_CAPTION) \
         .noModal() \
@@ -613,10 +603,6 @@ def show_panel(force=False):
         .show()
     _on_press(1)
     return panel
-
-
-#: the format the panel is currently showing, so the close handler can save it
-_LAST_FORMAT = ["FBX"]
 
 
 def main():

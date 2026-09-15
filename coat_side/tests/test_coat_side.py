@@ -122,7 +122,6 @@ def main():
     coat.applink_present = True
     coat.applink_export = applink_export
     coat.ui.cmd.return_value = lambda *a, **k: applink_export(own_root) or True
-    panel.format = "FBX"
     panel.SendToBlender()
     check("send uses the AppLink target when it exists", "AppLink" in panel.status, panel.status)
     check("send leaves 3D-Coat's own signal in place",
@@ -141,16 +140,14 @@ def main():
             handle.write("# exported directly\n")
 
     coat.direct_export = direct_export
-    panel.format = "OBJ"
     panel.SendToBlender()
-    check("send falls back to the direct export", cmd.calls and cmd.calls[-1].endswith("bridge.obj"), cmd.calls[-1:])
+    check("send falls back to the direct export", bool(cmd.calls) and cmd.calls[-1].endswith("bridge.fbx"), cmd.calls[-1:])
     check("send writes the signal Blender watches", os.path.isfile(bridge.signal_path(own_root)))
-    check("send reports the file", "Sent to Blender" in panel.status and "bridge.obj" in panel.status, panel.status)
+    check("send reports the file", "Sent to Blender" in panel.status and "bridge.fbx" in panel.status, panel.status)
 
-    # ---- format persistence ----
-    panel.format = "FBX"
-    panel.process()
-    check("the format setting is stored", bridge.load_state().get("format") == "FBX", bridge.load_state())
+    # ---- there is exactly one export format ----
+    check("the panel keeps no format state", not hasattr(panel, "format"))
+    check("3D-Coat hands back FBX", bridge.EXPORT_FORMAT == "fbx")
 
     # ---- panel layout mirrors the Blender menu ----
     items = panel.ui()
@@ -163,7 +160,8 @@ def main():
     check("layout offers the same actions as Blender",
           {"SendToBlender", "PullFromBlender", "Detect", "OpenFolder", "StartBlender"} <=
           {item.split(",", 1)[0] for item in plain}, plain)
-    check("layout exposes the format droplist", "format,[FBX|OBJ]" in items, items)
+    check("the layout has no format control",
+          not any(item.startswith("format,") for item in items), items)
     check("layout shows the status line", any(item.startswith("#") for item in items))
     check("layout tells the user how to reopen the panel",
           any(bridge.REOPEN_HINT in item for item in items), items)

@@ -11,7 +11,7 @@ their UIs are deliberately mirrors of each other:
 | Where | **Coat Bridge** button in the top bar (right-hand group) | Panel pinned to the **top-right** of the viewport |
 | Shape | popover menu | non-modal dialog, 320 px wide |
 | First row | `Send to 3D-Coat` / `Pull from 3D-Coat` | `Send to Blender` / `Pull from Blender` |
-| Options | `Open as`, `Format`, toggles | `Format` (FBX / OBJ) |
+| Options | `Open as`, toggles | - (one format, nothing to pick) |
 | Utilities | `Detect`, `Folder`, `Start 3D-Coat`, `Unlink` | `Detect`, `Folder`, `Start Blender` |
 | Last row | status + details box | status + details line |
 | Source | `coat_bridge/` (Blender add-on) | `coat_side/CoatBridge.py` (+ menu XML) |
@@ -137,7 +137,6 @@ It opens a popup holding the whole bridge.
 | Send to 3D-Coat | Export the selection and queue it |
 | Pull from 3D-Coat | Take a returned model right now |
 | Open as | How 3D-Coat opens the mesh (`[ppp]`, `[vox]`, `[uv]`, `[autopo]`, ...) |
-| Format | `OBJ` (materials + UV, recommended), `FBX`, `PLY`, `STL` |
 | Auto pull | Watch the exchange folder every 2 s; off = manual **Pull** only |
 | Skip dialogs | Let 3D-Coat import and export with its current settings |
 | Modifiers | Export evaluated meshes |

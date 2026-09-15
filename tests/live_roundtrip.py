@@ -44,7 +44,6 @@ def main():
 
     prefs = bpy.context.preferences.addons["coat_bridge"].preferences
     prefs.exchange_folder = exchange
-    prefs.fmt = "obj"
     prefs.mode = "ppp"
     prefs.auto_pull = False  # this script drives the pulls itself
     prefs.skip_dialogs = True

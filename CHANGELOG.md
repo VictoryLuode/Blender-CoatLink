@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.8.0 - 2026-09-13
+
+One format instead of a menu of them.
+
+* Sending is always OBJ: it carries geometry, UVs and materials without unit
+  ambiguity.  STL and PLY cannot carry UVs or materials, so they were useless for
+  this workflow, and FBX is what 3D-Coat hands back anyway.
+* What 3D-Coat returns is read by its file extension, so there is nothing to
+  configure on the way back either (the scale match covers the FBX unit factor).
+* The `Format` row is gone from the Blender menu and from the 3D-Coat panel, and
+  the 3D-Coat `format` setting is no longer stored.
+* Blender addon 1.4.0.  Tests: Blender 74 checks (incl. an FBX return imported
+  with no format setting), 3D-Coat 52 + 29 + 24.
+
 ## v1.7.0 - 2026-09-13
 
 Scale and units: a returned model now comes back at the size it left.

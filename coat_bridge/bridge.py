@@ -27,6 +27,10 @@ ROOT = __package__.split(".")[0]
 #: than this fraction (3D-Coat scene units are not always metres)
 SCALE_TOLERANCE = 0.02
 
+#: the one format we send with: OBJ carries geometry, UVs and materials without
+#: unit ambiguity, and 3D-Coat hands its own FBX back regardless
+SEND_FORMAT = "obj"
+
 STATE = {
     "target": None,     # {"object": name, "file": path} of the last send
     "seen": {},         # signal file -> mtime already handled
@@ -83,7 +87,7 @@ def send(context):
     if active not in objects:
         active = objects[0]
 
-    fmt = p.fmt
+    fmt = SEND_FORMAT
     if not transfer.ensure_module(fmt):
         raise RuntimeError(transfer.missing_reason(fmt) or "%s unavailable" % fmt)
     for obj in objects:

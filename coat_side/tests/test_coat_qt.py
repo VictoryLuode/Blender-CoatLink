@@ -61,8 +61,7 @@ def main():
     window = namespace["_window"][0]
     check("the window is titled Coat Bridge", window.windowTitle() == "Coat Bridge", window.windowTitle())
     check("opening twice raises the same window", namespace["main"]() is window)
-    check("panel shows the stored format", window.format_box.currentText() == CoatBridge.load_state().get("format", "FBX"),
-          window.format_box.currentText())
+    check("the panel has no format widget", not hasattr(window, "format_box"))
     check("panel has both transfer buttons",
           window.send_button.text() == "Send to Blender" and window.pull_button.text() == "Pull from Blender")
     check("panel has the utility buttons",
@@ -132,12 +131,6 @@ def main():
           coat.ui.removeCommandFromMenu.calls)
     check("Remove launcher reports back", "removed" in window.status_label.text().lower(),
           window.status_label.text())
-
-    # ---- format switch ----
-    window.format_box.setCurrentText("OBJ")
-    app.processEvents()
-    check("format switch is stored", CoatBridge.load_state().get("format") == "OBJ", CoatBridge.load_state())
-    check("format switch is shown", window.format_box.currentText() == "OBJ")
 
     # ---- geometry memory ----
     window.move(123, 77)

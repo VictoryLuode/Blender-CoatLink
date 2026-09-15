@@ -87,7 +87,9 @@ def main():
           hasattr(bpy.types, "COATBRIDGE_OT_send") and hasattr(bpy.types, "COATBRIDGE_OT_pull"))
     check("per-object link property registered", hasattr(bpy.types.Object, "coat_bridge_file"))
     check("timer registered", bpy.app.timers.is_registered(watcher.poll))
-    check("defaults are painting + obj", prefs.mode == "ppp" and prefs.fmt == "obj")
+    check("defaults to per-pixel painting", prefs.mode == "ppp")
+    check("there is no format option any more", not hasattr(prefs, "fmt"))
+    check("the send format is fixed to OBJ", bridge.SEND_FORMAT == "obj")
     for gone in ("apply_textures", "preset", "interval", "skip_import", "skip_export"):
         check("no '%s' option left" % gone, not hasattr(prefs, gone))
 
@@ -161,6 +163,7 @@ def main():
     expected = len(returned.data.vertices)
     bpy.data.objects.remove(returned, do_unlink=True)
     signal = applink.signal_files([EXCHANGE])[0]
+    back_path_fbx = applink.model_path(EXCHANGE, "fbx", name="bridge_back")
     write(signal, back_path + "\n")
 
     messages = bridge.pull(bpy.context, force=True)
@@ -239,15 +242,15 @@ def main():
     check("foreign model not imported", mesh_count() == 1, mesh_count())
     os.remove(signal)
 
-    # ---- format switch keeps the folder and the file name in sync ----
-    prefs.fmt = "fbx"
-    fbx_out = bridge.send(bpy.context)
-    check("fbx round trip exports", os.path.isfile(fbx_out), fbx_out)
-    check("fbx model keeps the fixed name", os.path.basename(fbx_out) == "bridge.fbx", fbx_out)
+    # ---- whatever 3D-Coat returns is read by its extension ----
+    bridge.send(bpy.context)
+    transfer.export_model(back_path_fbx, "fbx", [cube], apply_modifiers=False)
+    write(signal, back_path_fbx + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("an FBX return is imported without any format setting",
+          any("BridgeCube" in message for message in messages), messages)
     check("no extension.txt appears",
           not os.path.isfile(os.path.join(applink.app_folder(EXCHANGE), "extension.txt")))
-    prefs.fmt = "obj"
-    bridge.send(bpy.context)
 
     # ---- the watcher pulls on its own ----
     bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=6, radius=0.5)
