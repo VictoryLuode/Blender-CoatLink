@@ -75,6 +75,22 @@ It lands in `Documents/3DCoat/UserPrefs/Scripts/CoatBridge/` and adds
 `Scripts > Coat Bridge`.  Run it once - the panel stays open until you close it.
 3D-Coat may need a restart before the new menu entry shows up.
 
+The launcher also goes into the **Windows** menu and, with an icon, into the
+**tool panel of the rooms listed in `TOOL_ROOMS`** (Voxels by default).  The
+panel's `RemoveLauncher` button takes all of that back out again.
+
+### Where the panel can live (and where it cannot)
+
+| Spot | Works | How |
+| --- | --- | --- |
+| Viewport top-right, non-modal panel | yes | `coat.dialog().noModal().topRight().width()` |
+| Room tool panel (a real button in a panel, with icon) | yes | `ui.insertInToolset(room, section, toolID)` |
+| Main menus (24 places: File, Edit, View, Windows, Scripts, Voxels, Retopo, Bake, Layers, Textures, ...) | yes | `ui.insertInMenu()` or `ExtraMenuItems/*.xml` |
+| Room RMB panel | yes | `coat.start_rmb_panel()` / the room's `RMBMenu.py` |
+| Whole custom workspace | yes | `Documents/3DCoat/UserPrefs/Rooms/CustomRooms/<ID>/` |
+| Space-panel buttons | no | `show_space_panel("*Subset")` only takes built-in subsets |
+| **Right-hand dock column (VoxTree / Layers / Multires / ...)** | **no** | those are built-in window ids in each room's `Layout.xml`; the Python API has no call to register a window, `ui.enableWindow()` only toggles built-ins, and the Qt manager only undocks built-ins |
+
 ## Use
 
 Everything is in one place: the **Coat Bridge** button in the top bar, in the

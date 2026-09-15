@@ -35,7 +35,7 @@ except ImportError:  # the command module is optional at import time
 APP_FOLDER = "BlenderBridge"
 MODEL_NAME = "bridge"
 PANEL_CAPTION = "Coat Bridge"
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 FORMAT_ITEMS = ("FBX", "OBJ")
 STATE_FILE = "CoatBridge.json"
 RUN_MARKER = "run.txt"
