@@ -40,6 +40,19 @@ VERSION = "1.4.0"
 #: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
 #: there is nothing to choose - Blender reads the returned file by extension.
 EXPORT_FORMAT = "fbx"
+
+#: 3D-Coat's own decimation slider.  This is the id the shipped scripts use -
+#: UserPrefs/Scripts/mm_export.as and CoreAPI/Templates/CoreAPI_Export/
+#: auto_export.cpp both do SetSliderValue("$DecimationParams::ReductionPercent", n)
+#: while the export dialog is up, then press "$DialogButton#1" (OK).
+#: The value is the percentage of triangles to KEEP (0 = no reduction).
+REDUCTION_SLIDER = "$DecimationParams::ReductionPercent"
+REDUCTION_KEY = "reduction"
+
+#: the export dialog's "export textures" checkbox (documented as an import.txt
+#: option in applinks.rst, settable through coat.CMD.SetBoolField)
+TEXTURES_FIELD = "$ExportOpt::ExportTextures"
+TEXTURES_KEY = "textures"
 STATE_FILE = "CoatBridge.json"
 RUN_MARKER = "run.txt"
 MENU_ID = "CoatBridge"
@@ -167,6 +180,16 @@ def log_path():
     return os.path.join(documents_bases()[0], "3DCoat", "CoatBridge.log")
 
 
+def log_text(limit=200):
+    """The tail of the log: used by the tests, and by me when diagnosing from
+    outside 3D-Coat."""
+    try:
+        with open(log_path(), "r", encoding="utf-8", errors="replace") as handle:
+            return "\n".join(handle.read().splitlines()[-limit:])
+    except OSError:
+        return ""
+
+
 def log(message):
     try:
         LINES = 400
@@ -217,6 +240,141 @@ def save_state(data):
         return False
 
 
+def reduction_percent():
+    """The percentage the panel slider holds (0 = no reduction)."""
+    try:
+        value = int(load_state().get(REDUCTION_KEY, 0))
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(100, value))
+
+
+def set_reduction_percent(value):
+    try:
+        value = max(0, min(100, int(value)))
+    except (TypeError, ValueError):
+        return False
+    return save_state({REDUCTION_KEY: value})
+
+
+def export_note():
+    """What the status line reports about the export settings ("" when nothing
+    is set, so a plain export looks exactly like before)."""
+    bits = []
+    percent = reduction_percent()
+    if percent > 0:
+        bits.append("keep %d%%" % percent)
+    textures = export_textures()
+    if textures is not None:
+        bits.append("textures %s" % ("on" if textures else "off"))
+    return " (%s)" % ", ".join(bits) if bits else ""
+
+
+def reduction_note():
+    """Short note for the status line / log, "" when reduction is off."""
+    percent = reduction_percent()
+    return "" if percent <= 0 else " (keep %d%%)" % percent
+
+
+def capture_reduction():
+    """Read the percentage 3D-Coat's export dialog is showing and remember it.
+
+    Used the first time (and whenever the stored value is cleared): the user sets
+    it once in 3D-Coat's own dialog, we keep it and apply it automatically from
+    then on - so the dialog never has to be filled in twice.
+    """
+    if CMD is None:
+        return "reduction: no CMD api in this build"
+    try:
+        raw = float(CMD.GetSliderValue(REDUCTION_SLIDER))
+    except Exception as exc:
+        return "could not read the reduction slider: %s" % exc
+    percent = int(round(raw))
+    if percent <= 0 or percent > 100:
+        return "reduction read as %s - nothing stored" % raw
+    set_reduction_percent(percent)
+    return "remembered reduction %d%% from 3D-Coat" % percent
+
+
+def export_textures():
+    """True / False when the panel has decided, None while 3D-Coat decides.
+
+    Stored as "auto" / "on" / "off" so "3D-Coat decides" is a real third state
+    (a plain bool cannot express it).
+    """
+    value = load_state().get(TEXTURES_KEY, "auto")
+    if isinstance(value, bool):
+        return value
+    return {"on": True, "off": False}.get(str(value).lower())
+
+
+def set_export_textures(value):
+    stored = "auto" if value is None else ("on" if value else "off")
+    return save_state({TEXTURES_KEY: stored})
+
+
+def textures_line():
+    value = export_textures()
+    if value is None:
+        return "Textures: from 3D-Coat's dialog"
+    return "Textures: %s (click to switch)" % ("on" if value else "off")
+
+
+def apply_textures():
+    """Push the texture switch into 3D-Coat's export dialog.  "" when unset."""
+    value = export_textures()
+    if value is None:
+        return ""
+    if CMD is None:
+        return "textures: no CMD api in this build"
+    try:
+        CMD.SetBoolField(TEXTURES_FIELD, bool(value))
+    except Exception as exc:
+        return "textures %s failed: %s" % (value, exc)
+    return "textures %s" % ("on" if value else "off")
+
+
+def reduction_line():
+    """What the panel shows for the reduction setting."""
+    percent = reduction_percent()
+    if percent <= 0:
+        return "Reduction: from 3D-Coat's dialog"
+    return "Reduction: keep %d%% (clear to re-pick)" % percent
+
+
+def clear_reduction():
+    """Forget the percentage so the next export shows 3D-Coat's own dialog again."""
+    set_reduction_percent(0)
+    return "reduction cleared - the next export picks it up from 3D-Coat"
+
+
+def apply_reduction(percent=None):
+    """Push the percentage into 3D-Coat's own decimation slider.
+
+    Called while 3D-Coat's export dialog is up (see _export_via_applink), which is
+    what the shipped scripts do.  Returns a note for the log; "" when nothing was
+    asked for, and an explanation when the API refused, so a silent no-op can
+    never look like success.
+    """
+    try:
+        percent = reduction_percent() if percent is None else int(percent)
+    except (TypeError, ValueError):
+        return "reduction: bad value"
+    if percent <= 0:
+        return ""
+    if CMD is None:
+        return "reduction %d%%: no CMD api in this build" % percent
+    try:
+        CMD.SetSliderValue(REDUCTION_SLIDER, float(percent))
+    except Exception as exc:
+        return "reduction %d%% failed: %s" % (percent, exc)
+    try:
+        got = CMD.GetSliderValue(REDUCTION_SLIDER)
+    except Exception:
+        return "reduction %d%% set" % percent
+    return "reduction %d%% set (slider reads %s)" % (percent, got)
+
+
 # --------------------------------------------------------------------------
 # headless actions, for the tool-panel buttons (no UI at all)
 # --------------------------------------------------------------------------
@@ -225,7 +383,7 @@ def save_state(data):
 ACTION_LABELS = {
     "CoatBridge_Send": ("SendToBlender", "Send to Blender"),
     "CoatBridge_Pull": ("PullFromBlender", "Pull from Blender"),
-    "CoatBridge_Setup": ("Detect", "Coat Bridge: setup"),
+    "CoatBridge_Setup": ("OpenPanel", "Coat Bridge: panel"),
 }
 
 
@@ -295,6 +453,11 @@ class CoatBridgePanel(object):
         items.append("SendToBlender")
         items.append("PullFromBlender")
         items.append("---")
+        items.append("---")
+        items.append("#" + reduction_line())
+        items.append("ClearReduction")
+        items.append("#" + textures_line())
+        items.append("ToggleTextures")
         items.append("[1 1]")
         items.append("Detect")
         items.append("OpenFolder")
@@ -344,12 +507,14 @@ class CoatBridgePanel(object):
 
         exported = self._export_via_applink(path)
         if exported:
-            self._report("Sent to Blender via the AppLink target", "folder: %s" % app_folder(root))
+            self._report("Sent to Blender via the AppLink target" + export_note(),
+                         "folder: %s" % app_folder(root))
             return
         exported = self._export_direct(path)
         if exported:
             write_signal(root, path)
-            self._report("Sent to Blender: %s" % os.path.basename(path), "folder: %s" % app_folder(root))
+            self._report("Sent to Blender: %s%s" % (os.path.basename(path), export_note()),
+                         "folder: %s" % app_folder(root))
             return
         self._report("Export failed", "use File > Export To > %s, or check the console" % APP_FOLDER)
 
@@ -382,6 +547,24 @@ class CoatBridgePanel(object):
         name = _element_name(element) or os.path.basename(model)
         self._report("Pulled %s from %s" % (name, os.path.basename(model)),
                      "queue file consumed" if consumed else "queue file left alone")
+
+    def OpenPanel(self):
+        """Open the panel: 3D-Coat's own dialog, nothing Qt."""
+        panel = show_panel(force=True)
+        if panel is None:
+            self._report("could not open the panel", REOPEN_HINT)
+            return
+        self._report(panel.status, REOPEN_HINT)
+
+    def ClearReduction(self):
+        """Forget the percentage so the next export asks 3D-Coat again."""
+        self._report(clear_reduction(), "")
+
+    def ToggleTextures(self):
+        """Cycle Textures: 3D-Coat decides -> on -> off -> 3D-Coat decides."""
+        value = export_textures()
+        set_export_textures(None if value is False else not value)
+        self._report(textures_line(), "")
 
     def Detect(self):
         root = primary_root()
@@ -444,18 +627,38 @@ class CoatBridgePanel(object):
                 return False
         except Exception:
             return False
+        applied = [""]
+
+        def _confirm():
+            # 3D-Coat's export dialog is up.  A stored percentage is pushed into
+            # 3D-Coat's own decimation slider and OK is pressed without the user
+            # ever seeing it - the first time around (nothing stored) we read the
+            # value the dialog is showing and remember it instead.
+            applied[0] = " | ".join(
+                part for part in (apply_reduction() if reduction_percent() > 0 else capture_reduction(),
+                                  apply_textures()) if part)
+            coat.ui.cmd("$DialogButton#1")
+
         try:
+            if reduction_percent() > 0:
+                apply_reduction()  # covers the skip-dialog path too
+            apply_textures()
             coat.ui.setFileForFileDialog(path)
-            coat.ui.cmd(target, lambda: coat.ui.cmd("$DialogButton#1"))
+            coat.ui.cmd(target, _confirm)
             coat.io.step(4)
         except Exception:
             return False
+        if applied[0]:
+            log("export settings: %s" % applied[0])
         return os.path.isfile(signal_path(primary_root()))
 
     def _export_direct(self, path):
         if CMD is None:
             return False
         try:
+            notes = [part for part in (apply_reduction(), apply_textures()) if part]
+            if notes:
+                log("export settings: %s" % " | ".join(notes))
             CMD.ExportObjectsAndTextures(path)
             coat.io.step(4)
         except Exception:

@@ -141,7 +141,7 @@ It opens a popup holding the whole bridge.
 | Skip dialogs | Let 3D-Coat import and export with its current settings |
 | Modifiers | Export evaluated meshes |
 | No materials | A pulled model arrives as bare geometry (its materials are dropped) |
-| 3D-Coat export | Resolution / polycount / textures / coarse mesh, applied without its export dialog |
+| Export settings | live in 3D-Coat's panel: reduction percentage + textures, applied without its dialog |
 | Detect | Find the exchange folder and prepare the AppLink folder |
 | Folder | Show the exchange folder in the file browser |
 | Start 3D-Coat | Launch 3D-Coat so it picks up the queued import |

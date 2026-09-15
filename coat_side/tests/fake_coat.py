@@ -23,6 +23,21 @@ class Recorder(object):
         return None
 
 
+class CmdRecorder(Recorder):
+    """ui.cmd(command, callback): 3D-Coat runs the callback when the dialog that
+    command opened is up, so the fake runs it too - the tests then really
+    exercise the code that fills the dialog in."""
+
+    def __call__(self, *args, **kwargs):
+        self.calls.append(args)
+        for arg in args:
+            if callable(arg):
+                arg()
+        if hasattr(self, "return_value"):
+            return self.return_value(*args, **kwargs)
+        return None
+
+
 class FakeDialog(object):
     """Chainable recorder for coat.dialog().caption(...).topRight()...show()."""
 
@@ -74,7 +89,7 @@ class FakeCoat(object):
         self.menu_inserted = False
         self.inserted = []
 
-        self.ui.cmd = Recorder("ui.cmd")
+        self.ui.cmd = CmdRecorder("ui.cmd")
         self.ui.setFileForFileDialog = Recorder("ui.setFileForFileDialog")
         self.ui.showInfoMessage = lambda text, ms: self.messages.append(text)
         self.ui.checkIfMenuItemInserted = lambda menu_id: self.menu_inserted
@@ -120,6 +135,33 @@ def build_environment(tmp):
             coat.direct_export(path)
 
     cmd.ExportObjectsAndTextures = export_objects_and_textures
+
+    # 3D-Coat's dialog slider api: only ids 3D-Coat actually has accept a value,
+    # so a wrong id can never look like success in a test.
+    cmd.sliders = {}
+    cmd.known_sliders = {"$DecimationParams::ReductionPercent"}
+
+    def set_slider_value(name, value):
+        cmd.calls.append(("slider", name, value))
+        if name not in cmd.known_sliders:
+            return False
+        cmd.sliders[name] = float(value)
+        return True
+
+    cmd.SetSliderValue = set_slider_value
+    cmd.GetSliderValue = lambda name: cmd.sliders.get(name, 0.0)
+
+    cmd.bools = {"$ExportOpt::ExportTextures": True}
+
+    def set_bool_field(name, value):
+        cmd.calls.append(("bool", name, value))
+        if name not in cmd.bools:
+            return False
+        cmd.bools[name] = bool(value)
+        return True
+
+    cmd.SetBoolField = set_bool_field
+    cmd.GetBoolField = lambda name: cmd.bools.get(name)
     sys.modules["CMD"] = cmd
     return coat, cmd
 

@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.11.0 - 2026-09-13
+
+The export settings live in 3D-Coat, where the export happens.
+
+* The "3D-Coat export" block added in v1.10.0 is **gone from Blender** - the
+  job file is back to three lines plus the skip flags.  Export settings belong
+  on the side that exports.
+* 3D-Coat side, same idea as the bridge always had: the first export reads the
+  percentage out of 3D-Coat's own dialog and remembers it
+  (`CoatBridge.json`), and every export after that pushes it into 3D-Coat's own
+  decimation slider (`CMD.SetSliderValue("$DecimationParams::ReductionPercent")`,
+  the id `Scripts/mm_export.as` and `CoreAPI/Templates/CoreAPI_Export/
+  auto_export.cpp` both use) and presses OK, so the dialog is never seen again.
+* Same mechanism for textures: `Textures: 3D-Coat decides / on / off` cycles in
+  the panel and drives `CMD.SetBoolField("$ExportOpt::ExportTextures")`.
+* The panel itself is 3D-Coat's own dialog (`coat.dialog()...topRight()`), opened
+  by the tool-strip button.  **No Qt, no extra window** - the parked
+  `CoatBridgeQt.py` is not installed and nothing imports it.
+* Blender addon 1.7.0.  Suites: Blender 77 checks; 3D-Coat 81 + 29 tool + 24 Qt
+  (parked module, kept honest).
+
 ## v1.10.0 - 2026-09-13
 
 3D-Coat's export dialog, moved into the settings.

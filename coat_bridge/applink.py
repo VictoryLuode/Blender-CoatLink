@@ -164,25 +164,15 @@ def signal_files(roots):
     return files
 
 
-def write_import_txt(root, load_path, return_path, mode, skip_dialogs=True, options=()):
+def write_import_txt(root, load_path, return_path, mode, skip_dialogs=True):
     """Write the job file.  Must be the LAST file created: its appearance is
     what makes 3D-Coat start the import.
 
     [SkipImport]/[SkipExport] let 3D-Coat load and send back the model with its
     current settings instead of stopping at a dialog every time.
 
-    `options` are export settings taken from the add-on preferences, written as
-    "[Option=value]" / "[field $ExportOpt::Name = value]" lines (3D-Coat's
-    documented syntax).  They are placed before the [Skip*] lines because a
-    "[field ...]" command replaces earlier option commands - this way the dialog
-    never appears and the export uses the values set here.
     """
     lines = [_slash(load_path), _slash(return_path), "[%s]" % mode]
-    for kind, name, value in options:
-        if kind == "field":
-            lines.append("[field %s = %s]" % (name, value))
-        else:
-            lines.append("[%s=%s]" % (name, value))
     if skip_dialogs:
         lines.append("[SkipImport]")
         lines.append("[SkipExport]")
