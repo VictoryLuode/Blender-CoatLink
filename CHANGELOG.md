@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.2.0 - 2026-09-13
+
+One menu, in the top bar.
+
+* The whole UI is now a popover button in the top bar, in the right-hand group
+  next to the other add-on extras - same recipe as the bundled `auto_reload`
+  extension (`bl_space_type='TOPBAR'`, `bl_region_type='HEADER'`, hooked with
+  `TOPBAR_HT_upper_bar.prepend`, drawn when `context.region.alignment == 'RIGHT'`).
+* The 3D-view sidebar panel and its Details sub-panel are gone: send, pull, mode,
+  format, the three toggles, detect/folder/launch/unlink and the status box are
+  all inside the one menu.
+* Verified: 65-check headless suite (the panel, the top-bar hook and the absence
+  of the sidebar panel are asserted) + `tests/test_coat_export.sh` on a real
+  3D-Coat export.
+* Test scripts now pick the newest stable Blender build instead of a pinned path
+  (Blender Launcher replaced 5.2.0 with 5.2.1 LTS during this work).
+
 ## v1.1.0 - 2026-09-13
 
 Simpler exchange: everything lives in one folder.

@@ -9,7 +9,7 @@
 set -euo pipefail
 
 MODEL="${1:?usage: test_coat_export.sh <model-file> [blender.exe]}"
-BLENDER="${2:-/d/home/Documents/Blender/BlenderBuilds/stable/blender-5.2.0-lts.fbe6228777e7/blender.exe}"
+BLENDER="${2:-$(ls -d /d/home/Documents/Blender/BlenderBuilds/stable/*/blender.exe 2>/dev/null | sort -V | tail -1)}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WIN_REPO="$(cygpath -w "$REPO")"
 WORK="$(mktemp -d "$HOME/AppData/Local/Temp/coat_export_test.XXXXXX")"

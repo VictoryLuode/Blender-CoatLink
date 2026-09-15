@@ -9,7 +9,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BLENDER="${1:-/d/home/Documents/Blender/BlenderBuilds/stable/blender-5.2.0-lts.fbe6228777e7/blender.exe}"
+BLENDER="${1:-$(ls -d /d/home/Documents/Blender/BlenderBuilds/stable/*/blender.exe 2>/dev/null | sort -V | tail -1)}"
 WORK="$(mktemp -d "$HOME/AppData/Local/Temp/coat_bridge_test.XXXXXX")"
 WIN_WORK="$(cygpath -w "$WORK")"
 WIN_REPO="$(cygpath -w "$REPO")"

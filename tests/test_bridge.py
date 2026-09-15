@@ -70,7 +70,18 @@ def main():
 
     prefs = bpy.context.preferences.addons["coat_bridge"].preferences
     check("preferences reachable", prefs is not None)
-    check("panel registered", hasattr(bpy.types, "COATBRIDGE_PT_main"))
+    check("menu panel registered", hasattr(bpy.types, "COATBRIDGE_PT_menu"))
+    check("menu lives in the top bar",
+          bpy.types.COATBRIDGE_PT_menu.bl_space_type == "TOPBAR"
+          and bpy.types.COATBRIDGE_PT_menu.bl_region_type == "HEADER")
+    hook = getattr(bpy.types, "TOPBAR_HT_upper_bar", None)
+    if hook is None:
+        print("note  top bar hook not available in this session - skipped")
+    else:
+        from coat_bridge import ui as coat_ui
+        check("button hooked into the top bar",
+              coat_ui.HOOK_INSTALLED and callable(coat_ui.topbar_drawer))
+    check("no sidebar panel left", not hasattr(bpy.types, "COATBRIDGE_PT_main"))
     check("operators registered",
           hasattr(bpy.types, "COATBRIDGE_OT_send") and hasattr(bpy.types, "COATBRIDGE_OT_pull"))
     check("per-object link property registered", hasattr(bpy.types.Object, "coat_bridge_file"))

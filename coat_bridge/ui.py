@@ -2,16 +2,21 @@
 #
 # Coat Bridge - a small, predictable Blender <-> 3D-Coat model bridge.
 
-"""Panel and buttons.  Everything the bridge does is two clicks away."""
+"""One menu in the top bar.  Everything the bridge does lives inside it.
+
+The button is drawn the same way other top-bar extras are (see the bundled
+auto_reload extension): a popover panel registered for the TOPBAR space, hooked
+into TOPBAR_HT_upper_bar and drawn only in the right-hand group.
+"""
 
 import os
 import subprocess
 
 import bpy
 
-from . import applink, bridge, transfer
+from . import applink, bridge
 
-CATEGORY = "3D-Coat"
+POPOVER_ID = "COATBRIDGE_PT_menu"
 
 
 class COATBRIDGE_OT_send(bpy.types.Operator):
@@ -124,30 +129,32 @@ class COATBRIDGE_OT_unlink(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class COATBRIDGE_PT_main(bpy.types.Panel):
+class COATBRIDGE_PT_menu(bpy.types.Panel):
+    """The whole bridge UI, opened from the top-bar button."""
+
+    bl_idname = POPOVER_ID
     bl_label = "Coat Bridge"
-    bl_idname = "COATBRIDGE_PT_main"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = CATEGORY
+    bl_space_type = "TOPBAR"
+    bl_region_type = "HEADER"
+    bl_ui_units_x = 16
 
     def draw(self, context):
         layout = self.layout
         p = bridge.prefs(context)
         if p is None:
-            layout.label(text="Add-on preferences unavailable", icon="ERROR")
+            layout.label(text="Preferences unavailable", icon="ERROR")
             return
 
         column = layout.column(align=True)
         row = column.row()
-        row.scale_y = 1.7
+        row.scale_y = 1.5
         row.operator("coatbridge.send", icon="EXPORT")
         row = column.row()
-        row.scale_y = 1.4
+        row.scale_y = 1.3
         row.operator("coatbridge.pull", icon="IMPORT")
 
         column.separator(factor=1.2)
-        column.prop(p, "mode", text="")
+        column.prop(p, "mode", text="Open as")
         column.prop(p, "fmt", text="Format")
 
         column.separator(factor=1.2)
@@ -157,36 +164,19 @@ class COATBRIDGE_PT_main(bpy.types.Panel):
         grid.prop(p, "apply_modifiers", text="Modifiers")
         grid.operator("coatbridge.detect", text="Detect")
 
-        box = layout.box()
-        box.label(text=bridge.status(context), icon="INFO")
-        row = box.row(align=True)
+        column.separator(factor=1.2)
+        row = column.row(align=True)
         row.operator("coatbridge.open_folder", text="Folder", icon="FILE_FOLDER")
         row.operator("coatbridge.launch", text="Start 3D-Coat", icon="PLAY")
-        row.operator("coatbridge.unlink", text="", icon="UNLINKED")
 
-
-class COATBRIDGE_PT_details(bpy.types.Panel):
-    bl_label = "Details"
-    bl_idname = "COATBRIDGE_PT_details"
-    bl_parent_id = "COATBRIDGE_PT_main"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = CATEGORY
-    bl_options = {"DEFAULT_CLOSED"}
-
-    def draw(self, context):
-        layout = self.layout
-        p = bridge.prefs(context)
-        if p is None:
-            return
-        exchange = applink.resolve_exchange(p.exchange_folder)
-        row = layout.row()
-        row.alert = not os.path.isdir(exchange)
-        row.prop(p, "exchange_folder", text="")
-        layout.separator(factor=0.8)
         box = layout.box()
-        for line in bridge.detail_lines(context):
+        box.label(text=bridge.status(context), icon="INFO")
+        for line in bridge.detail_lines(context)[1:4]:
             box.label(text=line)
+
+        row = layout.row()
+        row.alignment = "RIGHT"
+        row.operator("coatbridge.unlink", text="Unlink selected", icon="UNLINKED")
 
 
 CLASSES = (
@@ -196,16 +186,44 @@ CLASSES = (
     COATBRIDGE_OT_open_folder,
     COATBRIDGE_OT_launch,
     COATBRIDGE_OT_unlink,
-    COATBRIDGE_PT_main,
-    COATBRIDGE_PT_details,
+    COATBRIDGE_PT_menu,
 )
 
 
+def topbar_drawer(self, context):
+    """Draw the button in the right-hand group of the top bar."""
+    if context.region.alignment != "RIGHT":
+        return
+    row = self.layout.row(align=True)
+    row.popover(panel=POPOVER_ID, text="Coat Bridge", icon="EXPORT")
+
+
+def _header_hook():
+    return getattr(bpy.types, "TOPBAR_HT_upper_bar", None)
+
+
+#: True once the button is really hooked into the top bar (checked by the tests)
+HOOK_INSTALLED = False
+
+
 def register():
+    global HOOK_INSTALLED
     for cls in CLASSES:
         bpy.utils.register_class(cls)
+    hook = _header_hook()
+    if hook is not None:  # absent when Blender runs without UI scripts
+        hook.prepend(topbar_drawer)
+        HOOK_INSTALLED = True
 
 
 def unregister():
+    global HOOK_INSTALLED
+    hook = _header_hook()
+    if hook is not None:
+        try:
+            hook.remove(topbar_drawer)
+        except Exception:
+            pass  # a reloaded add-on leaves a stale handler behind; nothing to fix
+    HOOK_INSTALLED = False
     for cls in reversed(CLASSES):
         bpy.utils.unregister_class(cls)

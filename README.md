@@ -46,12 +46,16 @@ AppLink that ships inside 3D-Coat (`data/ToolsPresets/InstallAppLinks/Blender4x/
 cp -r coat_bridge "$APPDATA/Blender Foundation/Blender/5.2/scripts/addons/"
 ```
 
-Enable **Coat Bridge** in `Edit > Preferences > Add-ons`, then open the `3D-Coat`
-tab in the 3D view sidebar and press **Detect** once: it finds the exchange
-folder, stores it in the add-on preferences and creates
-`<exchange>/BlenderBridge/`, which 3D-Coat then lists under `File > Export To`.
+Enable **Coat Bridge** in `Edit > Preferences > Add-ons`, then press **Detect**
+once (in the menu below): it finds the exchange folder, stores it in the add-on
+preferences and creates `<exchange>/BlenderBridge/`, which 3D-Coat then lists
+under `File > Export To`.
 
 ## Use
+
+Everything is in one place: the **Coat Bridge** button in the top bar, in the
+right-hand group next to the other add-on buttons (Restart, AR, Export, Import).
+It opens a popup holding the whole bridge.
 
 **Blender -> 3D-Coat**
 
@@ -70,15 +74,22 @@ folder, stores it in the add-on preferences and creates
 * `Unlink selected` stops tracking an object, so the next pull becomes a new
   object instead of replacing it.
 
-## Options
+## Menu contents
 
-| Option | Meaning |
+| Entry | Meaning |
 | --- | --- |
-| Mode | How 3D-Coat opens the mesh (`[ppp]`, `[vox]`, `[uv]`, `[autopo]`, ...) |
+| Send to 3D-Coat | Export the selection and queue it |
+| Pull from 3D-Coat | Take a returned model right now |
+| Open as | How 3D-Coat opens the mesh (`[ppp]`, `[vox]`, `[uv]`, `[autopo]`, ...) |
 | Format | `OBJ` (materials + UV, recommended), `FBX`, `PLY`, `STL` |
 | Auto pull | Watch the exchange folder every 2 s; off = manual **Pull** only |
-| Skip dialogs | Let 3D-Coat import and export with its current settings instead of asking |
+| Skip dialogs | Let 3D-Coat import and export with its current settings |
 | Modifiers | Export evaluated meshes |
+| Detect | Find the exchange folder and prepare the AppLink folder |
+| Folder | Show the exchange folder in the file browser |
+| Start 3D-Coat | Launch 3D-Coat so it picks up the queued import |
+| Unlink selected | Stop tracking, so the next pull becomes a new object |
+| Status box | Last action, target object, linked objects |
 
 ## Notes (all measured on 3D-Coat 2026)
 
@@ -91,15 +102,22 @@ folder, stores it in the add-on preferences and creates
   demand.
 * Anything 3D-Coat puts inside a `BlenderBridge` folder is ours; anything else is
   left alone, so the official AppLink can stay enabled.
+* The UI is a single popover button in the top bar, drawn the same way as other
+  top-bar extras: a panel with `bl_space_type = 'TOPBAR'`,
+  `bl_region_type = 'HEADER'`, hooked into `TOPBAR_HT_upper_bar` and drawn only
+  where `context.region.alignment == 'RIGHT'`.
 * Nothing in the Blender scene is renamed, joined or deleted.
 
 ## Tests
 
 ```bash
-tests/run_tests.sh                                    # headless round trip, 62 checks
+tests/run_tests.sh                                    # headless round trip, 65 checks
 tests/test_coat_export.sh path/to/a/real/export.fbx    # return leg on a real 3D-Coat file
 tests/live_roundtrip.sh 900                            # real 3D-Coat, waits for your click
 ```
+
+The scripts pick the newest stable Blender build automatically; pass a path as
+the first (or second) argument to override.
 
 `run_tests.sh` gives Blender a throwaway script folder and drives a full round
 trip against two temporary exchange roots: send, protocol file contents, in-place

@@ -9,7 +9,7 @@
 set -euo pipefail
 
 TIMEOUT="${1:-900}"
-BLENDER="${2:-/d/home/Documents/Blender/BlenderBuilds/stable/blender-5.2.0-lts.fbe6228777e7/blender.exe}"
+BLENDER="${2:-$(ls -d /d/home/Documents/Blender/BlenderBuilds/stable/*/blender.exe 2>/dev/null | sort -V | tail -1)}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WIN_REPO="$(cygpath -w "$REPO")"
 WORK="$(mktemp -d "$HOME/AppData/Local/Temp/coat_bridge_live.XXXXXX")"

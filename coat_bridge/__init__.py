@@ -6,9 +6,9 @@
 bl_info = {
     "name": "Coat Bridge",
     "author": "VictoryLuode",
-    "version": (1, 1, 0),
+    "version": (1, 2, 0),
     "blender": (4, 2, 0),
-    "location": "3D View > Sidebar > 3D-Coat",
+    "location": "Top Bar > Coat Bridge",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
     "category": "Import-Export",
     "doc_url": "https://3dcoat.com/documentation/manual/getting-started/app-links/blender-applink/",
