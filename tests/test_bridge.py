@@ -72,10 +72,9 @@ def main():
 
     prefs = bpy.context.preferences.addons["coat_bridge"].preferences
     check("preferences reachable", prefs is not None)
-    check("menu panel registered", hasattr(bpy.types, "COATBRIDGE_PT_menu"))
+    check("menu registered", hasattr(bpy.types, "COATBRIDGE_MT_menu"))
     check("menu lives in the top bar",
-          bpy.types.COATBRIDGE_PT_menu.bl_space_type == "TOPBAR"
-          and bpy.types.COATBRIDGE_PT_menu.bl_region_type == "HEADER")
+          bpy.types.COATBRIDGE_MT_menu.bl_label == "Coat Bridge")
     hook = getattr(bpy.types, "TOPBAR_HT_upper_bar", None)
     if hook is None:
         print("note  top bar hook not available in this session - skipped")
@@ -88,11 +87,10 @@ def main():
         entries = []
 
         class _Row(object):
-            def popover(self, **kwargs):
-                entries.append(("popover", kwargs.get("panel"), kwargs.get("text"), kwargs.get("icon")))
-
             def operator(self, idname, **kwargs):
-                entries.append(("operator", idname, kwargs.get("text"), kwargs.get("icon")))
+                entries.append(("operator", idname, kwargs.get("text"), kwargs.get("icon"),
+                                kwargs.get("emboss")))
+                return type("_Op", (), {})()      # Blender returns a layout that takes .name
 
         class _Layout(object):
             def row(self, align=False):
@@ -105,14 +103,44 @@ def main():
             return type("Ctx", (), {"region": type("Region", (), {"alignment": alignment})()})()
 
         coat_ui.topbar_drawer(_Self(), _context("RIGHT"))
-        check("the top bar draws the settings menu", entries[:1] ==
-              [("popover", coat_ui.POPOVER_ID, "Coat Bridge", "COLLAPSEMENU")], entries)
+        check("the top bar draws the settings menu first", entries[:1] ==
+              [("operator", "wm.call_menu", "Coat Bridge", "COLLAPSEMENU", False)], entries)
         check("Send sits to the right of it",
-              entries[1] == ("operator", "coatbridge.send", "Send", "EXPORT"), entries)
+              entries[1] == ("operator", "coatbridge.send", "Send", "EXPORT", False), entries)
         check("and Pull next to Send",
-              entries[2] == ("operator", "coatbridge.pull", "Pull", "IMPORT"), entries)
+              entries[2] == ("operator", "coatbridge.pull", "Pull", "IMPORT", False), entries)
+        check("all three are the same flat widget (no button background)",
+              all(entry[4] is False for entry in entries[:3]), entries)
+        check("the menu entry points at our menu",
+              entries[0][1] == "wm.call_menu" and coat_ui.MENU_ID == bpy.types.COATBRIDGE_MT_menu.bl_idname,
+              coat_ui.MENU_ID)
         check("the bar adds nothing on the left side", (coat_ui.topbar_drawer(_Self(), _context("LEFT")),
                                                         len(entries))[1] == 3, entries)
+
+        # the menu's own draw must survive: menus are not panels, so an error in
+        # there would only ever show up when the user opens it
+        drawn = []
+
+        class _Widget(object):
+            def __init__(self, log):
+                self.log = log
+
+            def __getattr__(self, name):
+                def call(*args, **kwargs):
+                    self.log.append(name)
+                    if name in ("row", "column", "box", "grid_flow", "split"):
+                        return _Widget(self.log)
+                    return None
+                return call
+
+        try:
+            coat_ui.COATBRIDGE_MT_menu.draw(type("_M", (), {"layout": _Widget(drawn)})(), bpy.context)
+            problem = ""
+        except Exception as exc:
+            problem = str(exc)
+        check("the menu's own layout draws without an error", not problem, problem)
+        check("it offers both transfers and the settings",
+              drawn.count("operator") >= 2 and drawn.count("prop") >= 5, drawn[:14])
     check("no sidebar panel left", not hasattr(bpy.types, "COATBRIDGE_PT_main"))
     check("operators registered",
           hasattr(bpy.types, "COATBRIDGE_OT_send") and hasattr(bpy.types, "COATBRIDGE_OT_pull"))

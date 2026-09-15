@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.16.5 - 2026-09-13
+
+The three top-bar entries look the same now.
+
+* Reported: the Blender top-bar buttons were not the same colour.  Cause: the
+  menu was a **popover panel** while Send and Pull were **operators**, and
+  Blender draws those two kinds of widget with different backgrounds - and only
+  operators accept `emboss`, so a popover can never be flattened to match.
+* The menu is a `Menu` opened through `wm.call_menu` now, so all three entries are
+  operators drawn `emboss=False`: no button background, theme text colour - light
+  on a dark theme, dark on a light one, and identical to each other in any theme.
+* Checks: all three entries are the same flat widget, the menu entry points at the
+  real menu, and the menu's own `draw()` is smoke-tested headlessly (a menu is not
+  a panel, so an error in there would otherwise only appear when it is opened).
+* Blender add-on 1.10.4.  Suite 101 checks.
+
 ## v1.16.4 - 2026-09-13
 
 The 3D-Coat button icons are light now.

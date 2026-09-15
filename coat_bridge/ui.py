@@ -5,7 +5,7 @@
 """One menu in the top bar.  Everything the bridge does lives inside it.
 
 The button is drawn the same way other top-bar extras are (see the bundled
-auto_reload extension): a popover panel registered for the TOPBAR space, hooked
+auto_reload extension): a menu registered for the TOPBAR space, hooked
 into TOPBAR_HT_upper_bar and drawn only in the right-hand group.
 """
 
@@ -16,7 +16,7 @@ import bpy
 
 from . import applink, bridge
 
-POPOVER_ID = "COATBRIDGE_PT_menu"
+MENU_ID = "COATBRIDGE_MT_menu"
 
 
 class COATBRIDGE_OT_send(bpy.types.Operator):
@@ -129,14 +129,17 @@ class COATBRIDGE_OT_unlink(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class COATBRIDGE_PT_menu(bpy.types.Panel):
-    """The whole bridge UI, opened from the top-bar button."""
+class COATBRIDGE_MT_menu(bpy.types.Menu):
+    """The whole bridge UI, opened from the top-bar button.
 
-    bl_idname = POPOVER_ID
+    A menu rather than a popover panel on purpose: the three top-bar entries have
+    to look alike, and only operators accept `emboss` - so the menu opens through
+    wm.call_menu and all three are drawn flat (no button background, so they take
+    the theme's text colour: light on a dark theme, dark on a light one).
+    """
+
+    bl_idname = MENU_ID
     bl_label = "Coat Bridge"
-    bl_space_type = "TOPBAR"
-    bl_region_type = "HEADER"
-    bl_ui_units_x = 16
 
     def draw(self, context):
         layout = self.layout
@@ -190,7 +193,7 @@ CLASSES = (
     COATBRIDGE_OT_open_folder,
     COATBRIDGE_OT_launch,
     COATBRIDGE_OT_unlink,
-    COATBRIDGE_PT_menu,
+    COATBRIDGE_MT_menu,
 )
 
 
@@ -200,9 +203,10 @@ def topbar_drawer(self, context):
     if context.region.alignment != "RIGHT":
         return
     row = self.layout.row(align=True)
-    row.popover(panel=POPOVER_ID, text="Coat Bridge", icon="COLLAPSEMENU")
-    row.operator("coatbridge.send", text="Send", icon="EXPORT")
-    row.operator("coatbridge.pull", text="Pull", icon="IMPORT")
+    row.operator("wm.call_menu", text="Coat Bridge", icon="COLLAPSEMENU",
+                 emboss=False).name = MENU_ID
+    row.operator("coatbridge.send", text="Send", icon="EXPORT", emboss=False)
+    row.operator("coatbridge.pull", text="Pull", icon="IMPORT", emboss=False)
 
 
 def _header_hook():
