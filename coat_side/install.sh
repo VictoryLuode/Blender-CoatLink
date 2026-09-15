@@ -11,6 +11,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="${1:-$HOME/Documents/3DCoat/UserPrefs/Scripts}"
+COAT="${2:-/d/Program Files/3DCoat-2026}"
 
 if [ ! -d "$TARGET" ]; then
     echo "no such scripts folder: $TARGET" >&2
@@ -40,5 +41,17 @@ XML
 
 echo "script : $DIR/CoatBridge.py"
 echo "menu   : $MENU_DIR/CoatBridge.xml  (Scripts > Coat Bridge)"
+
+ICON_DIR="$COAT/data/Textures/icons64"
+if [ -d "$ICON_DIR" ]; then
+    if cp "$REPO/coat_side/icon/CoatBridge.png" "$ICON_DIR/CoatBridge.png" 2>/dev/null; then
+        echo "icon   : $ICON_DIR/CoatBridge.png"
+    else
+        echo "icon   : skipped, $ICON_DIR is not writable (the tool button shows text only)" >&2
+    fi
+else
+    echo "icon   : skipped, $ICON_DIR not found" >&2
+fi
+
 echo
 echo "In 3D-Coat: run Scripts > Coat Bridge (or restart 3D-Coat so the menu picks it up)."

@@ -41,6 +41,7 @@ STATE_FILE = "CoatBridge.json"
 RUN_MARKER = "run.txt"
 MENU_ID = "CoatBridge"
 MENU_PATHS = ("Scripts", "Windows")  # launcher lives with the other script/window entries
+TOOL_ROOMS = ("Voxels",)             # rooms whose tool panel gets a Coat Bridge button
 REOPEN_HINT = "reopen: Scripts > Coat Bridge"
 
 #: timestamp of the last time the panel was opened, so a double click cannot
@@ -217,10 +218,12 @@ class CoatBridgePanel(object):
         items.append("---")
         items.append("format,[%s]" % "|".join(FORMAT_ITEMS))
         items.append("---")
-        items.append("[1 1 1]")
+        items.append("[1 1]")
         items.append("Detect")
         items.append("OpenFolder")
+        items.append("[1 1]")
         items.append("StartBlender")
+        items.append("RemoveLauncher")
         items.append("---")
         items.append("#" + self.status)
         if self.detail:
@@ -343,6 +346,20 @@ class CoatBridgePanel(object):
         except Exception as exc:
             self._report("Could not start Blender: %s" % exc, exe)
 
+    def RemoveLauncher(self):
+        """Take the injected menu entries and tool buttons back out again."""
+        try:
+            coat.ui.removeCommandFromMenu(MENU_ID)
+        except Exception as exc:
+            self._report("Could not remove the launcher: %s" % exc, "")
+            return
+        state = load_state()
+        state["menus"] = []
+        state["tools"] = []
+        save_state(state)
+        self._report("Launcher removed",
+                     "run this script again (Scripts > Coat Bridge) to put it back")
+
     # ---- internals --------------------------------------------------------
 
     def _export_via_applink(self, path):
@@ -449,6 +466,31 @@ def register_menu_item():
     return added
 
 
+def register_room_tools():
+    """Put a Coat Bridge button into the tool panel of the listed rooms.
+
+    The tool appears at the end of the room's tool list; the id doubles as the
+    icon name (data/Textures/icons64/<id>.png) and gets its label from the
+    translation added in register_menu_item().
+    """
+    state = load_state()
+    done = list(state.get("tools", []))
+    added = []
+    for room in TOOL_ROOMS:
+        if room in done:
+            continue
+        try:
+            coat.ui.insertInToolset(room, "", MENU_ID)
+            done.append(room)
+            added.append(room)
+        except Exception:
+            pass
+    if done != state.get("tools", []):
+        state["tools"] = sorted(set(done))
+        save_state(state)
+    return added
+
+
 def _menu_present(menu_id):
     try:
         return bool(coat.ui.checkIfMenuItemInserted(menu_id))
@@ -496,6 +538,7 @@ _LAST_FORMAT = ["FBX"]
 
 def main():
     register_menu_item()
+    register_room_tools()
     show_panel()
 
 

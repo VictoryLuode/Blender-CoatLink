@@ -96,6 +96,8 @@ class FakeCoat(object):
         self.ui.checkIfMenuItemInserted = lambda menu_id: self.menu_inserted
         self.ui.addTranslation = Recorder("ui.addTranslation")
         self.ui.insertInMenu = lambda menu, menu_id, path: self.inserted.append((menu, menu_id, path))
+        self.ui.insertInToolset = Recorder("ui.insertInToolset")
+        self.ui.removeCommandFromMenu = Recorder("ui.removeCommandFromMenu")
         self.ui.presentInUI = lambda target: self.applink_present
 
         self.io.step = lambda frames: None
@@ -294,6 +296,29 @@ def main():
     check("an existing menu entry is detected instead of duplicated",
           bridge.register_menu_item() == ["Windows"] and coat.inserted == [("Windows", "CoatBridge", "")],
           coat.inserted)
+
+    # ---- room tool button ----
+    write_state({"format": "FBX"})  # fresh: nothing recorded yet
+    added = bridge.register_room_tools()
+    check("the tool button is inserted into the listed rooms", added == ["Voxels"], added)
+    check("insertInToolset is called with the room and our id",
+          ("Voxels", "", "CoatBridge") in coat.ui.insertInToolset.calls, coat.ui.insertInToolset.calls)
+    check("tool registration is idempotent", bridge.register_room_tools() == [])
+    check("the room list is recorded", bridge.load_state().get("tools") == ["Voxels"], bridge.load_state())
+
+    # Removal takes both launchers back out and clears the record
+    coat.ui.removeCommandFromMenu.calls = []
+    panel.RemoveLauncher()
+    check("removal calls the API with our id",
+          coat.ui.removeCommandFromMenu.calls == [("CoatBridge",)], coat.ui.removeCommandFromMenu.calls)
+    check("removal clears the records",
+          bridge.load_state().get("tools") == [] and bridge.load_state().get("menus") == [],
+          bridge.load_state())
+    check("removal reports back", "removed" in panel.status.lower(), panel.status)
+
+    # and a fresh state puts the tool button back
+    write_state({"format": "FBX"})
+    check("a fresh state re-inserts the tool button", bridge.register_room_tools() == ["Voxels"])
 
     # ---- blender lookup ----
     check("no Blender found -> empty path", bridge.find_blender_executable() == "")
