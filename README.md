@@ -1,8 +1,20 @@
 # Coat Bridge
 
-A small, predictable two-way **model** bridge between **Blender** and **3D-Coat**,
-built on 3D-Coat's documented AppLink protocol.  Models only: no baking, no
-texture nodes, no scene surgery.
+A small, predictable two-way **model** bridge between **Blender** and **3D-Coat**.
+Models only: no baking, no texture nodes, no scene surgery.
+
+Both halves share one exchange folder, one file layout and one vocabulary, and
+their UIs are deliberately mirrors of each other:
+
+| | Blender side | 3D-Coat side |
+| --- | --- | --- |
+| Where | **Coat Bridge** button in the top bar (right-hand group) | Panel pinned to the **top-right** of the viewport |
+| Shape | popover menu | non-modal dialog, 320 px wide |
+| First row | `Send to 3D-Coat` / `Pull from 3D-Coat` | `Send to Blender` / `Pull from Blender` |
+| Options | `Open as`, `Format`, toggles | `Format` (FBX / OBJ) |
+| Utilities | `Detect`, `Folder`, `Start 3D-Coat`, `Unlink` | `Detect`, `Folder`, `Start Blender` |
+| Last row | status + details box | status + details line |
+| Source | `coat_bridge/` (Blender add-on) | `coat_side/CoatBridge.py` (+ menu XML) |
 
 ## The exchange, in full
 
@@ -42,6 +54,8 @@ AppLink that ships inside 3D-Coat (`data/ToolsPresets/InstallAppLinks/Blender4x/
 
 ## Install
 
+**Blender side**
+
 ```bash
 cp -r coat_bridge "$APPDATA/Blender Foundation/Blender/5.2/scripts/addons/"
 ```
@@ -50,6 +64,16 @@ Enable **Coat Bridge** in `Edit > Preferences > Add-ons`, then press **Detect**
 once (in the menu below): it finds the exchange folder, stores it in the add-on
 preferences and creates `<exchange>/BlenderBridge/`, which 3D-Coat then lists
 under `File > Export To`.
+
+**3D-Coat side**
+
+```bash
+coat_side/install.sh                       # copies the script + the menu entry
+```
+
+It lands in `Documents/3DCoat/UserPrefs/Scripts/CoatBridge/` and adds
+`Scripts > Coat Bridge`.  Run it once - the panel stays open until you close it.
+3D-Coat may need a restart before the new menu entry shows up.
 
 ## Use
 
@@ -111,13 +135,17 @@ It opens a popup holding the whole bridge.
 ## Tests
 
 ```bash
-tests/run_tests.sh                                    # headless round trip, 65 checks
-tests/test_coat_export.sh path/to/a/real/export.fbx    # return leg on a real 3D-Coat file
+tests/run_tests.sh                                    # Blender side, headless round trip, 65 checks
+tests/test_coat_export.sh path/to/a/real/export.fbx    # Blender side, return leg on a real 3D-Coat file
 tests/live_roundtrip.sh 900                            # real 3D-Coat, waits for your click
+python coat_side/tests/check_coat_api.py               # 3D-Coat side, API names vs the shipped stubs
+python coat_side/tests/test_coat_side.py               # 3D-Coat side, 38 logic checks (fake coat module)
 ```
 
 The scripts pick the newest stable Blender build automatically; pass a path as
-the first (or second) argument to override.
+the first (or second) argument to override.  The 3D-Coat tests need no 3D-Coat
+at all: one parses `coat.pyi` / `CMD.pyi`, the other drives the panel through a
+stand-in `coat` module.
 
 `run_tests.sh` gives Blender a throwaway script folder and drives a full round
 trip against two temporary exchange roots: send, protocol file contents, in-place

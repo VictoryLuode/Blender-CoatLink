@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.3.0 - 2026-09-13
+
+The 3D-Coat side, mirroring the Blender menu.
+
+* `coat_side/CoatBridge.py`: a non-modal panel pinned to the top-right of the
+  3D-Coat viewport (`coat.dialog().caption().noModal().topRight().width(320)`),
+  with the same caption, row order and wording as the Blender menu.
+* `Send to Blender` drives 3D-Coat's own AppLink target when it exists
+  (`ui.presentInUI("$BlenderBridge")` + `ui.setFileForFileDialog` + `ui.cmd`),
+  and falls back to `CMD.ExportObjectsAndTextures`; either way the Blender side
+  gets the signal it waits for.
+* `Pull from Blender` imports exactly what Blender queued
+  (`Scene.importMesh` on the model named in `import.txt`) and then consumes that
+  queue file, so 3D-Coat's own AppLink poller cannot import it a second time.
+* `Detect`, `Folder`, `Start Blender` (via `io.listBlenderInstallFolders`), an
+  `FBX`/`OBJ` format switch persisted in `Documents/3DCoat/CoatBridge.json`, and
+  a self-diagnosing status line.
+* Menu entry `Scripts > Coat Bridge`, from `ExtraMenuItems/CoatBridge.xml` and
+  an idempotent self-registration, so a bare copy of the .py also works.
+* Verified without 3D-Coat running: `coat_side/tests/check_coat_api.py` proves
+  every API call exists in 3D-Coat's shipped `coat.pyi` / `CMD.pyi` stubs, and
+  `coat_side/tests/test_coat_side.py` runs the panel against a fake `coat`
+  module - 38 checks covering the exchange layout, the queue, both export
+  routes, the signal files, settings persistence and the panel layout.
+
 ## v1.2.0 - 2026-09-13
 
 One menu, in the top bar.
