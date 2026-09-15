@@ -29,6 +29,8 @@ with tempfile.TemporaryDirectory(prefix='bridge_retry_') as tmp:
     assert any('Pulled' in msg for msg in result), result
     assert not signal.exists()
     print('PASS missing model arrives later: automatic pull recovers with unchanged signal')
+    # A new export version must retry independently of the previous success.
+    model.write_text(model.read_text() + '# next export\n')
     signal.write_text(str(model) + '\n')
     original = bridge._import_and_link
     def fail(*args):

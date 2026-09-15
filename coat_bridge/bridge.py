@@ -37,6 +37,7 @@ STATE = {
     "seen": {},         # signal file -> mtime already handled
     "last_send": 0.0,
     "last_pull": 0.0,
+    "imported_versions": {},  # canonical path -> (mtime_ns, size) successfully imported
     "message": "Ready",
     "log": [],
 }
@@ -291,7 +292,23 @@ def _pull_once(context, force):
         candidates.sort(reverse=True)
         path = candidates[0][1]
         try:
+            key = os.path.normcase(os.path.realpath(path))
+            stat = os.stat(path)
+            version = (stat.st_mtime_ns, stat.st_size)
+            versions = STATE.setdefault("imported_versions", {})
+            if not force and versions.get(key) == version:
+                for signal, removable in handled:
+                    if removable:
+                        try:
+                            os.remove(signal)
+                        except OSError:
+                            pass
+                return []  # a delayed mirror signal, not a new export
             imported = _import_and_link(context, path)
+            if imported:
+                versions[key] = version
+                if len(versions) > 128:
+                    del versions[next(iter(versions))]
         except Exception as exc:
             messages.append("import failed for %s: %s" % (os.path.basename(path), exc))
             _log("import failed for %s: %s" % (os.path.basename(path), exc))

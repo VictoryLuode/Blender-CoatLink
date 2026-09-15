@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.16.11
+
+* Auto pull deduplicates successful file versions across delayed mirror signals (canonical path, nanosecond mtime and size). Modified exports still import; explicit manual pull can repeat. Session cache bounded to 128 paths.
+* Real Blender delayed-signal and retry regressions pass; existing suite 113/113.
+* Blender add-on 1.10.10. No UI or unit changes.
+
 ## v1.16.10
 
 * Failed or missing returned models no longer permanently acknowledge their signal. Automatic pull retries without requiring a new export.txt.
