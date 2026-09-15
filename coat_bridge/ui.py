@@ -162,6 +162,7 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
         grid.prop(p, "skip_dialogs", text="Skip dialogs")
         grid.prop(p, "apply_modifiers", text="Modifiers")
         grid.prop(p, "match_scale", text="Match scale")
+        grid.prop(p, "strip_materials", text="No materials")
         grid.operator("coatbridge.detect", text="Detect")
 
         column.separator(factor=1.2)

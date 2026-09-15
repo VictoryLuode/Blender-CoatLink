@@ -193,11 +193,19 @@ def _import_and_link(context, path):
         target = bpy.data.objects.get(_stem(path))
     names = []
     if target is not None and target.type == "MESH":
+        file_materials = []
+        if _strip_enabled():
+            # collect what the file brought, then keep it out of the target
+            file_materials = [slot.material for slot in imported[0].material_slots if slot.material]
+            imported[0].data.materials.clear()
         _replace_mesh(target, imported[0])
-        note = _match_scale(target)
+        scale_note = _match_scale(target)
         target["coat_bridge_file"] = path
         bpy.data.objects.remove(imported[0], do_unlink=True)
-        names.append(target.name + (" (%s)" % note if note else ""))
+        # only now can the imported materials be collected (nothing references them)
+        material_note = _strip_materials(target, file_materials)
+        notes = [note for note in (scale_note, material_note) if note]
+        names.append(target.name + (" (%s)" % " ".join(notes) if notes else ""))
         imported = imported[1:]
     for extra in imported:
         extra["coat_bridge_file"] = path
@@ -265,6 +273,28 @@ def _match_scale(target):
     target.data.update()
     _log("scale matched: x%.6g (%.4f m -> %.4f m)" % (ratio, size, reference))
     return "scale x%.6g" % ratio
+
+
+def _strip_enabled():
+    p = prefs()
+    return bool(p is not None and p.strip_materials)
+
+
+def _strip_materials(target, file_materials):
+    """"Import without materials": drop the slots the mesh came with, and the
+    material datablocks the file itself brought (only if nothing else uses them -
+    the user's own materials are never touched)."""
+    if not _strip_enabled():
+        return ""
+    count = len(target.material_slots)
+    target.data.materials.clear()
+    removed = 0
+    for material in file_materials:
+        if material.users == 0:
+            bpy.data.materials.remove(material)
+            removed += 1
+    _log("materials stripped: %d slot(s), %d material(s) removed" % (count, removed))
+    return "no materials" if count else ""
 
 
 def _log(message):

@@ -206,6 +206,23 @@ def main():
           (round(bridge._diagonal(cube), 3), round(big_diagonal, 3), messages))
     prefs.match_scale = True
 
+    # ---- "Import without materials" ----
+    for mat in list(bpy.data.materials):      # start clean: earlier sections left orphans
+        if mat.users == 0 and mat is not material:
+            bpy.data.materials.remove(mat)
+    prefs.strip_materials = True
+    bridge.send(bpy.context)
+    transfer.export_model(back_path, "obj", [cube], apply_modifiers=False)
+    write(signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("the returned mesh comes back without materials", len(cube.material_slots) == 0,
+          [slot.material for slot in cube.material_slots])
+    check("only the user's own material is left in the file",
+          [mat.name for mat in bpy.data.materials] == [material.name],
+          [mat.name for mat in bpy.data.materials])
+    check("the pull says materials were dropped", any("no materials" in message for message in messages), messages)
+    prefs.strip_materials = False
+
     # ---- and the whole round trip is written to the shared log ----
     log_path = applink.shared_log_path()
     check("the shared log exists", os.path.isfile(log_path), log_path)

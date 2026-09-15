@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.9.0 - 2026-09-13
+
+`Import without materials`.
+
+* New toggle in the Blender menu (`No materials`, off by default): a pulled model
+  comes back as bare geometry.  The mesh's own slots are dropped, and the material
+  datablocks the returned file brought are removed too - but only when nothing
+  else uses them, so the user's own materials are never touched.
+* Ordering matters and is handled explicitly: the file's materials are collected
+  and cleared before the mesh swap, and the datablocks are only collected after
+  the temporary imported object is gone (otherwise it still references them).
+* Blender addon 1.5.0.  Tests: 77 checks - the returned mesh has zero material
+  slots, the file's material is gone, the user's own material survives, and the
+  status line says `no materials`.
+
 ## v1.8.0 - 2026-09-13
 
 One format instead of a menu of them.

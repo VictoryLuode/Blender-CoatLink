@@ -6,7 +6,7 @@
 bl_info = {
     "name": "Coat Bridge",
     "author": "VictoryLuode",
-    "version": (1, 4, 0),
+    "version": (1, 5, 0),
     "blender": (4, 2, 0),
     "location": "Top Bar > Coat Bridge",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
@@ -62,6 +62,11 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
     apply_modifiers: BoolProperty(
         name="Apply modifiers",
         description="Export evaluated meshes (modifiers applied)",
+        default=False,
+    )
+    strip_materials: BoolProperty(
+        name="Import without materials",
+        description="Drop the materials of a returned model, so only the geometry comes back",
         default=False,
     )
     match_scale: BoolProperty(

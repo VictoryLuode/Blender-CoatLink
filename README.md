@@ -140,6 +140,7 @@ It opens a popup holding the whole bridge.
 | Auto pull | Watch the exchange folder every 2 s; off = manual **Pull** only |
 | Skip dialogs | Let 3D-Coat import and export with its current settings |
 | Modifiers | Export evaluated meshes |
+| No materials | A pulled model arrives as bare geometry (its materials are dropped) |
 | Detect | Find the exchange folder and prepare the AppLink folder |
 | Folder | Show the exchange folder in the file browser |
 | Start 3D-Coat | Launch 3D-Coat so it picks up the queued import |
