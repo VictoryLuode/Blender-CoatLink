@@ -19,3 +19,9 @@ lib.log("entry CoatBridgeDialog as %r" % __name__)
 lib.register_menu_item()
 lib.register_room_tools()
 lib.show_panel()
+
+
+# 3D-Coat imports this file by module name and Python then caches it, so a second
+# click on the same menu item / tool button would do nothing.  Dropping ourselves
+# from sys.modules makes the next click import and run this file again.
+sys.modules.pop(__name__, None)

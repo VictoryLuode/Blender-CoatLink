@@ -211,3 +211,8 @@ def main():
 # from a test therefore opens the panel; use CoatBridgeLib for the logic.
 lib.log("entry CoatBridgeQt as %r" % __name__)
 main()
+
+# 3D-Coat imports this file by module name and Python then caches it, so a second
+# click on the same menu item would do nothing.  Dropping ourselves from
+# sys.modules makes the next click import and run this file again.
+sys.modules.pop(__name__, None)

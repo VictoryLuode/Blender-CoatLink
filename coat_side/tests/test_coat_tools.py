@@ -84,6 +84,28 @@ def main():
     check("the entry file pulls without any window",
           coat.scene_imports == [queued] and coat.dialog_log == [], (coat.scene_imports, coat.dialog_log))
 
+    # ---- a second click must work: 3D-Coat imports scripts by module name ----
+    import importlib.util
+
+    def click_entry(module_name, filename):
+        """What 3D-Coat's importer does: import the file as a named module."""
+        path = os.path.join(COAT_SIDE, filename)
+        spec = importlib.util.spec_from_file_location(module_name, path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+
+    coat.scene_imports.clear()
+    for _click in range(2):
+        with open(lib.import_txt(job_root), "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(queued + "\n" + queued + "\n[ppp]\n")
+        click_entry("CoatBridgePkg.CoatBridge_Pull", "CoatBridge_Pull.py")
+
+    check("the entry drops itself from the module cache",
+          "CoatBridgePkg.CoatBridge_Pull" not in sys.modules, list(sys.modules)[:3])
+    check("the second click runs the action again",
+          coat.scene_imports == [queued, queued], coat.scene_imports)
+
     # ---- the log black box records what happened ----
     log_text = open(lib.log_path(), encoding="utf-8").read()
     check("the log mentions the buttons", "tool CoatBridge_Send" in log_text and "tool CoatBridge_Pull" in log_text,
