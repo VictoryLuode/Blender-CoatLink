@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.10.0 - 2026-09-13
+
+3D-Coat's export dialog, moved into the settings.
+
+* New "3D-Coat export" block in the Blender menu.  The values are written into
+  the job file (import.txt) with 3D-Coat's documented syntax, so its export runs
+  without stopping at a dialog:
+  `[ExportResolution=LOW-POLY|MID-POLY]`, `[CoarseMesh=0|1]`,
+  `[ExportTextures=0|1]`, and `[field $ExportOpt::DesiredPolycount = N]`
+  (the export dialog's own polycount field, written first because a `[field ...]`
+  command replaces earlier option commands).
+* Defaults stay neutral: no resolution, no polycount, textures on, coarse off -
+  the two always-written lines then simply restate 3D-Coat's current behaviour.
+* Nothing is set twice: the 3D-Coat side only consumes the job file, so the
+  Blender menu is the single place these live, and they apply to the model
+  coming back in both directions.
+* Blender addon 1.6.0.  Suite: 86 checks (the job file carries the settings in
+  the right order, the dialog stays skipped, the status line and the shared log
+  report what was asked for).
+
 ## v1.9.0 - 2026-09-13
 
 `Import without materials`.

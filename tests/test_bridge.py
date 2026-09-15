@@ -135,8 +135,9 @@ def main():
     check("import.txt: model path first", lines[0].endswith("BlenderBridge/bridge.obj"), lines)
     check("import.txt: return path second", lines[1].endswith("BlenderBridge/bridge_back.obj"), lines)
     check("import.txt: mode line third", lines[2] == "[ppp]", lines)
-    check("import.txt: skip flags", lines[3:] == ["[SkipImport]", "[SkipExport]"], lines)
-    check("import.txt: nothing else", len(lines) == 5, lines)
+    check("import.txt: export settings then skip flags",
+          lines[3:] == ["[ExportTextures=1]", "[CoarseMesh=0]", "[SkipImport]", "[SkipExport]"], lines)
+    check("import.txt: nothing else", all(line.strip().startswith("[") for line in lines[3:]), lines)
     check("import.txt: posix paths only", "\\" not in "".join(lines), lines)
     check("no import.txt inside the folder",
           not os.path.isfile(os.path.join(applink.app_folder(EXCHANGE), "import.txt")))
@@ -222,6 +223,37 @@ def main():
           [mat.name for mat in bpy.data.materials])
     check("the pull says materials were dropped", any("no materials" in message for message in messages), messages)
     prefs.strip_materials = False
+
+    # ---- the "3D-Coat export" settings travel in the job file ----
+    prefs.export_resolution = "MID-POLY"
+    prefs.export_polycount = 50000
+    prefs.export_textures = False
+    prefs.export_coarse_mesh = True
+    bridge.send(bpy.context)
+    job = read(applink.import_txt(EXCHANGE))
+    check("the job file asks for the chosen resolution", "[ExportResolution=MID-POLY]" in job, job)
+    check("the job file asks for the chosen polycount",
+          "[field $ExportOpt::DesiredPolycount = 50000]" in job, job)
+    check("the job file can turn textures off", "[ExportTextures=0]" in job, job)
+    check("the job file can ask for a coarse mesh", "[CoarseMesh=1]" in job, job)
+    check("the [field] line comes before the [Option] lines",
+          job.index("$ExportOpt::DesiredPolycount") < job.index("[ExportResolution="), job)
+    check("the dialog is still skipped", "[SkipImport]" in job and "[SkipExport]" in job, job)
+    check("the status line says what was asked for", "MID-POLY" in bridge.STATE["message"],
+          bridge.STATE["message"])
+    check("the shared log says what was asked for",
+          "MID-POLY" in read(applink.shared_log_path()),
+          read(applink.shared_log_path()).splitlines()[-2:])
+
+    prefs.export_resolution = "unset"
+    prefs.export_polycount = 0
+    prefs.export_textures = True
+    prefs.export_coarse_mesh = False
+    bridge.send(bpy.context)
+    job = read(applink.import_txt(EXCHANGE))
+    check("with nothing set the job file stays minimal",
+          "ExportResolution" not in job and "DesiredPolycount" not in job
+          and "[ExportTextures=1]" in job and "[CoarseMesh=0]" in job, job)
 
     # ---- and the whole round trip is written to the shared log ----
     log_path = applink.shared_log_path()

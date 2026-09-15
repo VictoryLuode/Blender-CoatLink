@@ -166,6 +166,14 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
         grid.operator("coatbridge.detect", text="Detect")
 
         column.separator(factor=1.2)
+        column.label(text="3D-Coat export")
+        column.prop(p, "export_resolution", text="")
+        export_row = column.grid_flow(row_major=True, columns=2, even_columns=True, align=True)
+        export_row.prop(p, "export_textures", text="Textures")
+        export_row.prop(p, "export_coarse_mesh", text="Coarse")
+        column.prop(p, "export_polycount", text="Polycount")
+
+        column.separator(factor=1.2)
         row = column.row(align=True)
         row.operator("coatbridge.open_folder", text="Folder", icon="FILE_FOLDER")
         row.operator("coatbridge.launch", text="Start 3D-Coat", icon="PLAY")

@@ -72,6 +72,40 @@ def detail_lines(context=None):
     return lines
 
 
+def export_options(p):
+    """The "3D-Coat export" preferences, as job-file option tuples.
+
+    Order matters: a "[field ...]" command replaces earlier option commands, so
+    it goes first and the plain "[Option=value]" lines follow it.
+    """
+    if p is None:
+        return []
+    out = []
+    if p.export_polycount > 0:
+        out.append(("field", "$ExportOpt::DesiredPolycount", int(p.export_polycount)))
+    if p.export_resolution != "unset":
+        out.append(("option", "ExportResolution", p.export_resolution))
+    out.append(("option", "ExportTextures", 1 if p.export_textures else 0))
+    out.append(("option", "CoarseMesh", 1 if p.export_coarse_mesh else 0))
+    return out
+
+
+def options_note(p):
+    """Short human note for the status line / log, "" when nothing is set."""
+    if p is None:
+        return ""
+    bits = []
+    if p.export_polycount > 0:
+        bits.append("%d polys" % p.export_polycount)
+    if p.export_resolution != "unset":
+        bits.append(p.export_resolution)
+    if not p.export_textures:
+        bits.append("no textures")
+    if p.export_coarse_mesh:
+        bits.append("coarse")
+    return ", ".join(bits)
+
+
 def send(context):
     """Export the selection (or every visible mesh) and queue it for 3D-Coat."""
     p = prefs(context)
@@ -101,18 +135,21 @@ def send(context):
         applink.ensure_app_folder(root)
 
     dropped = transfer.export_model(out_path, fmt, objects, p.apply_modifiers)
-    applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
+    applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs, export_options(p))
 
     STATE["target"] = {"object": active.name, "file": out_path, "diagonal": _diagonal(objects[0])}
     STATE["last_send"] = time.time()
     for candidate in applink.signal_files(roots):
         STATE["seen"].pop(candidate, None)
-    _log("sent %s: %s diagonal %.4f m" % (active.name, os.path.basename(out_path),
-                                          STATE["target"]["diagonal"] or 0.0))
+    asked = options_note(p)
+    _log("sent %s: %s diagonal %.4f m%s" % (active.name, os.path.basename(out_path),
+                                            STATE["target"]["diagonal"] or 0.0,
+                                            " [%s]" % asked if asked else ""))
 
     note = "" if applink.is_coat_running() is not False else " - start 3D-Coat to pick it up"
     merged = "" if len(objects) == 1 else " (%d merged)" % len(objects)
-    _set_message("Sent %s%s -> %s%s" % (active.name, merged, os.path.basename(out_path), note))
+    _set_message("Sent %s%s -> %s%s%s" % (active.name, merged, os.path.basename(out_path), note,
+                                          " [%s]" % asked if asked else ""))
     if dropped:
         STATE["log"].append("dropped unsupported options: %s" % ", ".join(dropped))
     return out_path

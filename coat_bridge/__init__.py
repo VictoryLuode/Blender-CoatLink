@@ -6,7 +6,7 @@
 bl_info = {
     "name": "Coat Bridge",
     "author": "VictoryLuode",
-    "version": (1, 5, 0),
+    "version": (1, 6, 0),
     "blender": (4, 2, 0),
     "location": "Top Bar > Coat Bridge",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
@@ -15,7 +15,7 @@ bl_info = {
 }
 
 import bpy
-from bpy.props import BoolProperty, EnumProperty, StringProperty
+from bpy.props import BoolProperty, EnumProperty, IntProperty, StringProperty
 
 from . import transfer, ui, watcher
 
@@ -62,6 +62,32 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
     apply_modifiers: BoolProperty(
         name="Apply modifiers",
         description="Export evaluated meshes (modifiers applied)",
+        default=False,
+    )
+    export_resolution: EnumProperty(
+        name="3D-Coat export resolution",
+        description="Resolution 3D-Coat uses when it sends the model back",
+        items=[
+            ("unset", "Don't set", "Leave 3D-Coat's own setting alone"),
+            ("LOW-POLY", "LOW-POLY", "Low poly export"),
+            ("MID-POLY", "MID-POLY", "Mid poly export"),
+        ],
+        default="unset",
+    )
+    export_polycount: IntProperty(
+        name="3D-Coat polycount",
+        description="Polygon count 3D-Coat reduces the model to when it exports (0 = leave it alone)",
+        default=0,
+        min=0,
+    )
+    export_textures: BoolProperty(
+        name="3D-Coat textures",
+        description="Let 3D-Coat write textures next to the model it sends back",
+        default=True,
+    )
+    export_coarse_mesh: BoolProperty(
+        name="3D-Coat coarse mesh",
+        description="Ask 3D-Coat for a coarse (decimated) export",
         default=False,
     )
     strip_materials: BoolProperty(
