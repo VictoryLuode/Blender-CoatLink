@@ -190,11 +190,35 @@ def main():
     bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=1.6)
     returned = bpy.context.active_object
     back_path = applink.model_path(EXCHANGE, "obj", name="bridge_back")
-    transfer.export_model(back_path, "obj", [returned], apply_modifiers=False)
+    # 3D-Coat returns the model at the size it received it, so send it back at the
+    # size Blender sent: nothing needs correcting then
+    returned_scale = sent_diagonal / max(bridge._diagonal(returned), 1e-9)
+    transfer.export_model(back_path, "obj", [returned], apply_modifiers=False,
+                          overrides={"global_scale": returned_scale})
     expected = len(returned.data.vertices)
     bpy.data.objects.remove(returned, do_unlink=True)
     signal = applink.signal_files([EXCHANGE])[0]
+    # The add-on reads 3D-Coat's state file out of "Documents"; point that at a
+    # throwaway home from here on, so these checks never pick up the real
+    # 3D-Coat settings (or write to its log) on this machine.
+    coat_home = tempfile.mkdtemp(prefix="coat_state.")
+    os.makedirs(os.path.join(coat_home, "3DCoat"), exist_ok=True)
+    applink._documents_bases = lambda: [coat_home]
+
+    def write_coat_state(info):
+        write(os.path.join(coat_home, "3DCoat", "CoatBridge.json"), json.dumps({"coat": info}))
+
     back_path_fbx = applink.model_path(EXCHANGE, "fbx", name="bridge_back")
+
+    # The add-on reads 3D-Coat's state file out of "Documents"; point that at a
+    # throwaway home from here on, so these checks never pick up the real
+    # 3D-Coat settings (or its log) on this machine.
+    coat_home = tempfile.mkdtemp(prefix="coat_state.")
+    os.makedirs(os.path.join(coat_home, "3DCoat"), exist_ok=True)
+    applink._documents_bases = lambda: [coat_home]
+
+    def write_coat_state(info):
+        write(os.path.join(coat_home, "3DCoat", "CoatBridge.json"), json.dumps({"coat": info}))
     write(signal, back_path + "\n")
 
     messages = bridge.pull(bpy.context, force=True)
@@ -210,8 +234,8 @@ def main():
     check("no stray imported object", mesh_count() == 1, mesh_count())
     check("returned file kept for the next round trip", os.path.isfile(back_path))
     check("second pull has nothing to do", bridge.pull(bpy.context) == [])
-    check("a size mismatch is undone on the way back", "scale x" in " ".join(messages), messages)
-    check("the model is exactly the size it was sent at",
+    check("a return of the same size needs no correction", "scale x" not in " ".join(messages), messages)
+    check("and the model is exactly the size it was sent at",
           abs(bridge._diagonal(cube) - sent_diagonal) < 0.02,
           (bridge._diagonal(cube), sent_diagonal))
 
@@ -263,14 +287,7 @@ def main():
                 points.add(tuple(round(float(value), 4) for value in parts[1:4]))
         return points
 
-    coat_home = tempfile.mkdtemp(prefix="coat_state.")
-    os.makedirs(os.path.join(coat_home, "3DCoat"), exist_ok=True)
-
-    def write_coat_state(info):
-        write(os.path.join(coat_home, "3DCoat", "CoatBridge.json"), json.dumps({"coat": info}))
-
     applink_bases = applink._documents_bases
-    applink._documents_bases = lambda: [coat_home]
     prefs.coat_scale = 0.0
     prefs.axis_mode = "auto"
 
@@ -280,7 +297,7 @@ def main():
 
     write_coat_state({"scene_scale": 100.0, "scene_units": "m", "swap_yz": True})
     scale, origin = bridge.transfer_scale(bpy.context)
-    check("3D-Coat's scene scale is picked up", scale == 100.0 and "3D-Coat" in origin, (scale, origin))
+    check("3D-Coat's reported numbers are used", scale == 100.0 and "3D-Coat" in origin, (scale, origin))
     check("its swap Y/Z option is picked up", bridge.axis_swap(bpy.context) is True,
           bridge.axis_swap(bpy.context))
 
@@ -314,7 +331,9 @@ def main():
     check("the send says what it did", "x100" in bridge.STATE["message"] and "swap Y/Z" in bridge.STATE["message"],
           bridge.STATE["message"])
     check("the log says where the scale came from",
-          "3D-Coat scene scale" in read(applink.shared_log_path()), read(applink.shared_log_path()).splitlines()[-1:])
+          "units=" in read(applink.shared_log_path()), read(applink.shared_log_path()).splitlines()[-1:])
+
+
 
     # a manual scale still wins, and "normal" axis means untouched
     prefs.coat_scale = 2.5
@@ -328,6 +347,40 @@ def main():
 
     prefs.coat_scale = 0.0
     prefs.axis_mode = "auto"
+
+    # the units are what matters: centimetres need x100, millimetres x1000
+    for units, expected in (("CENTIMETERS", 100.0), ("MILLIMETERS", 1000.0), ("METERS", 1.0)):
+        write_coat_state({"scene_scale": 1.0, "scene_units": units, "swap_yz": False})
+        check("3D-Coat units=%s means x%s" % (units, expected),
+              abs(bridge.transfer_scale(bpy.context)[0] - expected) < 0.01,
+              bridge.transfer_scale(bpy.context))
+    write_coat_state({"scene_scale": 1.0, "scene_units": "FURLOGS", "swap_yz": False})
+    check("an unknown unit name is not guessed at",
+          bridge.transfer_scale(bpy.context)[0] == 1.0
+          and "has not reported" in bridge.transfer_scale(bpy.context)[1],
+          bridge.transfer_scale(bpy.context))
+
+    # a model that comes home in 3D-Coat's units is converted back, and a size
+    # that differs because the model itself changed is left alone
+    write_coat_state({"scene_scale": 1.0, "scene_units": "CENTIMETERS", "swap_yz": False})
+    cube_scale = bridge.transfer_scale(bpy.context)[0]
+    transfer.export_model(back_path, "obj", [cube], apply_modifiers=False,
+                          overrides={"global_scale": cube_scale})
+    before_diagonal = bridge._diagonal(cube)
+    write(signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("a model written in 3D-Coat's units comes home the right size",
+          abs(bridge._diagonal(cube) - before_diagonal) < 0.02
+          and "scale x" not in " ".join(messages),
+          (bridge._diagonal(cube), before_diagonal, messages))
+
+    transfer.export_model(back_path, "obj", [cube], apply_modifiers=False,
+                          overrides={"global_scale": cube_scale * 1.5})
+    write(signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("a size difference that is not a unit factor is left alone",
+          any("left alone" in message for message in messages), messages)
+
     applink._documents_bases = applink_bases
 
     # ---- and the whole round trip is written to the shared log ----
@@ -336,7 +389,8 @@ def main():
     if os.path.isfile(log_path):
         log_text = read(log_path)
         check("the log records the send size", "sent BridgeCube" in log_text, log_text[-200:])
-        check("the log records the correction", "scale matched" in log_text, log_text[-200:])
+        check("the log records what happened to the size",
+              "scale matched" in log_text or "scale:" in log_text, log_text[-200:])
 
     # ---- the second root is watched too (3D-Coat exports into its own root) ----
     own_app_signal = os.path.join(OTHER_ROOT, "BlenderBridge", "export.txt")

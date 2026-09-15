@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.16.6 - 2026-09-13
+
+Units are matched automatically - that is why models arrived small.
+
+* Measured from the real exchange folder: Blender sent a 2.20 m cube and 3D-Coat
+  kept it ~100x smaller.  3D-Coat reports `scene_units: CENTIMETERS` with
+  `scene_scale: 1.0`, so the mismatch was never the scene scale (the number the
+  v1.14 attempt used, and it is 1.0 on this machine, which is why nothing
+  changed): Blender writes **metres**, 3D-Coat's scene is in **centimetres**.
+* The bridge now converts by unit: `Scene.GetSceneUnits()` is read from 3D-Coat's
+  state file and the factor is 100 (centimetres), 1000 (millimetres), 1 (metres),
+  39.37 (inches) or 3.28 (feet), times the scene scale times Blender's own scene
+  unit scale.  Nothing to type; `3D-Coat scale` overrides it if ever needed.
+* The same conversion is undone on the way home, so the returned model lands at
+  the size it was sent at - and the size "correction" now only ever fixes a unit
+  factor: a difference that is *not* one of those is the model itself (a sculpt, a
+  reduction) and is left alone and reported, instead of stretching someone's work.
+* Tests are isolated from the real 3D-Coat state file from the start now (they
+  used to read this machine's settings partway through, which is why the numbers
+  moved between runs).  Suite 103 checks.
+* Blender add-on 1.10.5.
+
 ## v1.16.3 - 2026-09-13
 
 "StructRNA of type Object has been removed" on pull.

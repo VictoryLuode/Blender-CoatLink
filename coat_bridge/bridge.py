@@ -72,26 +72,60 @@ def detail_lines(context=None):
     return lines
 
 
-def transfer_scale(context):
-    """(factor, where it came from) for the trip to 3D-Coat.
+#: how many of 3D-Coat's scene units one metre is, keyed by what
+#: Scene.GetSceneUnits() reports
+UNITS_PER_METRE = {
+    "METERS": 1.0, "METER": 1.0, "M": 1.0,
+    "CENTIMETERS": 100.0, "CENTIMETER": 100.0, "CM": 100.0,
+    "MILLIMETERS": 1000.0, "MILLIMETER": 1000.0, "MM": 1000.0,
+    "INCHES": 39.3700787, "INCH": 39.3700787,
+    "FEET": 3.2808399, "FOOT": 3.2808399,
+}
 
-    3D-Coat's export applies its scene scale to reach natural units, so on the
-    way in it divides by it: the model arrives small by exactly that factor.  The
-    0 default here means "use what 3D-Coat reports", so nobody has to know the
-    number; a positive value overrides it (and is the escape hatch if a
-    particular 3D-Coat build reports something odd).
+#: factors a returned model may be off by and still be corrected - a unit
+#: conversion, never a sculpt (stretching someone's sculpt would be worse than
+#: leaving the size alone)
+CLEAN_FACTORS = (1e-3, 1e-2, 1.0 / 39.3700787, 1.0 / 3.2808399, 25.4, 100.0, 1000.0, 39.3700787, 3.2808399)
+
+
+def units_factor():
+    """(metres -> 3D-Coat scene units, note) using what 3D-Coat reported."""
+    state = applink.coat_state()
+    units = str(state.get("scene_units") or "").strip().upper()
+    factor = UNITS_PER_METRE.get(units)
+    if factor is None:
+        return None, "3D-Coat has not reported its units yet (%s)" % (units or "nothing")
+    try:
+        scene_scale = float(state.get("scene_scale"))
+    except (TypeError, ValueError):
+        scene_scale = 1.0
+    if scene_scale <= 0:
+        scene_scale = 1.0
+    return factor * scene_scale, "3D-Coat units=%s" % units
+
+
+def transfer_scale(context):
+    """(factor, where it came from): Blender units -> 3D-Coat scene units.
+
+    Why a model used to arrive small: Blender writes metres, 3D-Coat's scene is
+    in centimetres, so 3D-Coat read the file 100x smaller than intended.  That is
+    a **unit conversion** - not the scene scale, which is 1.0 on the machines
+    seen so far, which is why reading scene_scale alone fixed nothing.  A value
+    in `3D-Coat scale` overrides the calculation.
     """
     p = prefs(context)
     if p is not None and p.coat_scale > 0:
         return float(p.coat_scale), "set here"
-    reported = applink.coat_state().get("scene_scale")
+    factor, note = units_factor()
+    if factor is None:
+        return 1.0, note
+    metres = 1.0
+    settings = getattr(getattr(context, "scene", None), "unit_settings", None)
     try:
-        value = float(reported)
+        metres = float(getattr(settings, "scale_length", 1.0) or 1.0)
     except (TypeError, ValueError):
-        return 1.0, "3D-Coat has not reported its scale yet"
-    if value <= 0:
-        return 1.0, "3D-Coat reported an unusable scale (%s)" % reported
-    return value, "3D-Coat scene scale"
+        metres = 1.0
+    return factor * metres, note
 
 
 #: formats that carry their own up-axis declaration (FBX does) - for those the
@@ -303,8 +337,13 @@ def _import_and_link(context, path):
     # been removed").  Take the names from the scene instead of from those
     # references: they are strings and cannot go stale.
     before_names = {obj.name for obj in bpy.data.objects}
-    imported, dropped = transfer.import_model(
-        path, fmt, transfer.axis_overrides(fmt, "import", axis_swap(context, fmt=fmt)))
+    back_overrides = transfer.axis_overrides(fmt, "import", axis_swap(context, fmt=fmt))
+    factor, _origin = transfer_scale(context)
+    if factor > 0:
+        # 3D-Coat wrote the model in its own units (centimetres, usually), so undo
+        # the same conversion on the way home instead of guessing from the size
+        back_overrides["global_scale"] = 1.0 / factor
+    imported, dropped = transfer.import_model(path, fmt, back_overrides)
     if dropped:
         STATE["log"].append("dropped import options: %s" % ", ".join(dropped))
     arriving = [obj.name for obj in bpy.data.objects if obj.name not in before_names]
@@ -391,6 +430,11 @@ def _match_scale(target):
     if abs(ratio - 1.0) <= SCALE_TOLERANCE:
         _log("scale ok: %.4f m (sent %.4f m)" % (size, reference))
         return ""
+    if not any(abs(ratio - clean) <= clean * 0.05 for clean in CLEAN_FACTORS):
+        # the size differs but not by a unit conversion: that is the model itself
+        # (a sculpt, a reduction), so leave the geometry alone and just say so
+        _log("scale: %.4f m vs sent %.4f m is not a unit factor - left alone" % (size, reference))
+        return "size differs (left alone)"
     if ratio > 1000.0 or ratio < 0.001:
         _log("scale x%.6g looks wrong - left alone (%.4f m vs sent %.4f m)" % (ratio, size, reference))
         return "scale x%.4g left alone" % ratio
