@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.16.7 - 2026-09-13
+
+"the model never arrives" - the return can come from 3D-Coat's own pool.
+
+* Reported, and visible in the status line as
+  `Ignored export.txt outside BlenderBridge: 3DC015.fbx`: 3D-Coat had exported
+  into its **own** AppLink folder (`Documents/3DC2Blender/ApplinkObjects`) rather
+  than our `BlenderBridge` one, and the bridge only accepted files inside
+  `BlenderBridge` - so the trip completed and Blender quietly ignored it.
+* A signal pointing outside `BlenderBridge` is now accepted when the file it
+  lists was written **after our last send** (that is this trip's model); older
+  ones are still ignored, and the official AppLink's own signal is still never
+  deleted - only read.
+* Second, the unit conversion is applied to **OBJ only**: an FBX declares its own
+  units and axes, and converting those again would put the model 100x off (or
+  rotated) twice.
+* Third, a pull now records its outcome in the shared log (`pull: ...`) and a pull
+  that arrives while another is running says so instead of returning silently -
+  the silence is what made this one hard to see.
+* Blender add-on 1.10.6.  Suite 111 checks.
+
 ## v1.16.6 - 2026-09-13
 
 Units are matched automatically - that is why models arrived small.

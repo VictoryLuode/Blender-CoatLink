@@ -128,8 +128,9 @@ def transfer_scale(context):
     return factor * metres, note
 
 
-#: formats that carry their own up-axis declaration (FBX does) - for those the
-#: file decides and the bridge keeps its hands off
+#: formats that declare their own axes AND units (FBX does: unit scale plus
+#: up-axis).  For those the file decides and the bridge keeps its hands off -
+#: converting a second time is how a model ends up rotated or 100x off twice.
 SELF_DESCRIBING_AXES = ("fbx",)
 
 
@@ -226,7 +227,7 @@ def pull(context, force=False):
     the same model land in Blender twice.
     """
     if PULLING[0]:
-        return []            # one at a time: the other pass owns the model
+        return ["a pull is already running - skipped"]
     PULLING[0] = True
     try:
         return _pull_once(context, force)
@@ -255,6 +256,22 @@ def _pull_once(context, force):
         foreign = [path for path in paths if path not in ours]
         STATE["seen"][signal] = mtime
         if not ours:
+            # 3D-Coat exports to its own AppLink pool as well (its own target), and
+            # that export.txt points outside BlenderBridge.  A file written after
+            # our last send is this trip's model, so take it: refusing it was why
+            # "the model never arrives".
+            last_send = STATE.get("last_send") or 0.0
+            fresh = [path for path in foreign
+                     if os.path.isfile(path) and os.path.getmtime(path) >= last_send - 2.0]
+            if fresh:
+                messages.append("3D-Coat used its own AppLink folder for %s" % os.path.basename(fresh[0]))
+                handled.append((signal, False))        # never touch someone else's signal
+                for path in fresh:
+                    if path in already:
+                        continue
+                    already.add(path)
+                    candidates.append((os.path.getmtime(path), path))
+                continue
             if foreign:
                 messages.append("Ignored export.txt outside BlenderBridge: %s" % os.path.basename(paths[0]))
             continue
@@ -292,6 +309,12 @@ def _pull_once(context, force):
         _set_message(note)
     elif messages:
         _set_message(messages[-1])
+
+    # record the outcome where both sides can read it: a silent pull cannot be
+    # diagnosed, and the watcher's idle ticks must not fill the file
+    if candidates or handled or messages:
+        for message in messages or ["nothing importable in the signals"]:
+            _log("pull: %s" % message)
 
     STATE["log"] += [msg for msg in messages if msg not in STATE["log"]]
     return messages
@@ -339,7 +362,7 @@ def _import_and_link(context, path):
     before_names = {obj.name for obj in bpy.data.objects}
     back_overrides = transfer.axis_overrides(fmt, "import", axis_swap(context, fmt=fmt))
     factor, _origin = transfer_scale(context)
-    if factor > 0:
+    if factor > 0 and fmt not in SELF_DESCRIBING_AXES:
         # 3D-Coat wrote the model in its own units (centimetres, usually), so undo
         # the same conversion on the way home instead of guessing from the size
         back_overrides["global_scale"] = 1.0 / factor
@@ -347,6 +370,17 @@ def _import_and_link(context, path):
     if dropped:
         STATE["log"].append("dropped import options: %s" % ", ".join(dropped))
     arriving = [obj.name for obj in bpy.data.objects if obj.name not in before_names]
+    if not arriving:
+        # the import's own objects as a fallback, touched defensively (they may be
+        # dead references - see _object)
+        for obj in imported:
+            try:
+                if obj.name:
+                    arriving.append(obj.name)
+            except ReferenceError:
+                continue
+    if not arriving:
+        raise RuntimeError("the import produced nothing we can see")
 
     target = _object((STATE["target"] or {}).get("object")) or _object(_stem(path))
     names = []

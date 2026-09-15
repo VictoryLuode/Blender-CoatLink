@@ -404,6 +404,48 @@ def main():
     bridge.pull(bpy.context, force=True)
     check("second root: plain export.txt pulled", not os.path.isfile(own_root_signal))
 
+        # ---- self-describing formats keep their own units and axes ----
+    recorded = []
+    real_import = transfer.import_model
+
+    def recording_import(path, fmt, overrides=None):
+        recorded.append((fmt, dict(overrides or {})))
+        return real_import(path, fmt, overrides)
+
+    transfer.import_model = recording_import
+    write_coat_state({"scene_scale": 1.0, "scene_units": "CENTIMETERS", "swap_yz": True})
+    transfer.export_model(back_path, "obj", [cube], apply_modifiers=False)
+    write(signal, back_path + "\n")
+    bridge.pull(bpy.context, force=True)
+    check("an OBJ return is converted out of 3D-Coat's units",
+          abs(recorded[-1][1].get("global_scale", 1.0) - 0.01) < 1e-9, recorded[-1])
+    check("and its axes are matched", recorded[-1][1].get("up_axis") == "Z", recorded[-1])
+
+    fbx_path = applink.model_path(EXCHANGE, "fbx", name="bridge_back")
+    write(fbx_path, "not a real fbx")
+    write(signal, fbx_path + "\n")
+    bridge.pull(bpy.context, force=True)
+    check("an FBX return keeps its own units (no second conversion)",
+          "global_scale" not in recorded[-1][1], recorded[-1])
+    check("and its own axes",
+          "up_axis" not in recorded[-1][1] and "forward_axis" not in recorded[-1][1], recorded[-1])
+    transfer.import_model = real_import
+    os.remove(fbx_path)
+    write_coat_state({"scene_scale": 1.0, "scene_units": "CENTIMETERS", "swap_yz": False})
+
+# ---- a return 3D-Coat wrote into its own AppLink pool is still this trip's ----
+    pool = os.path.join(OTHER_ROOT, "..", "3DC2Blender", "ApplinkObjects")
+    os.makedirs(pool, exist_ok=True)
+    pool_model = os.path.join(pool, "3DC015.fbx")
+    shutil.copy(back_path, pool_model)
+    pool_signal = os.path.join(OTHER_ROOT, "export.txt")
+    write(pool_signal, pool_model + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("a return in 3D-Coat's own AppLink pool is taken",
+          any("own AppLink folder" in message for message in messages), messages)
+    check("its signal is left for the official AppLink", os.path.isfile(pool_signal), messages)
+    os.remove(pool_signal)
+
     # ---- a signal owned by the official AppLink stays untouched ----
     official = os.path.join(OTHER_ROOT, "Blender", "export.txt")
     write(official, os.path.join(OTHER_ROOT, "Blender", "001.fbx") + "\n")
@@ -470,20 +512,28 @@ def main():
     messages = bridge.pull(bpy.context, force=True)
     check("a stale reference during the import is survived",
           any("Pulled" in message for message in messages), messages)
+    check("and the pull is recorded in the shared log",
+          "pull: Pulled" in read(applink.shared_log_path()),
+          read(applink.shared_log_path()).splitlines()[-2:])
     transfer.import_model = real_import
 
     # ---- the watcher's timer and a click must not pull at the same time ----
     passes = []
 
+    skipped_messages = []
+
     def reentrant_import(path, fmt, overrides=None):
         passes.append(path)
-        bridge.pull(bpy.context, force=True)      # the watcher firing mid-flight
+        # the watcher firing mid-flight: this one must come back empty-handed
+        skipped_messages.extend(bridge.pull(bpy.context, force=True))
         return real_import(path, fmt, overrides)
 
     transfer.import_model = reentrant_import
     write(signal, back_path + "\n")
     messages = bridge.pull(bpy.context, force=True)
     check("a pull that arrives while one is running is skipped", len(passes) == 1, passes)
+    check("and the skipped one says so",
+          any("already running" in message for message in skipped_messages), skipped_messages)
     check("and the first one still finishes", any("Pulled" in message for message in messages), messages)
     transfer.import_model = real_import
 
