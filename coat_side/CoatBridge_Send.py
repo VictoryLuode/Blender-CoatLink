@@ -17,7 +17,9 @@ lib.log("entry CoatBridge_Send as %r" % __name__)
 lib.run_action("CoatBridge_Send")
 
 
-# 3D-Coat imports this file by module name and Python then caches it, so a second
+# 3D-Coat imports a script by module name and Python then caches it, so a second
 # click on the same menu item / tool button would do nothing.  Dropping ourselves
-# from sys.modules makes the next click import and run this file again.
-sys.modules.pop(__name__, None)
+# from sys.modules makes the next click import and run this file again.  Guarded,
+# because runpy (used by the tests and by "run this file") owns its own key.
+if __name__ not in ("__main__", "<run_path>"):
+    sys.modules.pop(__name__, None)
