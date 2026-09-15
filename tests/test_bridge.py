@@ -82,6 +82,36 @@ def main():
         from coat_bridge import ui as coat_ui
         check("button hooked into the top bar",
               coat_ui.HOOK_INSTALLED and callable(coat_ui.topbar_drawer))
+
+        # the bar itself: the settings menu, then Send and Pull drawn to its right
+        entries = []
+
+        class _Row(object):
+            def popover(self, **kwargs):
+                entries.append(("popover", kwargs.get("panel"), kwargs.get("text"), kwargs.get("icon")))
+
+            def operator(self, idname, **kwargs):
+                entries.append(("operator", idname, kwargs.get("text"), kwargs.get("icon")))
+
+        class _Layout(object):
+            def row(self, align=False):
+                return _Row()
+
+        class _Self(object):
+            layout = _Layout()
+
+        def _context(alignment):
+            return type("Ctx", (), {"region": type("Region", (), {"alignment": alignment})()})()
+
+        coat_ui.topbar_drawer(_Self(), _context("RIGHT"))
+        check("the top bar draws the settings menu", entries[:1] ==
+              [("popover", coat_ui.POPOVER_ID, "Coat Bridge", "COLLAPSEMENU")], entries)
+        check("Send sits to the right of it",
+              entries[1] == ("operator", "coatbridge.send", "Send", "EXPORT"), entries)
+        check("and Pull next to Send",
+              entries[2] == ("operator", "coatbridge.pull", "Pull", "IMPORT"), entries)
+        check("the bar adds nothing on the left side", (coat_ui.topbar_drawer(_Self(), _context("LEFT")),
+                                                        len(entries))[1] == 3, entries)
     check("no sidebar panel left", not hasattr(bpy.types, "COATBRIDGE_PT_main"))
     check("operators registered",
           hasattr(bpy.types, "COATBRIDGE_OT_send") and hasattr(bpy.types, "COATBRIDGE_OT_pull"))

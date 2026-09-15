@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.13.0 - 2026-09-13
+
+Send and Pull on the bar itself.
+
+* The top bar now carries three entries in one row: the `Coat Bridge` settings
+  menu, then **Send** (EXPORT icon) and **Pull** (IMPORT icon) to its right, so a
+  round trip is one click instead of two.  The menu keeps the same two buttons
+  plus every setting.
+* The menu icon moved to COLLAPSEMENU so it no longer looks like Send.
+* Blender addon 1.8.0.  Suite: 81 checks - the drawer really builds the three
+  entries in that order, and still draws nothing on the left-hand side.
+
 ## v1.12.0 - 2026-09-13
 
 A number field in 3D-Coat's panel - typed, not captured.

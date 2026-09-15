@@ -193,11 +193,14 @@ CLASSES = (
 
 
 def topbar_drawer(self, context):
-    """Draw the button in the right-hand group of the top bar."""
+    """Draw the top-bar entry: the settings menu, then the two actions that get
+    used all the time right next to it, so a round trip is one click."""
     if context.region.alignment != "RIGHT":
         return
     row = self.layout.row(align=True)
-    row.popover(panel=POPOVER_ID, text="Coat Bridge", icon="EXPORT")
+    row.popover(panel=POPOVER_ID, text="Coat Bridge", icon="COLLAPSEMENU")
+    row.operator("coatbridge.send", text="Send", icon="EXPORT")
+    row.operator("coatbridge.pull", text="Pull", icon="IMPORT")
 
 
 def _header_hook():
