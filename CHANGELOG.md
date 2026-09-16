@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.16.20
+
+Release prep - the bridge code itself is unchanged from v1.16.19 (Blender 1.10.17).
+
+* **Installers for both halves.** `install.ps1` does the whole job on Windows with
+  nothing but PowerShell (no bash, no git); `install.sh` is the same for bash,
+  MSYS and WSL. Both find Blender's add-on folder, 3D-Coat's script folder and its
+  program folder on their own, take explicit paths or `-BlenderOnly` / `-CoatOnly`,
+  and can be run twice.
+* `tests/test_install_ps1.sh` proves the PowerShell installer and the bash
+  installer land byte-identical files, XML included.
+* `package.sh` builds the two release archives: `coat_bridge.zip` for Blender's
+  *Install from Disk*, and the full source archive.
+* GPL-3.0-or-later LICENSE, `.gitattributes` so the repo and every checkout use one
+  line ending, and a README rewritten for people who did not write the thing:
+  three install routes (easiest first), the actual current UI, and an honest
+  "known limitations" section.
+* The test scripts now locate the newest Blender build, 3D-Coat's bundled Python,
+  the 3D-Coat program folder and the script folders themselves - every hard-coded
+  author path is gone (`tests/find_tools.sh`), and the install smoke tests are part
+  of the suite.
+
 ## v1.16.19
 
 * Persist the pull record in the exchange folder (pull-history.json), so restarting

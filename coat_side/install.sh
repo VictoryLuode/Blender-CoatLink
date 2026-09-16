@@ -18,8 +18,10 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TARGET="${1:-$HOME/Documents/3DCoat/UserPrefs/Scripts}"
-COAT="${2:-/d/Program Files/3DCoat-2026}"
+# shellcheck source=tests/find_tools.sh
+source "$REPO/tests/find_tools.sh"
+TARGET="${1:-$(find_coat_scripts)}"
+COAT="${2:-$(find_coat_dir || true)}"
 
 if [ ! -d "$TARGET" ]; then
     echo "no such scripts folder: $TARGET" >&2

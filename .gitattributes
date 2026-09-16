@@ -1,0 +1,7 @@
+# Keep one line ending everywhere: the repo, GitHub and every checkout get LF.
+# (3D-Coat's own .py and .xml readers, Blender and bash all take LF.)
+* text=auto eol=lf
+
+*.png binary
+*.obj binary
+*.fbx binary

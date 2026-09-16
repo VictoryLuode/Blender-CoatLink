@@ -9,12 +9,18 @@
 set -euo pipefail
 
 TIMEOUT="${1:-900}"
-BLENDER="${2:-$(ls -d /d/home/Documents/Blender/BlenderBuilds/stable/*/blender.exe 2>/dev/null | sort -V | tail -1)}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=tests/find_tools.sh
+source "$REPO/tests/find_tools.sh"
+BLENDER="${2:-$(find_blender || true)}"
+if [ -z "$BLENDER" ]; then
+    echo "no Blender found - pass one: live_roundtrip.sh <timeout> /path/to/blender.exe" >&2
+    exit 2
+fi
 WIN_REPO="$(cygpath -w "$REPO")"
-WORK="$(mktemp -d "$HOME/AppData/Local/Temp/coat_bridge_live.XXXXXX")"
+WORK="$(mktemp -d "${LOCALAPPDATA:-/tmp}/coat_bridge_live.XXXXXX")"
 WIN_WORK="$(cygpath -w "$WORK")"
-EXCHANGE="%USERPROFILE%\\Documents\\AppLinks\\3D-Coat\\Exchange"
+EXCHANGE="$(cygpath -w "$HOME/Documents/AppLinks/3D-Coat/Exchange")"
 
 echo "blender : $BLENDER"
 echo "exchange: $EXCHANGE"

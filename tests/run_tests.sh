@@ -11,8 +11,14 @@
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BLENDER="${1:-$(ls -d /d/home/Documents/Blender/BlenderBuilds/stable/*/blender.exe 2>/dev/null | sort -V | tail -1)}"
-WORK="$(mktemp -d "$HOME/AppData/Local/Temp/coat_bridge_test.XXXXXX")"
+# shellcheck source=tests/find_tools.sh
+source "$REPO/tests/find_tools.sh"
+BLENDER="${1:-$(find_blender || true)}"
+if [ -z "$BLENDER" ]; then
+    echo "no Blender found - pass one: tests/run_tests.sh /path/to/blender.exe" >&2
+    exit 2
+fi
+WORK="$(mktemp -d "${LOCALAPPDATA:-/tmp}/coat_bridge_test.XXXXXX")"
 WIN_WORK="$(cygpath -w "$WORK")"
 WIN_REPO="$(cygpath -w "$REPO")"
 SCRIPTS="$WORK/scripts"
@@ -66,6 +72,23 @@ fi
 echo "report: $WIN_WORK\\report.json"
 echo "main suite exit status: $status"
 [ "$status" -eq 0 ] || failed=1
+
+# ---- the installers ---------------------------------------------------------
+echo "──────────────── tests/test_install.sh (installers) ────────────────"
+set +e
+bash "$REPO/tests/test_install.sh"
+code=$?
+set -e
+[ "$code" -eq 0 ] || failed=1
+echo
+
+echo "──────────────── tests/test_install_ps1.sh (Windows installer) ────────────────"
+set +e
+bash "$REPO/tests/test_install_ps1.sh"
+code=$?
+set -e
+[ "$code" -eq 0 ] || failed=1
+echo
 
 if [ "$failed" -eq 0 ]; then
     echo "ALL BLENDER SIDE TESTS PASSED"

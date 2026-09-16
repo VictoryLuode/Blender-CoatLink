@@ -8,10 +8,13 @@
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PY="${1:-$HOME/Documents/3DCoat/python-3.11.9/python.exe}"
+# shellcheck source=tests/find_tools.sh
+source "$REPO/tests/find_tools.sh"
+PY="${1:-$(find_coat_python || true)}"
 
-if [ ! -f "$PY" ]; then
-    echo "python not found: $PY" >&2
+if [ -z "$PY" ] || [ ! -f "$PY" ]; then
+    echo "3D-Coat's bundled python was not found (looked in ~/Documents/3DCoat/python-*/)." >&2
+    echo "Pass it explicitly: coat_side/tests/run_tests.sh /path/to/python.exe" >&2
     exit 2
 fi
 

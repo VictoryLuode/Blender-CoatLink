@@ -9,10 +9,16 @@
 set -euo pipefail
 
 MODEL="${1:?usage: test_coat_export.sh <model-file> [blender.exe]}"
-BLENDER="${2:-$(ls -d /d/home/Documents/Blender/BlenderBuilds/stable/*/blender.exe 2>/dev/null | sort -V | tail -1)}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=tests/find_tools.sh
+source "$REPO/tests/find_tools.sh"
+BLENDER="${2:-$(find_blender || true)}"
+if [ -z "$BLENDER" ]; then
+    echo "no Blender found - pass one: test_coat_export.sh <model> /path/to/blender.exe" >&2
+    exit 2
+fi
 WIN_REPO="$(cygpath -w "$REPO")"
-WORK="$(mktemp -d "$HOME/AppData/Local/Temp/coat_export_test.XXXXXX")"
+WORK="$(mktemp -d "${LOCALAPPDATA:-/tmp}/coat_export_test.XXXXXX")"
 WIN_WORK="$(cygpath -w "$WORK")"
 SCRIPTS="$WORK/scripts"
 mkdir -p "$SCRIPTS/addons"

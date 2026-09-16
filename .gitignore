@@ -1,3 +1,6 @@
 hotfix-backups/
 __pycache__/
 *.pyc
+
+# release archives built by package.sh
+dist/

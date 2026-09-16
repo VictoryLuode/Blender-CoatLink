@@ -8,38 +8,144 @@ their UIs are deliberately mirrors of each other:
 
 | | Blender side | 3D-Coat side |
 | --- | --- | --- |
-| Where | **CoatLink** menu, then **Send** and **Pull** next to it, in the top bar | three buttons at the end of the room tool list (Sculpt / Paint) |
-| Shape | popover menu + two one-click buttons | buttons, plus a native panel opened from the tool strip |
-| One click | `Send` / `Pull` on the bar itself | `Send to Blender` / `Pull from Blender` |
-| Options | `Open as`, `Axis`, `3D-Coat scale`, `Auto pull`, `Skip dialogs`, `Modifiers`, `Match scale`, `No materials` | `Size` readout, `TargetSize` + `ApplySize`, `ReductionPercent`, `Textures` |
-| Utilities | `Detect`, `Folder`, `Start 3D-Coat`, `Unlink` | `Detect`, `Folder`, `Start Blender` |
-| Last row | status + details box | status + details line |
-| Source | `coat_bridge/` (Blender add-on, 6 files) | `coat_side/CoatBridgeLib.py` + 3 entry scripts + tool XML |
+| Where | **CoatLink** menu in the top bar, with **Send** and **Pull** next to it | three buttons at the end of the room tool list (Voxels / Paint) |
+| Shape | popover menu + two one-click buttons | tool buttons, plus a panel opened from the tool strip |
+| One click | `Send` / `Pull` on the bar itself | `SendToBlender` / `PullFromBlender` |
+| Options | `Import as`, `Auto receive`, `Without materials`, and an *Advanced* fold: `Axis`, `Scale override (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs` | `ReductionPercent`, `Textures`, a size readout with `RefreshStats`, and an *Advanced* fold: `Detect`, `OpenFolder`, `StartBlender`, `RemoveLauncher` |
+| Source | `coat_bridge/` (Blender add-on, 7 files) | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
 
 The 3D-Coat panel is 3D-Coat's **own** dialog (`coat.dialog()...topRight()`), never
-a window of ours and never Qt - the parked Qt panel was deleted.  Its controls are
-native too, using the layout 3D-Coat's shipped Autoexport panel uses:
-`Name,[min,max]` is a number field, `Name,[#a|#b]` a droplist, `Name` a checkbox.
+a window of ours and never Qt.  Its controls are native too, using the layout
+3D-Coat's shipped Autoexport panel uses: `Name,[min,max]` is a number field,
+`Name,[#a|#b]` a droplist, `Name` a checkbox.
 
-### What the two sides quietly handle for you
+## Requirements
 
-* **Scale.** 3D-Coat exports in natural units and divides an incoming model by its
-  scene scale, which is why a model from Blender used to arrive small.  The
-  Blender side reads 3D-Coat's own `SceneScale` from its state file and multiplies
-  the model by it, so 2 m in Blender is 2 units in 3D-Coat.  `3D-Coat scale` in
-  the menu overrides it (0 = use 3D-Coat's number).
-* **Axis.** 3D-Coat's `SwapYZ` ("swap the Y and Z scene axes", for Z-up
-  applications) is detected the same way and the OBJ axes are matched - the same
-  rule for the export and the import, which is what keeps the two directions
-  from drifting apart.  `Axis` can force either convention.
-* **Reduction.** 3D-Coat's export dialog is never seen: a percentage typed in the
-  panel (0-100, the share of triangles to keep) goes into 3D-Coat's own
-  decimation slider and the dialog's OK is pressed for you.  Left at 0 the first
-  export reads the value the dialog is showing and remembers it instead.
-* **Textures.** A droplist, so the model can go back with or without them.
-* **Size.** The panel shows the current object's size live and `ApplySize` scales
-  it to `TargetSize` about its own centre - all inside 3D-Coat, nothing is
-  round-tripped to change a size.
+* Blender 4.2+ (developed and tested on 5.2 LTS)
+* 3D-Coat 4.8.15+ (tested against 3D-Coat 2026)
+* Windows for the installers and the tests; the add-on itself is OS-independent
+
+## Install
+
+Pick the first route that works for you.  All three land the same files.
+
+### 1. Blender add-on, no commands at all
+
+1. Download **`coat_bridge.zip`** from the
+   [latest release](../../releases/latest).
+2. In Blender: **Edit > Preferences > Add-ons > ▾ (top right) > Install from Disk…**
+   and pick that zip.  (Blender 4.2 and newer.)
+3. Enable **CoatLink** in the add-on list, then press **Detect** in its menu.
+
+That is the whole Blender side - no copying, no paths, no shell.
+
+### 2. 3D-Coat side, one command
+
+Windows, in the folder you unzipped (**PowerShell ships with Windows, nothing else
+is needed**):
+
+```powershell
+.\install.ps1
+```
+
+If Windows refuses to run scripts, start it explicitly - normal and safe for a
+script you just downloaded and read:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+With git-bash, MSYS or WSL:
+
+```bash
+./install.sh
+```
+
+Both find the folders themselves.  To be explicit, `install.ps1` takes
+`-BlenderAddons`, `-CoatScripts`, `-CoatDir`, and `install.sh` takes the same
+three paths in that order (or `BLENDER_ADDON_DIR`, `COAT_SCRIPTS_DIR`,
+`COAT_DIR`).  Add `-BlenderOnly` / `-CoatOnly` for one half only.
+
+Then **restart 3D-Coat** and look for **Scripts > CoatLink**.  The three tool
+buttons also appear at the end of the Sculpt and Paint tool lists.  The panel's
+`RemoveLauncher` button takes all of that back out again.
+
+### 3. No scripts at all - copy the files by hand
+
+Five destinations.  `<ver>` is your Blender version folder.
+
+| What | From | To |
+| --- | --- | --- |
+| Blender add-on | `coat_bridge\` (7 `.py` files) | `%APPDATA%\Blender Foundation\Blender\<ver>\scripts\addons\coat_bridge\` |
+| 3D-Coat scripts | `coat_side\CoatBridge*.py` (6 files) | `%USERPROFILE%\Documents\3DCoat\UserPrefs\Scripts\CoatBridge\` |
+| Tool buttons | `coat_side\tools\CoatBridgeTools.xml.in` | `…\Scripts\ExtraMenuItems\CoatBridgeTools.xml`, with every `__SCRIPT_DIR__` replaced by the `CoatBridge` folder above, forward slashes (`C:/Users/…/CoatBridge`) |
+| Scripts menu entry | the block below | `…\Scripts\ExtraMenuItems\CoatBridge.xml` |
+| Button icons (optional) | `coat_side\icon\*.png` (4 files) | `<3D-Coat program folder>\data\Textures\icons64\` |
+
+`CoatBridge.xml`, verbatim, with the same forward-slash path:
+
+```xml
+<ClassArray.ExtraMenuItem>
+	<ExtraMenuItem>
+		<MenuPath>Scripts</MenuPath>
+		<MenuItem>CoatBridge</MenuItem>
+		<inRoom></inRoom>
+		<inSection></inSection>
+		<Command>script:C:/Users/you/Documents/3DCoat/UserPrefs/Scripts/CoatBridge/CoatBridge_Setup.py</Command>
+	</ExtraMenuItem>
+</ClassArray.ExtraMenuItem>
+```
+
+Then start Blender, enable **CoatLink** and press **Detect**.
+
+### Where the 3D-Coat panel can live (and where it cannot)
+
+| Spot | Works | How |
+| --- | --- | --- |
+| Viewport top-right, non-modal panel | yes | `coat.dialog().noModal().topRight().width()` |
+| Room tool panel (a real button in a panel, with icon) | yes | `ui.insertInToolset(room, section, toolID)`, or the XML above |
+| Main menus (24 places: File, Edit, View, Windows, Scripts, Voxels, Retopo, Bake, Layers, Textures, …) | yes | `ui.insertInMenu()` or `ExtraMenuItems/*.xml` |
+| Room RMB panel | yes | `coat.start_rmb_panel()` / the room's `RMBMenu.py` |
+| Whole custom workspace | yes | `Documents/3DCoat/UserPrefs/Rooms/CustomRooms/<ID>/` |
+| Space-panel buttons | no | `show_space_panel("*Subset")` only takes built-in subsets |
+| **Right-hand dock column (VoxTree / Layers / Multires / …)** | **no** | those are built-in window ids in each room's `Layout.xml`; the Python API has no call to register a window, `ui.enableWindow()` only toggles built-ins, and the Qt manager only undocks built-ins |
+
+## Use
+
+**Blender → 3D-Coat**
+
+1. Select the object to work on (no selection = every visible mesh).
+2. Pick how 3D-Coat should open it in `Import as`: `Per-Pixel Painting`,
+   `Sculpt Object (voxel)`, `Retopo Mesh`, `Auto-Retopology`, …
+3. **Send**.  If 3D-Coat is not running the job waits in the exchange folder
+   until it is - `Start 3D-Coat` is right there in the menu.
+
+**3D-Coat → Blender**
+
+* 3D-Coat's `File > Export To > BlenderBridge` (or `Bring object back`).  With
+  **Auto receive** on, the result is imported within ~2 s and merged into the
+  object it came from: same name, same materials, same place in the outliner,
+  new geometry.  Separate objects stay separate objects.
+* `Unlink selected` stops tracking an object, so the next pull becomes a new
+  object instead of replacing it.  `Force re-read return signal` in the
+  *Advanced* fold pulls the last model again on purpose.
+
+### Menu contents (Blender side)
+
+| Entry | Meaning |
+| --- | --- |
+| Send / Pull (top bar) | Export the selection and queue it / take a returned model now |
+| Import as | How 3D-Coat opens the mesh (`[ppp]`, `[vox]`, `[uv]`, `[autopo]`, …) |
+| Auto receive | Watch the exchange folder every 2 s; off = manual **Pull** only |
+| Without materials | A pulled model arrives as bare geometry |
+| Axis / Scale override | Read from 3D-Coat, or forced (see below) |
+| Match scale | Keep the recorded size when a pulled model comes back at another size |
+| Modifiers | Export evaluated meshes |
+| Skip dialogs | Let 3D-Coat import and export with its current settings |
+| Detect / Folder | Find the exchange folder and prepare the AppLink folder / open it |
+| Start 3D-Coat | Launch 3D-Coat so it picks up the queued import |
+| Force re-read return signal | Pull the last return model again, ignoring the pull record |
+| Unlink selected | Stop tracking, so the next pull becomes a new object |
 
 ## The exchange, in full
 
@@ -50,14 +156,41 @@ Documents/AppLinks/3D-Coat/Exchange/     <- job file goes here (3D-Coat polls th
         run.txt                                 empty marker: makes the folder appear in File > Export To
         bridge.obj                              the model we send (fixed name, overwritten each send)
         export.txt                              3D-Coat writes it when it sends a model back
-        bridge.obj                               what 3D-Coat sends back (OBJ both ways)
+        bridge.obj                              what 3D-Coat sends back (OBJ both ways)
+        pull-history.json                       what we already imported, so a restart does not re-import it
 
 Documents/3DCoat/Exchange/               <- 3D-Coat's own root, also written to
-    BlenderBridge/                           the same three files; the bridge watches both roots
+    BlenderBridge/                           the same files; the bridge watches both roots
 ```
 
-Two files are written by this add-on (`import.txt` at the root, `bridge.<ext>`
-in the folder), plus an empty `run.txt`.  That is the whole design.
+Three files are written by this add-on (`import.txt` at the root, `bridge.obj` in
+the folder, an empty `run.txt`); the two markers in there are state.  That is the
+whole design.  `bridge.obj` is the model in **both** directions, so there is
+exactly one axis rule and one unit rule to keep straight.
+
+### What the two sides quietly handle for you
+
+* **Units.** 3D-Coat's scene unit is read from its own state file
+  (`Scene.GetSceneUnits()`: centimetres on a default install) and the model is
+  multiplied by that factor on the way out, divided back on the way in, so 2 m in
+  Blender is 2 m in 3D-Coat.  A size difference that is *not* a clean unit factor
+  is reported and left alone, never stretched - your sculpting is safe.
+  `Scale override` forces a factor; 0 means auto.
+* **Axis.** 3D-Coat's `SwapYZ` ("swap the Y and Z scene axes", for Z-up
+  applications) is detected the same way, and one rule covers both directions -
+  which is what keeps them from drifting apart.  `Axis` can force either
+  convention.  Formats that carry their own axis (FBX) are left alone.
+* **Reduction.** A percentage in the 3D-Coat panel goes into 3D-Coat's own
+  decimation slider (`$DecimationParams::ReductionPercent`) and the dialog's OK is
+  pressed for you, so its export dialog is never seen.  The percentage means
+  *removed*, not *kept*; the panel's estimate uses the formula the official
+  template uses (`remaining = original × (100 − pct) / 100`) and says so.
+* **Textures.** A droplist: let 3D-Coat decide, force on, force off.
+* **Names.** Objects keep their names in both directions.  Groups that come back
+  are matched to the objects they came from and updated in place; renamed objects
+  are still found; unrelated same-name objects are never overwritten.
+
+## Design notes
 
 Reference implementations read while writing this: the official `io_coat3D`
 AppLink that ships inside 3D-Coat (`data/ToolsPresets/InstallAppLinks/Blender4x/`,
@@ -68,151 +201,73 @@ AppLink that ships inside 3D-Coat (`data/ToolsPresets/InstallAppLinks/Blender4x/
 | Renames objects to `__Name` on export | Never touches names |
 | Replaces mesh data, UVs and materials by hidden rules | One rule: geometry in, everything else stays |
 | Bakes textures and builds its own node groups | Nothing to do with textures |
-| `3DC2Blender` helper directory, applink object pools, folder size limits | one fixed file name |
+| `3DC2Blender` helper directory, applink object pools, folder size limits | one fixed file name per direction |
 | `extension.txt`, `preset.txt`, parameter files, a 12-folder state layout | `import.txt` + the model - nothing else |
-| 4200 lines across 7 files | 1286 (Blender) + 1016 (3D-Coat) lines, tests excluded |
+| ~4200 lines across 7 files | ~1300 (Blender) + ~1000 (3D-Coat) lines, tests excluded |
 
-## Requirements
-
-* Blender 4.2+ (developed and tested on 5.2.0 LTS)
-* 3D-Coat 4.8.15+ (tested against 3D-Coat 2026)
-
-## Install
-
-**Blender side**
-
-```bash
-cp -r coat_bridge "$APPDATA/Blender Foundation/Blender/5.2/scripts/addons/"
-```
-
-Enable **CoatLink** in `Edit > Preferences > Add-ons`, then press **Detect**
-once (in the menu below): it finds the exchange folder, stores it in the add-on
-preferences and creates `<exchange>/BlenderBridge/`, which 3D-Coat then lists
-under `File > Export To`.
-
-**3D-Coat side**
-
-```bash
-coat_side/install.sh                       # copies the script + the menu entry
-```
-
-It lands in `Documents/3DCoat/UserPrefs/Scripts/CoatBridge/` and adds
-`Scripts > CoatLink`.  Run it once - the panel stays open until you close it.
-3D-Coat may need a restart before the new menu entry shows up.
-
-The launcher also goes into the **Windows** menu and, with an icon, into the
-**tool panel of the rooms listed in `TOOL_ROOMS`** (Voxels by default).  The
-panel's `RemoveLauncher` button takes all of that back out again.
-
-### Where the panel can live (and where it cannot)
-
-| Spot | Works | How |
-| --- | --- | --- |
-| Viewport top-right, non-modal panel | yes | `coat.dialog().noModal().topRight().width()` |
-| Room tool panel (a real button in a panel, with icon) | yes | `ui.insertInToolset(room, section, toolID)` |
-| Main menus (24 places: File, Edit, View, Windows, Scripts, Voxels, Retopo, Bake, Layers, Textures, ...) | yes | `ui.insertInMenu()` or `ExtraMenuItems/*.xml` |
-| Room RMB panel | yes | `coat.start_rmb_panel()` / the room's `RMBMenu.py` |
-| Whole custom workspace | yes | `Documents/3DCoat/UserPrefs/Rooms/CustomRooms/<ID>/` |
-| Space-panel buttons | no | `show_space_panel("*Subset")` only takes built-in subsets |
-| **Right-hand dock column (VoxTree / Layers / Multires / ...)** | **no** | those are built-in window ids in each room's `Layout.xml`; the Python API has no call to register a window, `ui.enableWindow()` only toggles built-ins, and the Qt manager only undocks built-ins |
-
-## Scale and units
-
-3D-Coat exports with its own scene scale (`Scene.GetSceneScale()`: "the length of
-1 scene unit when you export the scene"), so a model can come home at a fixed
-multiple - x100 with FBX is the classic one.  The bridge does not rely on either
-side being configured correctly:
-
-* on send it records the model's size (world-space bounding-box diagonal),
-* on pull it measures the model that came back and scales it to the recorded size
-  when the two differ by more than 2% (reported in the status as `scale x0.01`),
-* `Match scale` in the menu turns that off; a factor beyond x1000 is reported but
-  not applied,
-* both sides append to `Documents/3DCoat/CoatBridge.log` - the Blender side logs
-  the sent size and the correction, the 3D-Coat side logs its own
-  `units=... scale=...`, so the real factor is always readable.
-
-## Use
-
-Everything is in one place: the **CoatLink** button in the top bar, in the
-right-hand group next to the other add-on buttons (Restart, AR, Export, Import).
-It opens a popup holding the whole bridge.
-
-**Blender -> 3D-Coat**
-
-1. Select the object to work on (no selection = every visible mesh).
-2. Pick what 3D-Coat should do with it: `Per-Pixel Painting`, `Sculpt Object
-   (voxel)`, `Retopo Mesh`, `Auto-Retopology`, ... and the file format.
-3. **Send to 3D-Coat**.  If 3D-Coat is not running the job waits in the exchange
-   folder until it is - the `Start 3D-Coat` button is right there.
-
-**3D-Coat -> Blender**
-
-* Use 3D-Coat's `File > Export To > BlenderBridge` (or `Bring object back`).
-  With *Auto pull* on, the result is imported within ~2 s and merged **into the
-  object it came from**: same name, same materials, same place in the outliner,
-  new geometry.
-* `Unlink selected` stops tracking an object, so the next pull becomes a new
-  object instead of replacing it.
-
-## Menu contents
-
-| Entry | Meaning |
-| --- | --- |
-| Send to 3D-Coat | Export the selection and queue it |
-| Pull from 3D-Coat | Take a returned model right now |
-| Open as | How 3D-Coat opens the mesh (`[ppp]`, `[vox]`, `[uv]`, `[autopo]`, ...) |
-| Auto pull | Watch the exchange folder every 2 s; off = manual **Pull** only |
-| Skip dialogs | Let 3D-Coat import and export with its current settings |
-| Modifiers | Export evaluated meshes |
-| No materials | A pulled model arrives as bare geometry (its materials are dropped) |
-| Axis / scale | read from 3D-Coat (swap Y/Z + scene scale) and applied on the way out |
-| Export settings | live in 3D-Coat's panel: reduction percentage + textures, applied without its dialog |
-| Detect | Find the exchange folder and prepare the AppLink folder |
-| Folder | Show the exchange folder in the file browser |
-| Start 3D-Coat | Launch 3D-Coat so it picks up the queued import |
-| Unlink selected | Stop tracking, so the next pull becomes a new object |
-| Status box | Last action, target object, linked objects |
-
-## Notes (all measured on 3D-Coat 2026)
+Measured on 3D-Coat 2026:
 
 * The job file is polled **in the exchange root only** - a copy inside the app
   folder is ignored, so it stays at the root.
-* 3D-Coat registers **two** roots (it logs both on startup) and writes its
-  exports into its own one, so the bridge watches the app folder of every root.
-* `extension.txt` in the app folder is ignored: 3D-Coat hands back FBX.  The
-  bridge reads the format from the returned file and enables the FBX add-on on
-  demand.
+* 3D-Coat registers **two** roots (it logs both on startup) and writes its exports
+  into its own one, so the bridge watches the app folder of every root.
+* 3D-Coat may also return a model into its own AppLink pool
+  (`Documents/3DC2Blender/ApplinkObjects/`).  A file there is accepted only if it
+  was written after our send; older ones are left alone.
+* `extension.txt` in the app folder is ignored by 3D-Coat - it hands back what it
+  wants to.  The bridge reads the format from the returned file.
 * Anything 3D-Coat puts inside a `BlenderBridge` folder is ours; anything else is
   left alone, so the official AppLink can stay enabled.
-* The UI is a single popover button in the top bar, drawn the same way as other
-  top-bar extras: a panel with `bl_space_type = 'TOPBAR'`,
-  `bl_region_type = 'HEADER'`, hooked into `TOPBAR_HT_upper_bar` and drawn only
-  where `context.region.alignment == 'RIGHT'`.
+* The Blender UI is drawn the same way as other top-bar extras: a panel with
+  `bl_space_type = 'TOPBAR'`, `bl_region_type = 'HEADER'`, hooked into
+  `TOPBAR_HT_upper_bar` and drawn only where `context.region.alignment == 'RIGHT'`.
 * Nothing in the Blender scene is renamed, joined or deleted.
+
+## Known limitations
+
+Stated plainly, because a bridge that silently does half the job is worse than one
+that says so:
+
+* **The face count in 3D-Coat's sculpt tree was reported to climb while the
+  CoatLink panel is open.**  The panel's redraw path is proven side-effect free
+  (1000 simulated idle redraws, no host calls, no file access) and its statistics
+  are manual (`RefreshStats`), but the live cause is **not** identified.  If you
+  see it, close the panel; nothing else in the bridge depends on it.
+* **The reduction percentage is not verified end to end.**  The panel writes the
+  same slider 3D-Coat's own scripts write, and that field belongs to the "decimate
+  to Retopo" flow in 3D-Coat's sources; whether the AppLink export honours it on
+  every path is untested.  The panel labels its number an estimate.
+* **Receipts only cover imports made through the bridge.**  If 3D-Coat's own
+  AppLink auto-imports a model, no receipt is written, and the bridge does not
+  pretend otherwise.
+* **Windows-oriented.**  Both installers and the test scripts assume Windows paths
+  (`cygpath`, `%APPDATA%`).  The Blender add-on itself is OS-independent; the
+  3D-Coat half is plain Python and only its installer is Windows-specific.
+* **Subtree-scoped export** (only the current node plus its children, instead of
+  the whole sculpt tree) exists on the `parked/subtree-scoped-panel` branch.  It is
+  **not** in the released code, because the grouping, positions and units of its
+  output were never verified on a live round trip.
 
 ## Tests
 
 ```bash
-tests/run_tests.sh                                    # Blender side, headless round trip, 65 checks
-tests/test_coat_export.sh path/to/a/real/export.fbx    # Blender side, return leg on a real 3D-Coat file
-tests/live_roundtrip.sh 900                            # real 3D-Coat, waits for your click
-python coat_side/tests/check_coat_api.py               # 3D-Coat side, API names vs the shipped stubs
-python coat_side/tests/test_coat_side.py               # 3D-Coat side, 38 logic checks (fake coat module)
+tests/run_tests.sh                        # Blender side: main suite, every regression
+                                          # script and both installers, headless
+coat_side/tests/run_tests.sh              # 3D-Coat side: API stubs, logic, tools, probe, install
+tests/test_coat_export.sh path/to/real-export.obj   # return leg on a file 3D-Coat really wrote
+tests/live_roundtrip.sh 900               # the real 3D-Coat, waits for your click
 ```
 
-The scripts pick the newest stable Blender build automatically; pass a path as
-the first (or second) argument to override.  The 3D-Coat tests need no 3D-Coat
-at all: one parses `coat.pyi` / `CMD.pyi`, the other drives the panel through a
-stand-in `coat` module.
+No 3D-Coat and no Blender GUI are needed for the suites: the Blender tests drive
+throwaway script and exchange folders, and the 3D-Coat tests run against a
+stand-in `coat` module on 3D-Coat's own Python.  The scripts pick the newest
+Blender build and 3D-Coat's bundled Python automatically; set `BLENDER=`,
+`COAT_PYTHON=`, `COAT_DIR=` or pass a path to override.
 
-`run_tests.sh` gives Blender a throwaway script folder and drives a full round
-trip against two temporary exchange roots: send, protocol file contents, in-place
-update, second-root signals, ignored foreign signals, format switch, watcher,
-error paths.
+Current counts: Blender main suite **113/113**, plus eight regression scripts and
+both installer smoke tests; 3D-Coat logic **103/103**, tools **29/29**, plus the
+API stub check, the idle-redraw check and the install smoke test.
 
-`test_coat_export.sh` takes a file 3D-Coat really exported and checks the bridge
-pulls it - the regression check to run after a 3D-Coat update.
+## License
 
-`live_roundtrip.sh` sends a cube through the real exchange folder to the running
-3D-Coat, waits for the return and reports what came back.
+GPL-3.0-or-later, see [LICENSE](LICENSE).  Copyright (C) 2026 VictoryLuode.
