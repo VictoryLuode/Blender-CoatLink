@@ -26,10 +26,11 @@ run() {
 run coat_side/tests/check_coat_api.py
 run coat_side/tests/test_coat_side.py
 run coat_side/tests/test_coat_tools.py
+run coat_side/tests/test_idle_draw.py
+run coat_side/tests/test_panel_probe.py
 echo "──────────────── install smoke test ────────────────"
 bash coat_side/tests/test_install.sh || failed=1
 echo
-echo "(optional: the in-process Qt window, not part of the installed set)"
 
 if [ "$failed" -eq 0 ]; then
     echo "ALL 3D-COAT SIDE TESTS PASSED"
