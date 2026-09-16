@@ -15,7 +15,7 @@ mistaken for our old per-frame reads.
 
 Run it from 3D-Coat's Python console:
 
-  exec(open(r"H:\\Misc\\coatlink\\coat_side\\diagnostics\\panel_probe.py",
+  exec(open(r"H:\\Misc\\Blender-CoatLink\\coat_side\\diagnostics\\panel_probe.py",
             encoding="utf-8").read())
 
 Keep the 3D-Coat window visible while it runs and watch the sculpt tree. Close
@@ -31,7 +31,7 @@ import traceback
 
 import coat
 
-sys.path.insert(0, r'H:\Misc\coatlink\coat_side')
+sys.path.insert(0, r'H:\Misc\Blender-CoatLink\coat_side')
 import CoatBridgeLib  # noqa: E402
 
 PHASE_SECONDS = 24.0
