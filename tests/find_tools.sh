@@ -11,6 +11,16 @@
 # Globs go through nullglob arrays on purpose: `compgen -G` returns only the
 # first match under MSYS, which silently picks the wrong build.
 
+# the filesystem a path lives on: ntfs for a local disk, smbfs for a mapped share
+fs_type_of() {
+    local drive
+    drive="$(df -P "$1" 2>/dev/null | tail -1 | awk '{print $1}')"
+    case "$drive" in
+        [A-Za-z]:) mount 2>/dev/null | awk -v d="$drive" '$1 == d { print $5; exit }' ;;
+        *) printf '%s\n' "" ;;
+    esac
+}
+
 # newest Blender executable
 find_blender() {
     if [ -n "${BLENDER:-}" ] && [ -f "$BLENDER" ]; then
@@ -21,24 +31,51 @@ find_blender() {
     if shopt -q nullglob; then had_nullglob=1; fi
     shopt -s nullglob
 
-    local -a group=()
+    local -a all=()
+    local drive
 
-    # Blender Launcher, stable channel, wherever the build folder sits
-    group=( "$HOME"/BlenderBuilds/stable/*/blender.exe )
-    if [ ${#group[@]} -eq 0 ]; then group=( "$HOME"/Documents/Blender/BlenderBuilds/stable/*/blender.exe ); fi
-    if [ ${#group[@]} -eq 0 ]; then group=( /c/home/Documents/Blender/BlenderBuilds/stable/*/blender.exe ); fi
-    if [ ${#group[@]} -eq 0 ]; then group=( /d/home/Documents/Blender/BlenderBuilds/stable/*/blender.exe ); fi
-    if [ ${#group[@]} -eq 0 ]; then group=( /e/home/Documents/Blender/BlenderBuilds/stable/*/blender.exe ); fi
-    # any other channel of such a build folder
-    if [ ${#group[@]} -eq 0 ]; then group=( "$HOME"/BlenderBuilds/*/*/blender.exe ); fi
     # a normal installer
-    if [ ${#group[@]} -eq 0 ]; then group=( "$HOME"/AppData/Local/Programs/Blender*/*/blender.exe ); fi
-    if [ ${#group[@]} -eq 0 ]; then group=( "/c/Program Files/Blender Foundation"/Blender*/*/blender.exe ); fi
-    if [ ${#group[@]} -eq 0 ]; then group=( "/d/Program Files/Blender Foundation"/Blender*/*/blender.exe ); fi
+    all+=( "$HOME"/AppData/Local/Programs/Blender*/*/blender.exe )
+    all+=( "/c/Program Files/Blender Foundation"/Blender*/*/blender.exe )
+    all+=( "/d/Program Files/Blender Foundation"/Blender*/*/blender.exe )
+
+    # Blender Launcher keeps its build library under Scoop's persist folder
+    for drive in /c /d /e /f /g /h; do
+        [ -d "$drive" ] || continue
+        all+=( $drive/Scoop/persist/blender-launcher/BlenderBuilds/*/*/blender.exe )
+        all+=( $drive/Scoop/apps/blender-launcher/current/BlenderBuilds/*/*/blender.exe )
+    done
+
+    # a build folder of its own, wherever the documents tree currently lives:
+    # that tree gets reorganised from time to time (D:/home/Documents -> H:/Documents
+    # here), so walk the drives instead of assuming one layout
+    all+=( "$HOME"/BlenderBuilds/*/*/blender.exe )
+    all+=( "$HOME"/Documents/Blender/BlenderBuilds/*/*/blender.exe )
+    for drive in /c /d /e /f /g /h; do
+        [ -d "$drive" ] || continue
+        all+=( $drive/home/Documents/Blender/BlenderBuilds/*/*/blender.exe )
+        all+=( $drive/Documents/Blender/BlenderBuilds/*/*/blender.exe )
+    done
 
     if [ "$had_nullglob" -eq 0 ]; then shopt -u nullglob; fi
-    if [ ${#group[@]} -eq 0 ]; then return 1; fi
-    printf '%s\n' "${group[@]}" | sort -V | tail -1
+    if [ ${#all[@]} -eq 0 ]; then return 1; fi
+
+    # A build on a mapped network drive cannot be started here at all - Windows
+    # fails with "side-by-side configuration is incorrect" - so when both kinds
+    # are present, the local ones win.
+    local -a local=()
+    local candidate
+    for candidate in "${all[@]}"; do
+        case "$(fs_type_of "$candidate")" in
+            smbfs|nfs|cifs|net) continue ;;
+        esac
+        local+=( "$candidate" )
+    done
+    if [ ${#local[@]} -gt 0 ]; then
+        all=( "${local[@]}" )
+    fi
+
+    printf '%s\n' "${all[@]}" | sort -V | tail -1
 }
 
 # newest Blender user "scripts/addons" folder - where an add-on gets installed

@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.16.21
+
+Installing the 3D-Coat half is now one step instead of three, and the plugin code
+itself is unchanged from v1.16.19 (Blender 1.10.17).
+
+* **One installer, four doors.** `coat_side/CoatLinkInstall.py` holds the install
+  logic; `install.cmd` (double-click on Windows), `install.sh`, `install.ps1` and
+  the single-file `CoatLink-Setup.py` all run it.  The shell and PowerShell
+  installers used to carry their own copies of the logic, which is exactly how two
+  installers drift apart - now a test installs with each and compares the trees
+  byte for byte after normalising the generated paths.
+* **Double-click path.** Unzip, double-click `install.cmd`: it finds 3D-Coat's own
+  bundled Python, writes the scripts and both menu XMLs with this machine's paths,
+  copies the button icons when that folder is writable and says so when it is not.
+  No admin rights, no PATH edits, nothing to configure.
+* **Single-file path.** `dist/CoatLink-Setup.py` is the same installer with the
+  files embedded: download one file and paste one line into 3D-Coat's Python
+  console.  `package.sh` builds it, and it is published as its own release asset.
+* **Uninstall.** `--uninstall` / `-Uninstall` removes exactly what was installed
+  (scripts, the two menu XMLs, the icons) and leaves every other file alone.
+* The scoped-export module is no longer installed: nothing calls it.
+
+Tests: 3D-Coat installer **29/29** (new), plus the existing suites unchanged -
+Blender 113/113 and its regression scripts, 3D-Coat logic 103/103, tools 29/29,
+API stub check, idle-redraw check, probe dry run, both installer smoke tests.
+
 ## v1.16.20
 
 Release prep - the bridge code itself is unchanged from v1.16.19 (Blender 1.10.17).

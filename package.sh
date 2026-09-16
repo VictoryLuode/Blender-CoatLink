@@ -31,9 +31,18 @@ rm -f dist/coat_bridge.zip "$FULL"
 git archive --format=zip --prefix="coat_bridge/" "$REF:coat_bridge" -o dist/coat_bridge.zip
 git archive --format=zip --prefix="Blender-CoatLink-$VERSION/" "$REF" -o "$FULL"
 
+# the 3D-Coat half as one file: paste it into 3D-Coat's Python console, or run it
+# with any Python.  Built from the committed sources, like the archives above.
+PYTHON="$(command -v python3 || command -v python || true)"
+if [ -z "$PYTHON" ]; then
+    echo "note: no python found, skipped dist/CoatLink-Setup.py" >&2
+else
+    "$PYTHON" coat_side/tools/build_standalone.py >/dev/null
+fi
+
 echo
-for archive in dist/coat_bridge.zip "$FULL"; do
-    printf '%-44s %s\n' "$archive" "$(du -h "$archive" | cut -f1)"
+for archive in dist/coat_bridge.zip "$FULL" dist/CoatLink-Setup.py; do
+    [ -f "$archive" ] && printf '%-44s %s\n' "$archive" "$(du -h "$archive" | cut -f1)"
 done
 echo
 unzip -l dist/coat_bridge.zip | tail -3

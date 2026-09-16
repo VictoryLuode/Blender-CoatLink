@@ -13,10 +13,11 @@
 
       powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
-  What it does: copies the add-on, copies the 3D-Coat scripts, writes the two
-  XML files that give 3D-Coat its menu entry and tool buttons, and copies the
-  button icons next to 3D-Coat's own.  The same six files, the same two XML
-  files and the same icons the bash installer writes - byte for byte.
+  The Blender half is copied here.  The 3D-Coat half runs
+  coat_side\CoatLinkInstall.py, which is the same code install.cmd, coat_side/install.sh
+  and the single file in dist/ run - so the four of them cannot drift apart.  It
+  writes the two XML files with this machine's paths and copies the button icons
+  next to 3D-Coat's own when that folder is writable.
 #>
 
 [CmdletBinding()]
@@ -25,18 +26,12 @@ param(
     [string] $CoatScripts,
     [string] $CoatDir,
     [switch] $BlenderOnly,
-    [switch] $CoatOnly
+    [switch] $CoatOnly,
+    [switch] $Uninstall
 )
 
 $ErrorActionPreference = 'Stop'
 $Repo = Split-Path -Parent $MyInvocation.MyCommand.Path
-
-function Write-TextLf {
-    # LF only, no BOM: 3D-Coat reads these files and the bash installer writes LF
-    param([string] $Path, [string] $Text)
-    $utf8 = New-Object System.Text.UTF8Encoding($false)
-    [System.IO.File]::WriteAllText($Path, ($Text -replace "`r`n", "`n"), $utf8)
-}
 
 function Find-Newest {
     # newest path matching a wildcard, or $null
@@ -70,10 +65,25 @@ function Get-CoatDir {
         'C:\Program Files\3DCoat*',
         'D:\Program Files\3DCoat*',
         'E:\Program Files\3DCoat*',
+        'F:\Program Files\3DCoat*',
+        'G:\Program Files\3DCoat*',
+        'H:\Program Files\3DCoat*',
         'C:\Program Files (x86)\3DCoat*',
         (Join-Path $env:LOCALAPPDATA 'Programs\3DCoat*'),
         (Join-Path $env:LOCALAPPDATA '3DCoat*')
     )
+}
+
+function Get-CoatPython {
+    # 3D-Coat ships its own Python folder: using it means nothing has to be installed
+    if ($env:COATLINK_PYTHON -and (Test-Path $env:COATLINK_PYTHON)) { return $env:COATLINK_PYTHON }
+    $bundled = Find-Newest @( (Join-Path $env:USERPROFILE 'Documents\3DCoat\python-*\python.exe') )
+    if ($bundled) { return $bundled }
+    foreach ($name in 'python', 'py', 'python3') {
+        $found = Get-Command $name -ErrorAction SilentlyContinue
+        if ($found) { return $found.Source }
+    }
+    return $null
 }
 
 # ---- Blender half ----------------------------------------------------------
@@ -102,58 +112,20 @@ if (-not $BlenderOnly) {
         Write-Host 'Start 3D-Coat once so it creates its user folders, or pass -CoatScripts <path>.'
         exit 1
     }
+    $installer = Join-Path $Repo 'coat_side\CoatLinkInstall.py'
+    if (-not (Test-Path $installer)) {
+        Write-Host "missing $installer - unzip the whole release, not just this file" -ForegroundColor Red
+        exit 1
+    }
+    $python = Get-CoatPython
+    if (-not $python) {
+        Write-Host 'No Python found: start 3D-Coat once (it ships one), or install Python.' -ForegroundColor Red
+        exit 1
+    }
+    $installerArgs = @($installer, '--scripts', $scripts)
     $coat = Get-CoatDir
-
-    $dir = Join-Path $scripts 'CoatBridge'
-    New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    foreach ($stale in 'CoatBridge.py', 'CoatBridgeQt.py', 'CoatBridgeDialog.py') {
-        Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $dir $stale)
-    }
-    foreach ($name in 'CoatBridgeLib.py', 'CoatBridgeReceipts.py', 'CoatBridgeScopedExport.py',
-                      'CoatBridge_Send.py', 'CoatBridge_Pull.py', 'CoatBridge_Setup.py') {
-        Copy-Item -Force (Join-Path $Repo "coat_side\$name") (Join-Path $dir $name)
-    }
-    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $dir '__pycache__')
-
-    # 3D-Coat reads Windows paths in the XML; forward slashes, like the bash side
-    $winDir = $dir.Replace('\', '/')
-
-    $menuDir = Join-Path $scripts 'ExtraMenuItems'
-    New-Item -ItemType Directory -Force -Path $menuDir | Out-Null
-
-    $tools = Get-Content -Raw (Join-Path $Repo 'coat_side\tools\CoatBridgeTools.xml.in')
-    Write-TextLf (Join-Path $menuDir 'CoatBridgeTools.xml') ($tools.Replace('__SCRIPT_DIR__', $winDir))
-
-    $menu = @"
-<ClassArray.ExtraMenuItem>
-`t<ExtraMenuItem>
-`t`t<MenuPath>Scripts</MenuPath>
-`t`t<MenuItem>CoatBridge</MenuItem>
-`t`t<inRoom></inRoom>
-`t`t<inSection></inSection>
-`t`t<Command>script:$winDir/CoatBridge_Setup.py</Command>
-`t</ExtraMenuItem>
-</ClassArray.ExtraMenuItem>
-"@
-    Write-TextLf (Join-Path $menuDir 'CoatBridge.xml') ($menu + "`n")
-
-    if ($coat) {
-        $iconDir = Join-Path $coat 'data\Textures\icons64'
-        if (Test-Path $iconDir) {
-            foreach ($icon in 'CoatBridge.png', 'CoatBridge_Send.png', 'CoatBridge_Pull.png', 'CoatBridge_Setup.png') {
-                Copy-Item -Force (Join-Path $Repo "coat_side\icon\$icon") (Join-Path $iconDir $icon) -ErrorAction SilentlyContinue
-            }
-            Write-Host "icons  : $iconDir\CoatBridge_*.png"
-        } else {
-            Write-Warning "icons  : skipped, no such folder: $iconDir"
-        }
-    } else {
-        Write-Warning 'icons  : skipped, the 3D-Coat program folder was not found (pass -CoatDir)'
-    }
-
-    Write-Host "scripts: $dir"
-    Write-Host "buttons: $menuDir\CoatBridgeTools.xml  (Voxels + Paint tool panels)"
-    Write-Host "menu   : $menuDir\CoatBridge.xml  (Scripts > CoatLink: opens the panel)"
-    Write-Host ''
-    Write-Host 'Restart 3D-Coat, then look at the end of the tool list in the Sculpt room.'
+    if ($coat) { $installerArgs += @('--coat', $coat) }
+    if ($Uninstall) { $installerArgs += '--uninstall' }
+    & $python @installerArgs
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }

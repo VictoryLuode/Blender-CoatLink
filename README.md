@@ -24,6 +24,8 @@ a window of ours and never Qt.  Its controls are native too, using the layout
 * Blender 4.2+ (developed and tested on 5.2 LTS)
 * 3D-Coat 4.8.15+ (tested against 3D-Coat 2026)
 * Windows for the installers and the tests; the add-on itself is OS-independent
+* a Python for the 3D-Coat installer - 3D-Coat ships one, so normally there is
+  nothing to install
 
 ## Install
 
@@ -39,10 +41,28 @@ Pick the first route that works for you.  All three land the same files.
 
 That is the whole Blender side - no copying, no paths, no shell.
 
-### 2. 3D-Coat side, one command
+### 2. 3D-Coat side: double-click it
 
-Windows, in the folder you unzipped (**PowerShell ships with Windows, nothing else
-is needed**):
+Unzip the release and **double-click `install.cmd`**.  That is the whole job:
+
+* it uses the Python that 3D-Coat itself ships, so nothing has to be installed
+* it works both folders out on the spot and writes the menu entries with **your**
+  paths - 3D-Coat needs absolute script paths, which is why the XMLs are generated
+  rather than shipped
+* it copies the button icons next to 3D-Coat's own when that folder is writable,
+  and carries on without them when it is not (no admin rights anywhere)
+* it clears out anything an older layout of this project left behind
+* running it twice is harmless
+
+Rather not unzip anything?  Download **`CoatLink-Setup.py`** - the same installer
+as a single file - and paste one line into 3D-Coat's Python console:
+
+```python
+exec(open(r"C:\Downloads\CoatLink-Setup.py", encoding="utf-8").read())
+```
+
+With git-bash, MSYS or WSL, `./install.sh` does the 3D-Coat half too.  PowerShell
+can do both halves in one go:
 
 ```powershell
 .\install.ps1
@@ -55,20 +75,20 @@ script you just downloaded and read:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-With git-bash, MSYS or WSL:
-
-```bash
-./install.sh
-```
-
-Both find the folders themselves.  To be explicit, `install.ps1` takes
-`-BlenderAddons`, `-CoatScripts`, `-CoatDir`, and `install.sh` takes the same
-three paths in that order (or `BLENDER_ADDON_DIR`, `COAT_SCRIPTS_DIR`,
-`COAT_DIR`).  Add `-BlenderOnly` / `-CoatOnly` for one half only.
+**All four doors run the same installer** (`coat_side/CoatLinkInstall.py`), so they
+cannot drift apart - a test installs with each and compares the trees byte for byte.
 
 Then **restart 3D-Coat** and look for **Scripts > CoatLink**.  The three tool
-buttons also appear at the end of the Sculpt and Paint tool lists.  The panel's
-`RemoveLauncher` button takes all of that back out again.
+buttons also appear at the end of the Sculpt and Paint tool lists.
+
+To take it all back out: `install.cmd --uninstall`, `.\install.ps1 -Uninstall`,
+`./install.sh --uninstall`, or `python CoatLinkInstall.py --uninstall`.  It removes
+its own files and nothing else.
+
+Explicit paths, when detection is not enough: `-BlenderAddons`, `-CoatScripts`,
+`-CoatDir` (PowerShell), the same three in that order or `BLENDER_ADDON_DIR`,
+`COAT_SCRIPTS_DIR`, `COAT_DIR` (bash), `--scripts`, `--coat` (Python).  Add
+`-BlenderOnly` / `-CoatOnly` for one half.
 
 ### 3. No scripts at all - copy the files by hand
 
@@ -77,7 +97,7 @@ Five destinations.  `<ver>` is your Blender version folder.
 | What | From | To |
 | --- | --- | --- |
 | Blender add-on | `coat_bridge\` (7 `.py` files) | `%APPDATA%\Blender Foundation\Blender\<ver>\scripts\addons\coat_bridge\` |
-| 3D-Coat scripts | `coat_side\CoatBridge*.py` (6 files) | `%USERPROFILE%\Documents\3DCoat\UserPrefs\Scripts\CoatBridge\` |
+| 3D-Coat scripts | `coat_side\CoatBridge*.py` (5 files: the library, the receipts helper and the three entries) | `%USERPROFILE%\Documents\3DCoat\UserPrefs\Scripts\CoatBridge\` |
 | Tool buttons | `coat_side\tools\CoatBridgeTools.xml.in` | `…\Scripts\ExtraMenuItems\CoatBridgeTools.xml`, with every `__SCRIPT_DIR__` replaced by the `CoatBridge` folder above, forward slashes (`C:/Users/…/CoatBridge`) |
 | Scripts menu entry | the block below | `…\Scripts\ExtraMenuItems\CoatBridge.xml` |
 | Button icons (optional) | `coat_side\icon\*.png` (4 files) | `<3D-Coat program folder>\data\Textures\icons64\` |
@@ -97,6 +117,10 @@ Five destinations.  `<ver>` is your Blender version folder.
 ```
 
 Then start Blender, enable **CoatLink** and press **Detect**.
+
+The two XML files above are the fiddly part - every path in them has to be yours -
+so `python coat_side/CoatLinkInstall.py` will write both for you once the scripts
+are in place (`--scripts <folder>` if it cannot find them, `--uninstall` to undo).
 
 ### Where the 3D-Coat panel can live (and where it cannot)
 
@@ -243,6 +267,12 @@ that says so:
 * **Windows-oriented.**  Both installers and the test scripts assume Windows paths
   (`cygpath`, `%APPDATA%`).  The Blender add-on itself is OS-independent; the
   3D-Coat half is plain Python and only its installer is Windows-specific.
+* **Installing through 3D-Coat's own extension system** (`.3dcpack`, "Install
+  Extension" in 3D-Coat) would need no console, no double-click and no unzip at
+  all.  It is not shipped because the package layout for scripts and menu entries
+  is not documented anywhere we could verify - 3D-Coat's own builder would have to
+  produce a reference package first.  Downloading `CoatLink-Setup.py` is the
+  closest thing today.
 * **Subtree-scoped export** (only the current node plus its children, instead of
   the whole sculpt tree) exists on the `parked/subtree-scoped-panel` branch.  It is
   **not** in the released code, because the grouping, positions and units of its
@@ -264,9 +294,10 @@ stand-in `coat` module on 3D-Coat's own Python.  The scripts pick the newest
 Blender build and 3D-Coat's bundled Python automatically; set `BLENDER=`,
 `COAT_PYTHON=`, `COAT_DIR=` or pass a path to override.
 
-Current counts: Blender main suite **113/113**, plus eight regression scripts and
-both installer smoke tests; 3D-Coat logic **103/103**, tools **29/29**, plus the
-API stub check, the idle-redraw check and the install smoke test.
+Current counts: Blender main suite **113/113**, plus the regression scripts and
+both installer smoke tests; 3D-Coat logic **103/103**, tools **29/29**, installer
+**29/29**, plus the API stub check, the idle-redraw check, the probe dry run and
+the install smoke tests.
 
 ## License
 
