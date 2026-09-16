@@ -17,3 +17,4 @@ with tempfile.TemporaryDirectory() as tmp:
     assert m.received(path, 'blender') is None
     assert not m.acknowledge(path, 'blender', version, ['Hull'])
 print('PASS receipt requires successful objects, correct receiver and unchanged model version')
+print("RECEIPT REGRESSION PASSED")

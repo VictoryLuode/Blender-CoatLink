@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.16.19
+
+* Persist the pull record in the exchange folder (pull-history.json), so restarting
+  Blender no longer reimports the return file that is still sitting there. A model
+  whose version changed is imported normally, an explicit pull still overrides the
+  record, and a damaged record falls back to importing instead of blocking.
+* tests/run_tests.sh now runs every standalone regression script (seven of them were
+  never wired into the suite) in its own isolated Blender session.
+* Blender 1.10.17. Tests: main suite 113/113 plus receipts, retry, delayed signal,
+  OBJ groups, object names, target identity, pull history; 3D-Coat logic 103/103,
+  tools 29/29, API stub check, idle redraw, probe dry run, install smoke.
+
 ## v1.16.17
 
 * Stabilize installed panel: no scene queries or filesystem reads during idle redraw; control changes persist only when edited. Disable process callback and automatic receipt display on Coat panel pending host issue verification. Manual stats only.

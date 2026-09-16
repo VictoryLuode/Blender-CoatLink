@@ -3,10 +3,12 @@
 #
 #   tests/run_tests.sh [path/to/blender.exe]
 #
-# Blender gets a throwaway script folder, so the add-on is enabled and driven
-# without touching the real user configuration or the real 3D-Coat folder.
+# Blender gets throwaway script and config folders, so the add-on is enabled and
+# driven without touching the real user configuration or the real 3D-Coat folder.
+# Every regression script under tests/ is run in its own Blender session: they all
+# exercise the same add-on, and one aborted session must not hide the rest.
 
-set -euo pipefail
+set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BLENDER="${1:-$(ls -d /d/home/Documents/Blender/BlenderBuilds/stable/*/blender.exe 2>/dev/null | sort -V | tail -1)}"
@@ -15,9 +17,10 @@ WIN_WORK="$(cygpath -w "$WORK")"
 WIN_REPO="$(cygpath -w "$REPO")"
 SCRIPTS="$WORK/scripts"
 EXCHANGE="$WORK/Exchange"
+CONFIG="$WORK/config"
 REPORT="$WORK/report.json"
 
-mkdir -p "$SCRIPTS/addons" "$EXCHANGE"
+mkdir -p "$SCRIPTS/addons" "$EXCHANGE" "$CONFIG"
 cp -r "$REPO/coat_bridge" "$SCRIPTS/addons/"
 rm -rf "$SCRIPTS/addons/coat_bridge/__pycache__"
 
@@ -26,17 +29,47 @@ echo "scripts : $WIN_WORK\\scripts"
 echo "exchange: $WIN_WORK\\Exchange"
 echo
 
+failed=0
+
+blender_run() {
+    BLENDER_USER_SCRIPTS="$WIN_WORK\\scripts" \
+    BLENDER_USER_CONFIG="$WIN_WORK\\config" \
+        "$BLENDER" --background --factory-startup --python-exit-code 1 "$@"
+}
+
+# ---- the main suite: reports pass/fail counts into report.json ----------------
+echo "──────────────── tests/test_bridge.py (main suite) ────────────────"
 set +e
-BLENDER_USER_SCRIPTS="$WIN_WORK\\scripts" "$BLENDER" --background --factory-startup \
-    --python "$WIN_REPO\\tests\\test_bridge.py" -- --exchange "$WIN_WORK\\Exchange" --report "$WIN_WORK\\report.json"
+blender_run --python "$WIN_REPO\\tests\\test_bridge.py" \
+    -- --exchange "$WIN_WORK\\Exchange" --report "$WIN_WORK\\report.json"
 status=$?
 set -e
-
 echo
+
+# ---- every standalone regression script --------------------------------------
+for script in test_receipts.py test_retry.py test_delayed_signal.py \
+              test_obj_groups.py test_object_names.py test_target_identity.py \
+              test_pull_history.py; do
+    echo "──────────────── tests/$script ────────────────"
+    set +e
+    blender_run --python "$WIN_REPO\\tests\\$script"
+    code=$?
+    set -e
+    [ "$code" -eq 0 ] || failed=1
+    echo
+done
+
 if [ ! -f "$REPORT" ]; then
-    echo "report: MISSING - the suite did not run to completion"
+    echo "report: MISSING - the main suite did not run to completion"
     exit 1
 fi
 echo "report: $WIN_WORK\\report.json"
-echo "exit status: $status"
-exit "$status"
+echo "main suite exit status: $status"
+[ "$status" -eq 0 ] || failed=1
+
+if [ "$failed" -eq 0 ]; then
+    echo "ALL BLENDER SIDE TESTS PASSED"
+else
+    echo "SOME BLENDER SIDE TESTS FAILED" >&2
+fi
+exit "$failed"

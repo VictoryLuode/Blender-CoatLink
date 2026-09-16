@@ -6,7 +6,7 @@
 bl_info = {
     "name": "CoatLink",
     "author": "VictoryLuode",
-    "version": (1, 10, 16),
+    "version": (1, 10, 17),
     "blender": (4, 2, 0),
     "location": "Top Bar > CoatLink",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",

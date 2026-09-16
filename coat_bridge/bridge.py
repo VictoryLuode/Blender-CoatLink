@@ -13,6 +13,7 @@ Everything 3D-Coat writes into a BlenderBridge folder is ours; anything else is
 left alone, so the official 3D-Coat AppLink can stay enabled.
 """
 
+import json
 import os
 import time
 import traceback
@@ -60,6 +61,60 @@ def status(context=None):
         if receipt:
             return "3D-Coat received: %s" % ", ".join(receipt["objects"])
     return STATE["message"]
+
+
+#: the record of what has already been imported, kept in the exchange folder
+HISTORY_NAME = "pull-history.json"
+_HISTORY_LOADED = [False]
+
+
+def _history_path(p):
+    """Where the between-sessions pull record lives.
+
+    In the exchange folder we own rather than in Blender's config: it describes
+    these files, so clearing the folder should clear it too.
+    """
+    root = applink.exchange_roots(p.exchange_folder)[0]
+    return os.path.join(applink.ensure_app_folder(root), HISTORY_NAME)
+
+
+def load_history(p, force=False):
+    """Recall what earlier sessions already handled.
+
+    Without this, restarting Blender forgets everything and the return file still
+    sitting in the exchange folder is imported a second time - the duplicate
+    import the user reported.  Only files that are already on disk are recalled,
+    and a model whose version changed is imported normally again.
+    """
+    if _HISTORY_LOADED[0] and not force:
+        return STATE["seen"], STATE["imported_versions"]
+    try:
+        with open(_history_path(p), encoding="utf-8") as stream:
+            data = json.load(stream)
+        for signal, mtime in (data.get("seen") or {}).items():
+            STATE["seen"].setdefault(signal, mtime)
+        for key, version in (data.get("imported_versions") or {}).items():
+            STATE["imported_versions"].setdefault(key, tuple(version))
+    except (OSError, ValueError, TypeError):
+        pass                    # no record yet, or a damaged one: import normally
+    _HISTORY_LOADED[0] = True
+    return STATE["seen"], STATE["imported_versions"]
+
+
+def save_history(p):
+    """Write the record atomically.  Unwritable folders must not break a pull."""
+    try:
+        path = _history_path(p)
+        temporary = path + ".tmp"
+        payload = {"seen": STATE["seen"],
+                   "imported_versions": {key: list(value)
+                                         for key, value in STATE["imported_versions"].items()}}
+        with open(temporary, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream)
+        os.replace(temporary, path)
+        return True
+    except (OSError, TypeError, ValueError):
+        return False
 
 
 def detail_lines(context=None):
@@ -251,6 +306,8 @@ def _pull_once(context, force):
     if p is None:
         raise RuntimeError("add-on preferences unavailable")
     roots = applink.exchange_roots(p.exchange_folder)
+    load_history(p)             # what earlier sessions already handled
+    dirty = [False]             # only rewrite the record when something changed
     messages = []
     candidates = []          # (mtime, path)
     already = set()          # a path listed by more than one signal
@@ -266,6 +323,7 @@ def _pull_once(context, force):
         ours = [path for path in paths if _is_ours(path, roots)]
         foreign = [path for path in paths if path not in ours]
         STATE["seen"][signal] = mtime
+        dirty[0] = True
         if not ours:
             # 3D-Coat exports to its own AppLink pool as well (its own target), and
             # that export.txt points outside BlenderBridge.  A file written after
@@ -312,6 +370,8 @@ def _pull_once(context, force):
                             os.remove(signal)
                         except OSError:
                             pass
+                if dirty[0]:
+                    save_history(p)
                 return []  # a delayed mirror signal, not a new export
             receipt_version = receipts.fingerprint(path)
             imported = _import_and_link(context, path)
@@ -319,8 +379,11 @@ def _pull_once(context, force):
                 receipts.acknowledge(path, "blender", receipt_version, imported)
             if imported:
                 versions[key] = version
+                dirty[0] = True
                 if len(versions) > 128:
                     del versions[next(iter(versions))]
+                if len(STATE["seen"]) > 256:
+                    del STATE["seen"][next(iter(STATE["seen"]))]
         except Exception as exc:
             messages.append("import failed for %s: %s" % (os.path.basename(path), exc))
             _log("import failed for %s: %s" % (os.path.basename(path), exc))
@@ -357,6 +420,8 @@ def _pull_once(context, force):
             _log("pull: %s" % message)
 
     STATE["log"] += [msg for msg in messages if msg not in STATE["log"]]
+    if dirty[0]:
+        save_history(p)
     return messages
 
 

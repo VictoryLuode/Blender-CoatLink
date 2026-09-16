@@ -25,3 +25,4 @@ with tempfile.TemporaryDirectory() as tmp:
     assert len(bpy.data.objects)==4
     print('PASS reversed return order maps each object; rename survives; unrelated collision preserved:', names)
 addon_utils.disable('coat_bridge', default_set=True)
+print("OBJECT NAME REGRESSION PASSED")
