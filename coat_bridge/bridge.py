@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Coat Bridge - a small, predictable Blender <-> 3D-Coat model bridge.
+# CoatLink - a small, predictable Blender <-> 3D-Coat model bridge.
 
 """Send / pull orchestration.
 
@@ -55,7 +55,7 @@ def prefs(context=None):
 def status(context=None):
     target = STATE.get("target") or {}
     path = target.get("file")
-    if path:
+    if path and STATE.get("last_send", 0) > STATE.get("last_pull", 0) and STATE.get("message", "").startswith("Sent "):
         receipt = receipts.received(path, "3dcoat")
         if receipt:
             return "3D-Coat received: %s" % ", ".join(receipt["objects"])
@@ -273,7 +273,7 @@ def _pull_once(context, force):
             # "the model never arrives".
             last_send = STATE.get("last_send") or 0.0
             fresh = [path for path in foreign
-                     if os.path.isfile(path) and os.path.getmtime(path) >= last_send - 2.0]
+                     if last_send > 0 and os.path.isfile(path) and os.path.getmtime(path) >= last_send - 2.0]
             if fresh:
                 messages.append("3D-Coat used its own AppLink folder for %s" % os.path.basename(fresh[0]))
                 handled.append((signal, False))        # never touch someone else's signal

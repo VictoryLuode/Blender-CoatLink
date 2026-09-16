@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Coat Bridge - a small, predictable Blender <-> 3D-Coat model bridge.
+# CoatLink - a small, predictable Blender <-> 3D-Coat model bridge.
 # Copyright (C) 2026  VictoryLuode
 
 bl_info = {
-    "name": "Coat Bridge",
+    "name": "CoatLink",
     "author": "VictoryLuode",
-    "version": (1, 10, 14),
+    "version": (1, 10, 16),
     "blender": (4, 2, 0),
-    "location": "Top Bar > Coat Bridge",
+    "location": "Top Bar > CoatLink",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
     "category": "Import-Export",
     "doc_url": "https://3dcoat.com/documentation/manual/getting-started/app-links/blender-applink/",
@@ -95,19 +95,19 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "exchange_folder")
-        layout.label(text="Other settings are in the top-bar Coat Bridge menu.", icon="INFO")
+        layout.label(text="Other settings are in the top-bar CoatLink menu.", icon="INFO")
 
 
 def register():
     bpy.utils.register_class(CoatBridgePreferences)
     ui.register()
     bpy.types.Object.coat_bridge_file = StringProperty(
-        name="Coat Bridge file",
+        name="CoatLink file",
         description="Model file this object is linked to, used to update it in place",
         default="",
     )
     bpy.types.Scene.coat_bridge_status = StringProperty(
-        name="Coat Bridge status",
+        name="CoatLink status",
         default="Ready",
     )
     watcher.start()

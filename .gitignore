@@ -1,4 +1,3 @@
+hotfix-backups/
 __pycache__/
 *.pyc
-*.blend1
-report.json

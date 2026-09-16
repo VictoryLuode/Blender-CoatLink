@@ -60,13 +60,25 @@ def main():
     steps = [name for name, _args in coat.dialog_log]
     check("panel is shown when run as a script", bool(steps) and steps[-1] == "show", steps)
     check("panel caption matches the Blender side",
-          any(name == "caption" and args[0] == "Coat Bridge" for name, args in coat.dialog_log))
+          any(name == "caption" and args[0] == "CoatLink" for name, args in coat.dialog_log))
     check("panel is pinned to the top-right", "topRight" in steps and "noModal" in steps)
     check("panel width is set", any(name == "width" for name, _ in coat.dialog_log))
     check("panel has a close button",
           any(name == "buttons" and args[0] == "Close" for name, args in coat.dialog_log))
-    check("panel drives its state each frame",
-          any(name == "process" and callable(args[0]) for name, args in coat.dialog_log))
+    # The panel must never query the host scene or touch the state file while it
+    # is merely being redrawn; control edits persist through ui(), not a per-frame
+    # callback (a per-frame mesh read was observed to disturb the sculpt tree).
+    check("panel installs no per-frame callback",
+          not any(name == "process" and callable(args[0]) for name, args in coat.dialog_log))
+    idle_panel = bridge.CoatBridgePanel()
+    probe_scene, probe_state = coat.Scene.current, bridge.load_state
+    coat.Scene.current = lambda: (_ for _ in ()).throw(AssertionError("scene touched during redraw"))
+    bridge.load_state = lambda: (_ for _ in ()).throw(AssertionError("state read during redraw"))
+    for _ in range(50):
+        idle_panel.ui()
+        idle_panel.process()
+    coat.Scene.current, bridge.load_state = probe_scene, probe_state
+    check("50 idle redraws touch no scene and no state file", True)
 
     # ---- exchange discovery ----
     roots = bridge.exchange_roots()

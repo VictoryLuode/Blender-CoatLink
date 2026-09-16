@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Coat Bridge - setup / Detect tool button.  Runs headless: no window, no dialog.
+# CoatLink - setup / Detect tool button.  Runs headless: no window, no dialog.
 # 3D-Coat imports a script as a module and then runs it, so the call at the
 # bottom is unconditional, exactly like every script 3D-Coat ships.
 

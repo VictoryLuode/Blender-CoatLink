@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Coat Bridge - 3D-Coat side of the model bridge.  Copyright (C) 2026 VictoryLuode
+# CoatLink - 3D-Coat side of the model bridge.  Copyright (C) 2026 VictoryLuode
 #
 # A non-modal panel pinned to the top-right of the 3D-Coat viewport, with the
 # same layout and wording as the Blender add-on's menu:
@@ -38,7 +38,7 @@ except ImportError:  # the command module is optional at import time
 
 APP_FOLDER = "BlenderBridge"
 MODEL_NAME = "bridge"
-PANEL_CAPTION = "Coat Bridge"
+PANEL_CAPTION = "CoatLink"
 VERSION = "1.4.0"
 #: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
 #: there is nothing to choose - Blender reads the returned file by extension.
@@ -67,8 +67,8 @@ STATE_FILE = "CoatBridge.json"
 RUN_MARKER = "run.txt"
 MENU_ID = "CoatBridge"
 MENU_PATHS = ("Scripts", "Windows")  # launcher lives with the other script/window entries
-TOOL_ROOMS = ("Voxels",)             # rooms whose tool panel gets a Coat Bridge button
-REOPEN_HINT = "reopen: Scripts > Coat Bridge"
+TOOL_ROOMS = ("Voxels",)             # rooms whose tool panel gets a CoatLink button
+REOPEN_HINT = "reopen: Scripts > CoatLink"
 
 #: timestamp of the last time the panel was opened, so a double click cannot
 #: stack two panels (and a stale value never blocks a later reopen)
@@ -369,7 +369,7 @@ def apply_reduction(percent=None):
 ACTION_LABELS = {
     "CoatBridge_Send": ("SendToBlender", "Send to Blender"),
     "CoatBridge_Pull": ("PullFromBlender", "Pull from Blender"),
-    "CoatBridge_Setup": ("OpenPanel", "Coat Bridge: panel"),
+    "CoatBridge_Setup": ("OpenPanel", "CoatLink: panel"),
 }
 
 
@@ -520,12 +520,13 @@ class CoatBridgePanel(object):
         self.TargetSize = 1.0            # the size to scale the current object to
         self.SizeLabel = "Size: -"
         self.Advanced = False
+        self._saved_controls = (self.ReductionPercent, self.Textures)
         self.refresh_detail()
 
     # ---- layout -----------------------------------------------------------
 
     def ui(self):
-        self.process()          # refresh the readouts, like 3D-Coat's own panel
+        self.process()  # cached controls only; no scene access
         items = []
         items.append("[1]")
         items.append("SendToBlender")
@@ -533,12 +534,8 @@ class CoatBridgePanel(object):
         items.append("---")
         items.append("#" + self.SizeLabel)
         items.append("ReductionPercent,[0,100]")
-        try:
-            count = int(coat.Scene.current().Volume().getPolycount())
-            estimate = round(count * (100 - self.ReductionPercent) / 100)
-            items.append("##Selected: %d faces; estimated remaining: %d" % (count, estimate))
-        except Exception:
-            items.append("##Selected face count unavailable")
+        items.append("RefreshStats")
+        items.append("##" + getattr(self, "StatsLabel", "Statistics paused; click RefreshStats"))
         items.append("##Reduction % = removed; estimate only, export not verified")
         items.append("Textures,[#from 3D-Coat|#textures on|#textures off]")
         items.append("---")
@@ -551,38 +548,34 @@ class CoatBridgePanel(object):
             items.append("StartBlender")
             items.append("RemoveLauncher")
         items.append("---")
-        receipt = None
-        root = primary_root()
-        if root:
-            receipt = receipts.received(model_path(root, EXPORT_FORMAT), "blender")
-        items.append("#" + ("Blender received: " + ", ".join(receipt["objects"]) if receipt else self.status))
+        items.append("#" + self.status)
         if self.Advanced and self.detail:
             items.append("##" + self.detail)
         items.append("##" + REOPEN_HINT)
         return items
 
     def process(self):
-        """Called every frame while the panel is open: store what was typed, so
-        the export uses it without ever asking again."""
-        try:
-            percent = int(getattr(self, "ReductionPercent", 0))
-        except (TypeError, ValueError):
-            percent = 0
-        if percent != reduction_percent():
-            set_reduction_percent(percent)
-        try:
-            choice = int(getattr(self, "Textures", 0))
-        except (TypeError, ValueError):
-            choice = 0
+        """No host queries or disk reads per frame. Persist actual edits only."""
+        current = (self.ReductionPercent, self.Textures)
+        if current == self._saved_controls:
+            return False
+        values = {REDUCTION_KEY: max(0, min(100, int(self.ReductionPercent)))}
+        choice = int(self.Textures)
         if 0 <= choice < len(TEXTURES_CHOICES):
-            wanted = TEXTURES_CHOICES[choice]
-            if wanted != export_textures():
-                set_export_textures(wanted)
-        try:
-            self.SizeLabel = size_line()
-        except Exception as exc:            # a readout must never break the panel
-            self.SizeLabel = "Size: unavailable (%s)" % exc
+            value = TEXTURES_CHOICES[choice]
+            values[TEXTURES_KEY] = "auto" if value is None else ("on" if value else "off")
+        if save_state(values):
+            self._saved_controls = current
         return False
+
+    def RefreshStats(self):
+        """Explicit user action only: never inspect live mesh during redraw."""
+        self.SizeLabel = size_line()
+        try:
+            count = int(coat.Scene.current().Volume().getPolycount())
+            self.StatsLabel = "Snapshot: %d faces (not auto-refreshed)" % count
+        except Exception as exc:
+            self.StatsLabel = "Statistics unavailable: %s" % exc
 
     def refresh_detail(self):
         root = primary_root()
@@ -722,7 +715,7 @@ class CoatBridgePanel(object):
         state["tools"] = []
         save_state(state)
         self._report("Launcher removed",
-                     "run this script again (Scripts > Coat Bridge) to put it back")
+                     "run this script again (Scripts > CoatLink) to put it back")
 
     # ---- internals --------------------------------------------------------
 
@@ -852,7 +845,7 @@ def register_menu_item():
 
 
 def register_room_tools():
-    """Put a Coat Bridge button into the tool panel of the listed rooms.
+    """Put a CoatLink button into the tool panel of the listed rooms.
 
     The tool appears at the end of the room's tool list; the id doubles as the
     icon name (data/Textures/icons64/<id>.png) and gets its label from the
@@ -909,7 +902,6 @@ def show_panel(force=False):
         .width(320) \
         .buttons("Close") \
         .params(panel) \
-        .process(panel.process) \
         .onPress(_on_press) \
         .show()
     _on_press(1)

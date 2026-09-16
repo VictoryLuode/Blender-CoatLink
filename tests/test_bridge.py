@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Headless end-to-end test for Coat Bridge.
+"""Headless end-to-end test for CoatLink.
 
 Run it with tests/run_tests.sh - it prepares a throwaway Blender script folder,
 enables the add-on there and drives a full send/pull round trip against two
@@ -106,7 +106,7 @@ def main():
 
         coat_ui.topbar_drawer(_Self(), _context("RIGHT"))
         check("the top bar draws the settings menu", entries[:1] ==
-              [("popover", coat_ui.POPOVER_ID, "Coat Bridge", "COLLAPSEMENU")], entries)
+              [("popover", coat_ui.POPOVER_ID, "CoatLink", "COLLAPSEMENU")], entries)
         check("Send sits to the right of it",
               entries[1] == ("operator", "coatbridge.send", "Send", "EXPORT"), entries)
         check("and Pull next to Send",

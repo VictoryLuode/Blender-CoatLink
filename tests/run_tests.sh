@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Headless end-to-end test for Coat Bridge.
+# Headless end-to-end test for CoatLink.
 #
 #   tests/run_tests.sh [path/to/blender.exe]
 #

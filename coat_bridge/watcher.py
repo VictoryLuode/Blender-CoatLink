@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Coat Bridge - a small, predictable Blender <-> 3D-Coat model bridge.
+# CoatLink - a small, predictable Blender <-> 3D-Coat model bridge.
 
 """Background polling of the exchange folder.
 

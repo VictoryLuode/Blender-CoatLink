@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.16.17
+
+* Stabilize installed panel: no scene queries or filesystem reads during idle redraw; control changes persist only when edited. Disable process callback and automatic receipt display on Coat panel pending host issue verification. Manual stats only.
+* Block foreign return adoption without prior send; do not mask later pull status with earlier send receipt.
+* Pending subtree implementation backed up, not installed.
+* Blender 1.10.15; 113 regression checks and 1000 simulated idle cycles passed. Live face-count growth remains unverified.
+
 ## v1.16.16
 
 * Persist export aliases on Blender objects; map multi-object returns independently, preserving Blender-side renamed targets and avoiding unrelated same-name objects. New return groups stay separate.

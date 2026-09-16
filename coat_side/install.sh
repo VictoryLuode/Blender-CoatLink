@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the 3D-Coat side of Coat Bridge into 3D-Coat's user script folder.
+# Install the 3D-Coat side of CoatLink into 3D-Coat's user script folder.
 #
 #   coat_side/install.sh [scripts-dir] [3dcoat-install-dir]
 #
@@ -31,6 +31,7 @@ mkdir -p "$DIR"
 rm -f "$DIR/CoatBridge.py" "$DIR/CoatBridgeQt.py" "$DIR/CoatBridgeDialog.py"   # earlier layouts
 cp "$REPO/coat_side/CoatBridgeLib.py" \
    "$REPO/coat_side/CoatBridgeReceipts.py" \
+   "$REPO/coat_side/CoatBridgeScopedExport.py" \
    "$REPO/coat_side/CoatBridge_Send.py" \
    "$REPO/coat_side/CoatBridge_Pull.py" \
    "$REPO/coat_side/CoatBridge_Setup.py" \
@@ -69,6 +70,6 @@ fi
 
 echo "scripts: $DIR"
 echo "buttons: $MENU_DIR/CoatBridgeTools.xml  (Voxels + Paint tool panels)"
-echo "menu   : $MENU_DIR/CoatBridge.xml  (Scripts > Coat Bridge: opens the panel)"
+echo "menu   : $MENU_DIR/CoatBridge.xml  (Scripts > CoatLink: opens the panel)"
 echo
 echo "Restart 3D-Coat, then look at the end of the tool list in the Sculpt room."

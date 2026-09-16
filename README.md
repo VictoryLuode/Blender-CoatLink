@@ -1,4 +1,4 @@
-# Coat Bridge
+# CoatLink
 
 A small, predictable two-way **model** bridge between **Blender** and **3D-Coat**.
 Models only: no baking, no texture nodes, no scene surgery.
@@ -8,7 +8,7 @@ their UIs are deliberately mirrors of each other:
 
 | | Blender side | 3D-Coat side |
 | --- | --- | --- |
-| Where | **Coat Bridge** menu, then **Send** and **Pull** next to it, in the top bar | three buttons at the end of the room tool list (Sculpt / Paint) |
+| Where | **CoatLink** menu, then **Send** and **Pull** next to it, in the top bar | three buttons at the end of the room tool list (Sculpt / Paint) |
 | Shape | popover menu + two one-click buttons | buttons, plus a native panel opened from the tool strip |
 | One click | `Send` / `Pull` on the bar itself | `Send to Blender` / `Pull from Blender` |
 | Options | `Open as`, `Axis`, `3D-Coat scale`, `Auto pull`, `Skip dialogs`, `Modifiers`, `Match scale`, `No materials` | `Size` readout, `TargetSize` + `ApplySize`, `ReductionPercent`, `Textures` |
@@ -63,7 +63,7 @@ Reference implementations read while writing this: the official `io_coat3D`
 AppLink that ships inside 3D-Coat (`data/ToolsPresets/InstallAppLinks/Blender4x/`,
 ~4200 lines across 7 files) and its GitHub cousin `io-coat3d-main`.
 
-| Official AppLink | Coat Bridge |
+| Official AppLink | CoatLink |
 | --- | --- |
 | Renames objects to `__Name` on export | Never touches names |
 | Replaces mesh data, UVs and materials by hidden rules | One rule: geometry in, everything else stays |
@@ -85,7 +85,7 @@ AppLink that ships inside 3D-Coat (`data/ToolsPresets/InstallAppLinks/Blender4x/
 cp -r coat_bridge "$APPDATA/Blender Foundation/Blender/5.2/scripts/addons/"
 ```
 
-Enable **Coat Bridge** in `Edit > Preferences > Add-ons`, then press **Detect**
+Enable **CoatLink** in `Edit > Preferences > Add-ons`, then press **Detect**
 once (in the menu below): it finds the exchange folder, stores it in the add-on
 preferences and creates `<exchange>/BlenderBridge/`, which 3D-Coat then lists
 under `File > Export To`.
@@ -97,7 +97,7 @@ coat_side/install.sh                       # copies the script + the menu entry
 ```
 
 It lands in `Documents/3DCoat/UserPrefs/Scripts/CoatBridge/` and adds
-`Scripts > Coat Bridge`.  Run it once - the panel stays open until you close it.
+`Scripts > CoatLink`.  Run it once - the panel stays open until you close it.
 3D-Coat may need a restart before the new menu entry shows up.
 
 The launcher also goes into the **Windows** menu and, with an icon, into the
@@ -134,7 +134,7 @@ side being configured correctly:
 
 ## Use
 
-Everything is in one place: the **Coat Bridge** button in the top bar, in the
+Everything is in one place: the **CoatLink** button in the top bar, in the
 right-hand group next to the other add-on buttons (Restart, AR, Export, Import).
 It opens a popup holding the whole bridge.
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Coat Bridge - a small, predictable Blender <-> 3D-Coat model bridge.
+# CoatLink - a small, predictable Blender <-> 3D-Coat model bridge.
 
 """One menu in the top bar.  Everything the bridge does lives inside it.
 
@@ -135,7 +135,7 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
     """The whole bridge UI, opened from the top-bar button."""
 
     bl_idname = POPOVER_ID
-    bl_label = "Coat Bridge"
+    bl_label = "CoatLink"
     bl_space_type = "TOPBAR"
     bl_region_type = "HEADER"
     bl_ui_units_x = 16
@@ -188,7 +188,7 @@ def topbar_drawer(self, context):
     if context.region.alignment != "RIGHT":
         return
     row = self.layout.row(align=True)
-    row.popover(panel=POPOVER_ID, text="Coat Bridge", icon="COLLAPSEMENU")
+    row.popover(panel=POPOVER_ID, text="CoatLink", icon="COLLAPSEMENU")
     row.operator("coatbridge.send", text="Send", icon="EXPORT")
     row.operator("coatbridge.pull", text="Pull", icon="IMPORT")
 
