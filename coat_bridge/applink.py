@@ -181,13 +181,23 @@ def after_import_path(root):
     return os.path.join(root, AFTER_IMPORT_NAME)
 
 
-def write_after_import(root):
-    """Copy the helper into the exchange root; returns its path (or "" on failure)."""
+def write_after_import(root, voxelize=False):
+    """Copy the helper into the exchange root; returns its path (or "" on failure).
+
+    `voxelize` is baked into the copy rather than passed as an argument: import.txt
+    can only name a python file, and the helper has to know whether this job asked for
+    a voxel import.  The file in the add-on stays neutral, so tests can load it either
+    way.
+    """
     try:
         with open(AFTER_IMPORT_SOURCE, "r", encoding="utf-8") as handle:
             script = handle.read()
     except OSError:
         return ""
+    if voxelize:
+        marker = "VOXELIZE = False"
+        if marker in script:
+            script = script.replace(marker, "VOXELIZE = True", 1)
     target = after_import_path(root)
     tmp = target + ".tmp"
     _write(tmp, script)
@@ -210,7 +220,7 @@ def write_import_txt(root, load_path, return_path, mode, skip_dialogs=True):
     if skip_dialogs:
         lines.append("[SkipImport]")
         lines.append("[SkipExport]")
-    helper = write_after_import(root)
+    helper = write_after_import(root, voxelize=(mode == "vox"))
     if helper:
         lines.append("[pythonfile %s]" % _slash(helper))
     target = import_txt(root)

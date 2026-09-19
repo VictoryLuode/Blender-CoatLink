@@ -246,8 +246,11 @@ def main():
     check("import.txt: the after-import script rides along",
           lines[5] == "[pythonfile %s]" % applink._slash(helper), lines)
     check("the helper is written next to the job file", os.path.isfile(helper), helper)
-    check("the helper is the add-on's own file, byte for byte",
-          read(helper) == read(applink.AFTER_IMPORT_SOURCE))
+    check("the helper is the add-on's own file, with only the voxel flag flipped",
+          read(helper) == read(applink.AFTER_IMPORT_SOURCE).replace(
+              "VOXELIZE = False", "VOXELIZE = True", 1))
+    check("a voxel import tells the helper to voxelize what arrives",
+          "VOXELIZE = True" in read(helper))
     helper_text = read(helper)
     check("the helper names the model file it looks for",
           'MODEL_STEM = "bridge"' in helper_text, helper_text[:80])
@@ -256,6 +259,16 @@ def main():
     check("the helper would compile inside 3D-Coat",
           bool(compile(helper_text, helper, "exec")))
     check("import.txt: posix paths only", "\\" not in "".join(lines), lines)
+
+    # a mode that is not voxel must leave the helper exactly as the add-on ships it
+    prefs.mode = "uv"
+    bridge.send(bpy.context)
+    check("another mode leaves the voxel flag off",
+          "VOXELIZE = True" not in read(helper))
+    check("so the helper is byte for byte the add-on's file",
+          read(helper) == read(applink.AFTER_IMPORT_SOURCE))
+    prefs.mode = "vox"
+    bridge.send(bpy.context)
 
     # the preference, not just its default, is what reaches the job file
     prefs.mode = "uv"

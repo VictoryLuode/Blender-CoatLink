@@ -85,6 +85,40 @@ def main():
     coat.root.children.clear()
     check("a tree without a wrapper is fine", helper.flatten(coat) == 0)
 
+    # ---- a voxel import: the same helper also voxelizes what arrived ----------
+    class _Volume(object):
+        def __init__(self, voxel):
+            self.voxel = voxel
+            self.converted = 0
+
+        def isVoxelized(self):
+            return self.voxel
+
+        def toVoxels(self):
+            self.converted += 1
+            self.voxel = True
+
+    coat.root.children.clear()
+    wrapper = bridge_imported_tree(coat, children=("Hull", "Turret"))
+    hull, turret = wrapper.children
+    hull_volume, turret_volume = _Volume(False), _Volume(True)
+    hull.Volume = lambda: hull_volume
+    turret.Volume = lambda: turret_volume
+    result = helper.voxelize(coat)
+    check("a surface object in the group is converted", result == (1, 1, 0), result)
+    check("the wrapper itself is not converted, only its objects",
+          hull_volume.converted == 1 and turret_volume.converted == 0,
+          (hull_volume.converted, turret_volume.converted))
+    check("running it again converts nothing", helper.voxelize(coat) == (0, 2, 0))
+    bridge_imported_tree(coat, children=("Something",), group="KeepMe")
+    check("a group that is not ours is not converted", helper.voxelize(coat) == (0, 0, 0),
+          helper.voxelize(coat))
+    check("the add-on's copy ships with the flag off", helper.VOXELIZE is False)
+    with open(HELPER, "r", encoding="utf-8") as handle:
+        helper_text = handle.read()
+    check("the flag is one plain line, so the Blender side can flip it",
+          "VOXELIZE = False" in helper_text and "VOXELIZE = True" not in helper_text)
+
     # ---- our own Pull button: the same result through code --------------------
     coat.root.children.clear()
     coat.moves.clear()

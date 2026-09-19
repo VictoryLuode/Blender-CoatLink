@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.16.30
+
+* **A voxel import now asks to be voxelized.**  Models have been arriving in 3D-Coat in
+  surface mode even though the job file says `[vox]`, and the after-import script that
+  unparents the imported group was already riding along in that same job file.  It now
+  also converts the group's objects with `Volume.toVoxels()` - but only when the job
+  asked for a voxel import: the Blender side writes the copy that goes into the exchange
+  folder with `VOXELIZE = True`, and the file in the add-on stays neutral, so nothing
+  changes for the other modes.  The packaging node is not converted (no stray volume),
+  objects already voxelized are skipped, and a failure is written to the shared log
+  instead of interrupting the import.
+* The README records a 3D-Coat behaviour worth knowing: **it only polls the exchange
+  folder while it is the active window** (`SetSystemPause: 1` when it loses focus), so a
+  Send made from behind another window waits until you bring 3D-Coat forward.
+* Blender 1.10.24.
+
+Honest state of this one: the voxelizing half can only run if 3D-Coat executes the
+`[pythonfile ...]` line, which has not been observed on the build this was written
+against (the sibling unparenting never logged anything either).  It is harmless when it
+does not run, and the panel's `To voxels` button remains the guaranteed path.
+
+Tests: Blender 150/150 (the helper that goes into the job file is the add-on's own file
+with only the voxel flag flipped, the flag is off for every other mode, and the helper
+stays byte for byte identical then) plus every regression script and both installer
+smoke tests.  3D-Coat suite green (the helper converts a group's surface objects, skips
+what is already voxel, is idempotent, ignores other people's groups, and ships with the
+flag off) plus tools, installer, tree report, API stub check, idle redraw, probe dry run
+and install smoke.
+
 ## v1.16.29
 
 * **`To voxels` in the 3D-Coat panel.**  Models sent from Blender have been arriving in

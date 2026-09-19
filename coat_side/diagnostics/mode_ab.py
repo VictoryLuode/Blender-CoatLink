@@ -30,9 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PROBE = os.path.join(HERE, "tree_report.py")
 
 MODEL = "CoatLinkModeTest"
-CUBE = """# CoatLink mode test cube
-o {name}
-v -1 -1 -1
+CUBE_BODY = """v -1 -1 -1
 v 1 -1 -1
 v 1 1 -1
 v -1 1 -1
@@ -46,32 +44,34 @@ f 1 2 6 5
 f 4 8 7 3
 f 1 5 8 4
 f 2 3 7 6
-""".format(name=MODEL)
+"""
+#: three objects, not one: a Blender send is usually several, and 3D-Coat wraps a
+#: multi-object file in a parent node - the shape the real case has
+CUBE = "".join("o %s_%d\n%s" % (MODEL, index, CUBE_BODY) for index in (1, 2, 3))
 
 
-def log_size():
+def log_text():
     try:
-        return os.path.getsize(LOG)
+        with open(LOG, "r", encoding="utf-8", errors="replace") as handle:
+            return handle.read()
     except OSError:
-        return 0
+        return ""
 
 
-def log_since(mark):
-    with open(LOG, "r", encoding="utf-8", errors="replace") as handle:
-        handle.seek(mark)
-        return handle.read()
+def wait_for_import(before, timeout=30):
+    """Wait until 3D-Coat has read a fresh import.txt; returns what it logged.
 
-
-def wait_for_import(mark, timeout=25):
-    """Wait until 3D-Coat has read a fresh import.txt, and hand back its log."""
+    The log is compared as text rather than by byte offset: 3D-Coat rewrites Log.txt
+    between sessions, so an offset from an earlier run is meaningless.
+    """
     deadline = time.time() + timeout
     while time.time() < deadline:
-        text = log_since(mark)
-        if "import.txt" in text and "Contence" in text:
+        text = log_text()
+        if MODEL in text and text != before:
             time.sleep(3)                 # let the merge settle before probing
-            return text + log_since(mark)
+            return text[len(before):] if text.startswith(before) else text
         time.sleep(0.5)
-    return log_since(mark)
+    return log_text()[-1500:]
 
 
 def probe(timeout=30):
@@ -133,12 +133,12 @@ def main():
     print("\n".join(first.splitlines()[-7:]) or "(no report - probe not running)")
 
     for variant in ("official", "ours"):
-        mark = log_size()
+        before = log_text()
         print("\n" + "=" * 60)
         print("variant: %s" % variant)
         lines = write_job(variant)
         print("job file:\n  " + "\n  ".join(lines))
-        text = wait_for_import(mark)
+        text = wait_for_import(before)
         interesting = [line.rstrip() for line in text.splitlines()
                        if any(word in line for word in
                               ("Contence", "[vox]", "[SkipImport]", "[SkipExport]",

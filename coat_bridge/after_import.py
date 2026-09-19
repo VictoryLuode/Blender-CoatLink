@@ -23,6 +23,13 @@ import time
 #: the parent 3D-Coat creates is named after the model file
 MODEL_STEM = "bridge"
 
+#: Set to True by the Blender side when the job asks for a voxel import (`[vox]`).
+#: 3D-Coat has been landing multi-object imports in *surface* mode whatever the mode
+#: line says, so when voxel was asked for, this makes sure it is what arrives.  The
+#: flag is baked into the copy that goes into the exchange folder; the file itself
+#: stays neutral so it can be read and tested.
+VOXELIZE = False
+
 #: same file the 3D-Coat side writes, so both halves of a trip land in one log
 LOG_NAME = "CoatBridge.log"
 
@@ -88,12 +95,51 @@ def flatten(coat, stem=MODEL_STEM):
     return moved
 
 
+def voxelize(coat, stem=MODEL_STEM):
+    """Turn the objects inside every `<stem>` group into voxel volumes.
+
+    Only the leaves are converted: the group itself is packaging, so converting it
+    would leave an extra volume behind.  Objects already voxelized are skipped, which
+    makes a second run harmless.  Returns (converted, already, failed).
+    """
+    root = coat.Scene.sculptRoot()
+    converted = already = failed = 0
+    for index in range(root.childCount()):
+        group = root.child(index)
+        try:
+            if group is None or group.name() != stem:
+                continue
+            count = group.childCount()
+        except Exception:
+            continue
+        for child_index in range(count):
+            try:
+                child = group.child(child_index)
+                volume = child.Volume()
+                if volume.isVoxelized():
+                    already += 1
+                    continue
+                volume.toVoxels()
+                converted += 1
+            except Exception:
+                failed += 1
+    return converted, already, failed
+
+
 def main():
     try:
         import coat
     except Exception as exc:                      # not running inside 3D-Coat
         note("after-import helper skipped: %s" % exc)
         return 0
+    if VOXELIZE:
+        try:
+            converted, already, failed = voxelize(coat)
+            if converted or failed:
+                note("voxel import: %d converted, %d already voxel, %d failed"
+                     % (converted, already, failed))
+        except Exception as exc:
+            note("could not voxelize the import: %s" % exc)
     try:
         moved = flatten(coat)
     except Exception as exc:

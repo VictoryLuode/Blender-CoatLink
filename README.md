@@ -303,6 +303,19 @@ that says so:
   the same thing.
 * **Nothing is collapsed.**  The older builds hid the advanced half of both menus
   behind an `Advanced` fold-out.  That is gone on both sides; every control is drawn.
+* **3D-Coat only reads the exchange folder while it is the active window.**  It logs
+  `SetSystemPause: 1` when it loses focus and stops polling: a job file written while
+  another application is in front simply sits there until you bring 3D-Coat forward.
+  Practical consequence: after `Send`, switch to 3D-Coat (do not leave it minimised)
+  and the model appears.  Nothing on the Blender side can change that.
+* **A voxel import now asks to be voxelized.**  When the mode is `[vox]`, the
+  after-import script that rides along in the job file is written with
+  `VOXELIZE = True`, and it converts the objects of the imported group with
+  `Volume.toVoxels()` before unparenting them - skipping anything already voxelized, so
+  a second run is harmless, and leaving the packaging node alone.  This is the
+  belt-and-braces half of the next point: it can only work if 3D-Coat runs the
+  `[pythonfile ...]` line at all, which has not been observed on the build this was
+  written against, so the panel's `To voxels` button is still the guaranteed path.
 * **The import mode is asked for, not guaranteed.**  Blender writes the mode on the
   third line of `import.txt` (`[vox]` for a voxel import) and 3D-Coat's own log shows
   it reading that line - but models have still arrived in *surface* mode, as
