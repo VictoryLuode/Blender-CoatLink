@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.16.26
+
+* **One button on the Blender top bar, and the two menus now match.**  The bar used
+  to carry four widgets (`CoatLink` menu, a `Whole scene` toggle, `Send`, `Pull`);
+  now it is the `CoatLink` button alone, and everything lives inside it: `Scope`,
+  then `Send` / `Pull`, then the settings, then *Advanced*.
+* The scope is a droplist on both sides with the same two entries - **Selected** /
+  **Whole scene** - instead of a toggle in Blender and a droplist in 3D-Coat.
+* The 3D-Coat panel's own buttons are translated to `Send` / `Pull`, matching the
+  Blender menu; the tool-strip buttons keep `Send to Blender` / `Pull from Blender`
+  because they stand on their own outside any menu.
+* `Folder` is now `Open folder` on both sides.
+* Blender 1.10.21.
+
+Tests: Blender 130/130 (the bar holds only the menu button; the menu draws scope,
+Send, Pull in that order; the scope preference replaces the old toggle, with the
+selection/whole-scene behaviour checked as before) plus every regression script and
+both installer smoke tests.  3D-Coat 112/112 (the panel's buttons are translated to
+Send / Pull, the tool buttons keep their labels, and the droplist wording matches the
+Blender menu), tools 29/29, installer 32/32, API stub check, idle redraw, probe dry
+run, install smoke.
+
 ## v1.16.25
 
 * **The 3D-Coat panel now says what its `Send scope` actually sends.**  The

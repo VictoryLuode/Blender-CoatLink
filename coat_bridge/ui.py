@@ -147,7 +147,14 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
             layout.label(text="Preferences unavailable", icon="ERROR")
             return
 
+        # Same order and wording as the 3D-Coat panel: scope, then the two actions,
+        # then the settings, then Advanced.
         column = layout.column(align=True)
+        column.prop(p, "scope", text="Scope")
+        row = column.row(align=True)
+        row.operator("coatbridge.send", text="Send", icon="EXPORT")
+        row.operator("coatbridge.pull", text="Pull", icon="IMPORT")
+        column.separator()
         column.prop(p, "mode", text="Import as")
         column.prop(p, "auto_pull", text="Auto receive")
         column.prop(p, "strip_materials", text="Without materials")
@@ -161,7 +168,7 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
             column.prop(p, "skip_dialogs", text="Skip dialogs")
             row = column.row(align=True)
             row.operator("coatbridge.detect", text="Detect")
-            row.operator("coatbridge.open_folder", text="Folder")
+            row.operator("coatbridge.open_folder", text="Open folder")
             column.operator("coatbridge.launch", text="Start 3D-Coat")
             column.operator("coatbridge.pull", text="Force re-read return signal").force = True
             column.operator("coatbridge.unlink", text="Unlink selected")
@@ -189,13 +196,6 @@ def topbar_drawer(self, context):
         return
     row = self.layout.row(align=True)
     row.popover(panel=POPOVER_ID, text="CoatLink", icon="COLLAPSEMENU")
-    # what Send should cover, right before it: the selection (default) or every
-    # visible object.  A toggle, so the current scope is visible at a glance.
-    preferences = bridge.prefs(context)
-    if preferences is not None:
-        row.prop(preferences, "whole_scene", text="Whole scene", toggle=True, emboss=False)
-    row.operator("coatbridge.send", text="Send", icon="EXPORT")
-    row.operator("coatbridge.pull", text="Pull", icon="IMPORT")
 
 
 def _header_hook():

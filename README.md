@@ -6,14 +6,20 @@ Models only: no baking, no texture nodes, no scene surgery.
 Both halves share one exchange folder, one file layout and one vocabulary, and
 their UIs are deliberately mirrors of each other:
 
-| | Blender side | 3D-Coat side |
+| | Blender | 3D-Coat |
 | --- | --- | --- |
-| Where | **CoatLink** menu in the top bar, with **Send** and **Pull** next to it | three buttons at the end of the room tool list (Voxels / Paint) |
-| Shape | popover menu + two one-click buttons | tool buttons, plus a panel opened from the tool strip |
-| Scope | `Whole scene` toggle, left of `Send` | `Send scope` droplist at the top of the panel, directly above `Send to Blender`, with a line under it saying what the current choice sends |
-| One click | `Send` / `Pull` on the bar itself | `Send to Blender` / `Pull from Blender` |
-| Options | `Import as` (voxel by default), `Auto receive`, `Without materials`, and an *Advanced* fold: `Axis`, `Scale override (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs` | `ReductionPercent`, `Textures`, a size readout with `RefreshStats`, and an *Advanced* fold: `Detect`, `OpenFolder`, `StartBlender`, `RemoveLauncher` |
+| Where | one **CoatLink** button in the top bar | three buttons at the end of the room tool list (Voxels / Paint) |
+| The menu | the popover inside that button - the bar holds nothing else | the panel opened from the tool strip |
+| Scope | `Scope` droplist: **Selected** / **Whole scene** | the same droplist, at the top of the panel |
+| Actions | `Send`, `Pull` | `Send`, `Pull` |
+| Settings | `Import as` (voxel by default), `Auto receive`, `Without materials` | reduction percentage, textures, size readout with `RefreshStats` |
+| Advanced | `Axis`, `Scale override`, `Match scale`, `Modifiers`, `Skip dialogs`, then `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read return signal`, `Unlink selected` | `Detect`, `Open folder`, `Start Blender`, `RemoveLauncher` |
 | Source | `coat_bridge/` (Blender add-on, 8 files) | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
+
+Both menus carry the same sections in the same order with the same words - scope,
+then `Send` / `Pull`, then the settings, then *Advanced*.  The tool-strip buttons keep
+their longer labels (`Send to Blender`, `Pull from Blender`) because there they stand
+on their own, outside any menu; the panel's own buttons say `Send` and `Pull`.
 
 The 3D-Coat panel is 3D-Coat's **own** dialog (`coat.dialog()...topRight()`), never
 a window of ours and never Qt.  Its controls are native too, using the layout

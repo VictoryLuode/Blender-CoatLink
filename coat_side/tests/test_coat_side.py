@@ -202,6 +202,22 @@ def main():
     check("layout tells the user how to reopen the panel",
           any(bridge.REOPEN_HINT in item for item in items), items)
 
+    # ---- the two menus are meant to read the same ----
+    translations = {args[0]: args[1] for args in coat.ui.addTranslation.calls if len(args) >= 2}
+    check("the panel's buttons read Send / Pull, like the Blender menu",
+          translations.get("SendToBlender") == "Send"
+          and translations.get("PullFromBlender") == "Pull",
+          {key: value for key, value in translations.items()
+           if key in ("SendToBlender", "PullFromBlender")})
+    check("the tool-strip buttons keep their longer labels",
+          translations.get("CoatBridge_Send") == "Send to Blender"
+          and translations.get("CoatBridge_Pull") == "Pull from Blender",
+          {key: value for key, value in translations.items() if key.startswith("CoatBridge")})
+    check("the scope droplist reads like the Blender menu's",
+          bridge.SEND_SCOPE_LABELS == "#Selected|#Whole scene", bridge.SEND_SCOPE_LABELS)
+    check("and both scopes are explained under it",
+          len(bridge.SEND_SCOPE_HINTS) == 2, bridge.SEND_SCOPE_HINTS)
+
     # ---- menu registration (the panel entry already ran it) ----
     bridge.save_state({"menus": [], "tools": []})   # forget the entry's registration
     coat.menu_inserted = False      # and that 3D-Coat reports the menu missing again

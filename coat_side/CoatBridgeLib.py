@@ -65,10 +65,10 @@ REDUCTION_KEY = "reduction"
 #: children), or 3D-Coat's own export, which does the whole scene
 SEND_SCOPE_KEY = "send_scope"
 SEND_SCOPES = ("selected", "scene")
-SEND_SCOPE_LABELS = "#selected node|#whole scene"
+SEND_SCOPE_LABELS = "#Selected|#Whole scene"
 #: what each scope actually hands over - the two are not the same thing, and 3D-Coat
 #: decides for itself what its own export covers, so the panel says so
-SEND_SCOPE_HINTS = ("selected node + its children",
+SEND_SCOPE_HINTS = ("the node selected in the Sculpt Tree, plus its children",
                     "3D-Coat's own export (all volumes, its own rules)")
 
 #: the export dialog's "export textures" checkbox (documented as an import.txt
@@ -464,6 +464,9 @@ def apply_reduction(percent=None):
 # --------------------------------------------------------------------------
 
 #: tool id -> label shown in the room tool panel (and in the hotkey editor)
+#: what the panel's buttons say (the tool-strip buttons use ACTION_LABELS instead)
+PANEL_ACTION_LABELS = {"SendToBlender": "Send", "PullFromBlender": "Pull"}
+
 ACTION_LABELS = {
     "CoatBridge_Send": ("SendToBlender", "Send to Blender"),
     "CoatBridge_Pull": ("PullFromBlender", "Pull from Blender"),
@@ -572,6 +575,14 @@ def add_translations():
     for tool_id, (_method, label) in ACTION_LABELS.items():
         try:
             coat.ui.addTranslation(tool_id, label)
+        except Exception:
+            pass
+        # the panel's own buttons are methods, and 3D-Coat labels them by name
+        # unless they are translated: "Send" / "Pull", the same words the Blender
+        # menu uses.  The tool-strip buttons keep the longer labels above, because
+        # there they stand on their own.
+        try:
+            coat.ui.addTranslation(_method, PANEL_ACTION_LABELS.get(_method, label))
         except Exception:
             pass
 

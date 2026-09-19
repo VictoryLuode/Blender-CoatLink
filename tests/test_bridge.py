@@ -111,14 +111,54 @@ def main():
         coat_ui.topbar_drawer(_Self(), _context("RIGHT"))
         check("the top bar draws the settings menu", entries[:1] ==
               [("popover", coat_ui.POPOVER_ID, "CoatLink", "COLLAPSEMENU")], entries)
-        check("the send scope sits to the left of Send",
-              entries[1] == ("prop", "whole_scene", "Whole scene", True), entries)
-        check("Send sits to its right",
-              entries[2] == ("operator", "coatbridge.send", "Send", "EXPORT"), entries)
-        check("and Pull next to Send",
-              entries[3] == ("operator", "coatbridge.pull", "Pull", "IMPORT"), entries)
+        check("the bar holds nothing else: everything is inside that menu",
+              len(entries) == 1, entries)
         check("the bar adds nothing on the left side", (coat_ui.topbar_drawer(_Self(), _context("LEFT")),
-                                                        len(entries))[1] == 4, entries)
+                                                        len(entries))[1] == 1, entries)
+
+    # ---- the menu itself: scope, the two actions, then the settings ----
+    drawn = []
+
+    class _MenuLayout(object):
+        def column(self, align=False):
+            return _MenuColumn()
+
+        def label(self, **kwargs):
+            drawn.append(("label", kwargs.get("text")))
+
+    class _Result(object):
+        """What an operator call returns: the menu sets properties on it."""
+
+    class _MenuColumn(object):
+        def prop(self, owner, name, **kwargs):
+            drawn.append(("prop", name, kwargs.get("text")))
+
+        def operator(self, idname, **kwargs):
+            drawn.append(("operator", idname, kwargs.get("text")))
+            return _Result()
+
+        def label(self, **kwargs):
+            drawn.append(("label", kwargs.get("text")))
+
+        def row(self, align=False):
+            return _MenuColumn()
+
+        def separator(self):
+            drawn.append(("separator", None))
+
+    class _MenuSelf(object):
+        layout = _MenuLayout()
+
+    coat_ui.COATBRIDGE_PT_menu.draw(_MenuSelf(), bpy.context)
+    check("the menu starts with the scope",
+          drawn[0] == ("prop", "scope", "Scope"), drawn[:3])
+    check("then the two actions, named like the 3D-Coat panel's",
+          ("operator", "coatbridge.send", "Send") in drawn
+          and ("operator", "coatbridge.pull", "Pull") in drawn, drawn[:4])
+    check("in that order: scope, Send, Pull",
+          drawn.index(("prop", "scope", "Scope"))
+          < drawn.index(("operator", "coatbridge.send", "Send"))
+          < drawn.index(("operator", "coatbridge.pull", "Pull")), drawn[:4])
     check("no sidebar panel left", not hasattr(bpy.types, "COATBRIDGE_PT_main"))
     check("operators registered",
           hasattr(bpy.types, "COATBRIDGE_OT_send") and hasattr(bpy.types, "COATBRIDGE_OT_pull"))
@@ -212,7 +252,7 @@ def main():
         check("no extension.txt in %s" % os.path.basename(root),
               not os.path.isfile(os.path.join(folder, "extension.txt")))
     # ---- what a Send covers: the selection (default) or the whole scene ----
-    check("the whole-scene toggle starts off", prefs.whole_scene is False)
+    check("the scope starts on the selection", prefs.scope == "selected", prefs.scope)
 
     def exported_names():
         text = read(applink.model_path(EXCHANGE, "obj"))
@@ -231,9 +271,9 @@ def main():
     check("and says which scope it used", "(selection)" in bridge.status(bpy.context),
           bridge.status(bpy.context))
 
-    prefs.whole_scene = True
+    prefs.scope = "scene"
     bridge.send(bpy.context)
-    check("the toggle sends every visible object",
+    check("choosing the whole scene sends every visible object",
           set(exported_names()) == {"BridgeCube", "BridgeOther"}, exported_names())
     check("and the status says so", "whole scene" in bridge.status(bpy.context),
           bridge.status(bpy.context))
@@ -243,7 +283,7 @@ def main():
     check("a hidden object stays out of the whole-scene send",
           exported_names() == ["BridgeCube"], exported_names())
     other.hide_set(False)
-    prefs.whole_scene = False
+    prefs.scope = "selected"
     bridge.send(bpy.context)
     check("switching it back sends the selection again",
           exported_names() == ["BridgeCube"], exported_names())

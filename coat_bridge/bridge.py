@@ -228,7 +228,7 @@ def send(context):
     if not os.path.isdir(primary):
         raise RuntimeError("exchange folder not found: %s (press Detect in the panel)" % primary)
 
-    objects, scope = _send_objects(context, getattr(p, "whole_scene", False))
+    objects, scope = _send_objects(context, getattr(p, "scope", "selected") == "scene")
     active = context.view_layer.objects.active
     if active not in objects:
         active = objects[0]
