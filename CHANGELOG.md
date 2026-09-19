@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.16.23
+
+* **An imported model no longer arrives under a `bridge` parent in 3D-Coat.**
+  3D-Coat wraps an imported file in a node named after it, so Blender's Hull and
+  Turret came in as `bridge > Hull, Turret`.  The job file now ends with
+  `[pythonfile CoatLink_AfterImport.py]` (documented for 3D-Coat 2025.12+), which
+  makes 3D-Coat run `coat_bridge/after_import.py` right after the import: it moves
+  the objects up to the sculpt root and deletes the now empty wrapper.  A Pull from
+  the panel does the same in code (`flatten_imported_group`), so both import paths
+  end up with a tree that matches the Blender outliner.
+  Guarded on purpose: only a group that carries this model's name is touched, only
+  its children are moved (never deleted), a group that is not ours is left alone,
+  a tree without a wrapper is a no-op, and every failure is logged and swallowed so
+  the import itself can never break.
+* Blender 1.10.19.
+
+Tests: 3D-Coat 106/106 logic plus new `test_import_unparent.py` (13 checks: the
+helper against a simulated tree, our Pull path, someone else's group, an already
+flat import, and a model whose stem no longer matches), tools 29/29, installer
+32/32, API stub check, idle redraw, probe dry run, install smoke.  Blender side:
+the job file's last line, the helper being byte-identical to the add-on's copy,
+carrying no machine-specific path, and compiling.
+
 ## v1.16.22
 
 Two behaviour changes the user asked for.  Everything else is unchanged.

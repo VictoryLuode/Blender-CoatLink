@@ -165,18 +165,54 @@ def signal_files(roots):
     return files
 
 
+#: 3D-Coat parks an imported file under a parent node named after it (bridge.obj
+#: -> "bridge"), which Blender has no equivalent of.  import.txt can run a python
+#: file after the import (documented for 3D-Coat 2025.12+ as "[pythonfile ...]"),
+#: so the job carries this script along: it moves the imported objects up to the
+#: sculpt root and drops the empty parent, and the tree ends up like Blender's.
+#: Kept as a real file next to this module so it can be read, compiled and tested.
+AFTER_IMPORT_NAME = "CoatLink_AfterImport.py"
+AFTER_IMPORT_SOURCE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "after_import.py")
+
+
+def after_import_path(root):
+    """Where the after-import script goes: next to the job file, in the root."""
+    return os.path.join(root, AFTER_IMPORT_NAME)
+
+
+def write_after_import(root):
+    """Copy the helper into the exchange root; returns its path (or "" on failure)."""
+    try:
+        with open(AFTER_IMPORT_SOURCE, "r", encoding="utf-8") as handle:
+            script = handle.read()
+    except OSError:
+        return ""
+    target = after_import_path(root)
+    tmp = target + ".tmp"
+    _write(tmp, script)
+    os.replace(tmp, target)
+    return target
+
+
 def write_import_txt(root, load_path, return_path, mode, skip_dialogs=True):
     """Write the job file.  Must be the LAST file created: its appearance is
     what makes 3D-Coat start the import.
 
     [SkipImport]/[SkipExport] let 3D-Coat load and send back the model with its
-    current settings instead of stopping at a dialog every time.
+    current settings instead of stopping at a dialog every time.  The last line
+    hands 3D-Coat the script that unparents the imported objects (see
+    AFTER_IMPORT_SOURCE): it runs after the import, which is exactly when the
+    parent node exists.
 
     """
     lines = [_slash(load_path), _slash(return_path), "[%s]" % mode]
     if skip_dialogs:
         lines.append("[SkipImport]")
         lines.append("[SkipExport]")
+    helper = write_after_import(root)
+    if helper:
+        lines.append("[pythonfile %s]" % _slash(helper))
     target = import_txt(root)
     tmp = target + ".tmp"
     _write(tmp, "\n".join(lines) + "\n")

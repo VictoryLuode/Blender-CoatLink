@@ -169,8 +169,23 @@ def main():
     check("import.txt: model path first", lines[0].endswith("BlenderBridge/bridge.obj"), lines)
     check("import.txt: return path second", lines[1].endswith("BlenderBridge/bridge_back.obj"), lines)
     check("import.txt: the default mode line third", lines[2] == "[vox]", lines)
-    check("import.txt: skip flags", lines[3:] == ["[SkipImport]", "[SkipExport]"], lines)
-    check("import.txt: nothing else", len(lines) == 5, lines)
+    check("import.txt: skip flags", lines[3:5] == ["[SkipImport]", "[SkipExport]"], lines)
+    check("import.txt: nothing else", len(lines) == 6, lines)
+
+    # ---- the job carries the script that unparents the imported objects ----
+    helper = applink.after_import_path(EXCHANGE)
+    check("import.txt: the after-import script rides along",
+          lines[5] == "[pythonfile %s]" % applink._slash(helper), lines)
+    check("the helper is written next to the job file", os.path.isfile(helper), helper)
+    check("the helper is the add-on's own file, byte for byte",
+          read(helper) == read(applink.AFTER_IMPORT_SOURCE))
+    helper_text = read(helper)
+    check("the helper names the model file it looks for",
+          'MODEL_STEM = "bridge"' in helper_text, helper_text[:80])
+    check("the helper holds no machine-specific path",
+          "C:" not in helper_text and "Users" not in helper_text, helper_text[:200])
+    check("the helper would compile inside 3D-Coat",
+          bool(compile(helper_text, helper, "exec")))
     check("import.txt: posix paths only", "\\" not in "".join(lines), lines)
 
     # the preference, not just its default, is what reaches the job file

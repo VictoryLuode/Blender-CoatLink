@@ -116,9 +116,20 @@ class FakeCoat(object):
         self.io.step = lambda frames: None
         self.io.listBlenderInstallFolders = lambda: []
 
+        self.root = TreeNode("Root", self)
+        self.moves = []
+        self.removed = []
+        #: name of the wrapper node an import creates ("bridge" for bridge.obj)
+        self.import_group_name = None
+
         def _import_mesh(path):
+            """Import like 3D-Coat does: a group named after the file, holding the
+            objects, and the first object is what the call returns."""
             self.scene_imports.append(path)
-            return types.SimpleNamespace(name=lambda: os.path.splitext(os.path.basename(path))[0])
+            stem = os.path.splitext(os.path.basename(path))[0]
+            group = TreeNode(self.import_group_name or stem, self, self.root)
+            child = TreeNode("Volume1", self, group)
+            return child
 
         # coat.Scene.importMesh(...) - an attribute, exactly like the API
         self.current_size = [2.0, 1.0, 0.5]     # what 3D-Coat measures
@@ -229,12 +240,67 @@ class FakeCoat(object):
         self.Scene = types.SimpleNamespace(importMesh=_import_mesh,
                                            GetSceneUnits=lambda: "m",
                                            GetSceneScale=lambda: 1.0,
+                                           sculptRoot=lambda: self.root,
                                            current=lambda: _Element(self)
                                            if self.current_element is UNSET
                                            else self.current_element)
 
     def dialog(self):
         return FakeDialog(self.dialog_log)
+
+
+class TreeNode(object):
+    """A node of 3D-Coat's sculpt tree, with the parts the bridge uses.
+
+    Real 3D-Coat wraps an imported file in a node named after it; tests build that
+    shape here and then check what the bridge does to it.
+    """
+
+    def __init__(self, name, fake, parent=None):
+        self._name = name
+        self.fake = fake
+        self.parent_node = parent
+        self.children = []
+        if parent is not None:
+            parent.children.append(self)
+
+    def name(self):
+        return self._name
+
+    def childCount(self):
+        return len(self.children)
+
+    def child(self, index):
+        if 0 <= index < len(self.children):
+            return self.children[index]
+        return None
+
+    def parent(self):
+        return self.parent_node
+
+    def moveTo(self, new_parent, index):
+        if new_parent is None:
+            raise RuntimeError("no parent")
+        if self.parent_node is not None and self in self.parent_node.children:
+            self.parent_node.children.remove(self)
+        if index is None or index < 0 or index > len(new_parent.children):
+            new_parent.children.append(self)
+        else:
+            new_parent.children.insert(index, self)
+        self.parent_node = new_parent
+        self.fake.moves.append((self._name, new_parent.name(), index))
+
+    def remove(self):
+        if self.parent_node is not None and self in self.parent_node.children:
+            self.parent_node.children.remove(self)
+        self.fake.removed.append(self._name)
+
+    # a node can also be the "current object" the panel reads
+    def Volume(self):
+        return _Volume(self.fake.current_size)
+
+    def transform_single(self, matrix):
+        self.fake.transforms.append(matrix)
 
 
 class FakeMat4(object):

@@ -33,6 +33,7 @@ run coat_side/tests/test_idle_draw.py
 run coat_side/tests/test_panel_probe.py
 run coat_side/tests/test_coatlink_install.py
 run coat_side/tests/test_scoped_send.py
+run coat_side/tests/test_import_unparent.py
 echo "──────────────── install smoke test ────────────────"
 bash coat_side/tests/test_install.sh || failed=1
 echo

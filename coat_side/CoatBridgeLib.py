@@ -272,6 +272,67 @@ def reduction_percent():
     return max(0, min(100, value))
 
 
+def flatten_imported_group(element):
+    """Move an imported file's children up to the sculpt root and drop the wrapper.
+
+    3D-Coat wraps an imported file in a node named after it (bridge.obj ->
+    "bridge"); Blender has no such node, so the sculpt tree stops matching the
+    outliner.  Only that wrapper is removed - the imported objects are moved, never
+    deleted, and nothing else in the tree is touched.  Returns the names moved.
+    """
+    try:
+        root = coat.Scene.sculptRoot()
+    except Exception as exc:
+        log("could not read the sculpt root: %s" % exc)
+        return []
+    group = element
+    try:
+        if group is None or group.childCount() == 0:
+            group = element.parent() if element is not None else None
+    except Exception:
+        group = None
+    if group is None or group is root:
+        return []
+    moved = []
+    # always take the first child and append it: that keeps the order Blender has,
+    # and the live index cannot skip one (the group shrinks as they leave it)
+    while True:
+        try:
+            if group.childCount() == 0:
+                break
+            child = group.child(0)
+        except Exception:
+            break
+        if child is None:
+            break
+        # the index 3D-Coat wants for "append" is not documented: try both and let
+        # parent() say whether it worked
+        reached = False
+        for target_index in (-1, root.childCount()):
+            try:
+                child.moveTo(root, target_index)
+            except Exception:
+                continue
+            try:
+                reached = child.parent() is root
+            except Exception:
+                reached = True
+            if reached:
+                break
+        if not reached:
+            log("could not unparent %s" % (_element_name(child) or "?"))
+            break
+        moved.append(_element_name(child) or "?")
+    try:
+        if group.childCount() == 0:
+            group.remove()
+    except Exception:
+        pass
+    if moved:
+        log("unparented %s from the import group" % ", ".join(moved))
+    return moved
+
+
 def send_scope():
     """Which part of the scene Send hands over - "selected" unless changed."""
     value = str(load_state().get(SEND_SCOPE_KEY, "selected")).lower()
@@ -712,12 +773,15 @@ class CoatBridgePanel(object):
         except Exception as exc:
             self._report("Import failed: %s" % exc, os.path.basename(model))
             return
+        unparented = flatten_imported_group(element)
         consumed = consume_import(root, model)
         name = _element_name(element) or os.path.basename(model)
         if element is not None:
             receipts.acknowledge(model, "3dcoat", receipt_version, [name])
-        self._report("Pulled %s from %s" % (name, os.path.basename(model)),
-                     "queue file consumed" if consumed else "queue file left alone")
+        note = "%s | %s" % ("queue file consumed" if consumed else "queue file left alone",
+                            "unparented %d object(s)" % len(unparented) if unparented
+                            else "no import group to unparent")
+        self._report("Pulled %s from %s" % (name, os.path.basename(model)), note)
 
     def OpenPanel(self):
         """Open the panel: 3D-Coat's own dialog, nothing Qt."""

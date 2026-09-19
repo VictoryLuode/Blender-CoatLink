@@ -193,13 +193,15 @@ Documents/AppLinks/3D-Coat/Exchange/     <- job file goes here (3D-Coat polls th
         export.txt                              3D-Coat writes it when it sends a model back
         bridge.obj                              what 3D-Coat sends back (OBJ both ways)
         pull-history.json                       what we already imported, so a restart does not re-import it
+    CoatLink_AfterImport.py                  run by 3D-Coat after the import: unparents the objects
 
 Documents/3DCoat/Exchange/               <- 3D-Coat's own root, also written to
     BlenderBridge/                           the same files; the bridge watches both roots
 ```
 
-Three files are written by this add-on (`import.txt` at the root, `bridge.obj` in
-the folder, an empty `run.txt`); the two markers in there are state.  That is the
+This add-on writes `import.txt` at the root, `bridge.obj` and
+`CoatLink_AfterImport.py` (the after-import script `import.txt` points at) and an
+empty `run.txt`; the two markers in there are state.  That is the
 whole design.  `bridge.obj` is the model in **both** directions, so there is
 exactly one axis rule and one unit rule to keep straight.
 
@@ -223,6 +225,13 @@ exactly one axis rule and one unit rule to keep straight.
   estimate uses the formula the official template uses
   (`remaining = original × (100 − pct) / 100`) and says so.
 * **Textures.** A droplist: let 3D-Coat decide, force on, force off.
+* **No leftover parent node.**  3D-Coat wraps an imported file in a node named
+  after it (`bridge.obj` -> "bridge"), which Blender has no equivalent of.  The job
+  file carries `[pythonfile CoatLink_AfterImport.py]`, so 3D-Coat runs a short
+  script right after the import: the objects are moved up to the sculpt root and
+  the empty wrapper is deleted - only that wrapper, and only if it is the one for
+  this model.  A Pull made from the panel does the same in code.  The sculpt tree
+  then matches the Blender outliner.
 * **Selection, not the scene.**  `Send` exports `Scene.current()` with
   `with_subtree=True, all_selected=False`, so sculpting in progress cannot leak
   into Blender, and a return that loses its object groups is refused instead of
@@ -274,6 +283,12 @@ that says so:
   (1000 simulated idle redraws, no host calls, no file access) and its statistics
   are manual (`RefreshStats`), but the live cause is **not** identified.  If you
   see it, close the panel; nothing else in the bridge depends on it.
+* **Unparenting the imported objects relies on `[pythonfile …]`,** which the
+  AppLink documentation says needs 3D-Coat 2025.12 or newer; on an older build the
+  job file keeps the line, 3D-Coat ignores it, and the model arrives under its
+  `bridge` parent as before.  The index 3D-Coat wants for "append to the root" is
+  not documented either, so both spellings are tried and the result is checked with
+  `parent()` instead of assumed.
 * **The selected-node export is new and has not been through a live round trip
   yet.**  The API calls are the documented ones (`Scene.current()`, `fromVolume`,
   `fromReducedVolume`, `Mesh.Write`), the OBJ it produces is validated line by line,
