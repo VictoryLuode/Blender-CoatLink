@@ -15,7 +15,30 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 COAT_SIDE = os.path.abspath(os.path.join(HERE, ".."))
-DEFAULT_API = r"D:\Program Files\3DCoat-2026\UserPrefs\PythonAPI"
+
+
+def find_api():
+    """3D-Coat's PythonAPI folder, found rather than assumed.
+
+    The install folder carries a year in its name and moves between drives
+    (/d/Program Files/3DCoat-2026 -> /c/Program Files/3DCoat-2025 here), so a
+    hardcoded path is a check that silently stops checking.  COAT_API overrides
+    the search.
+    """
+    override = os.environ.get("COAT_API")
+    if override and os.path.isfile(os.path.join(override, "coat.pyi")):
+        return override
+    roots = []
+    for drive in ("C", "D", "E", "F", "G", "H"):
+        roots.append("%s:/Program Files" % drive)
+        roots.append("%s:/Program Files (x86)" % drive)
+    found = []
+    for root in roots:
+        for folder in sorted(glob.glob(os.path.join(root, "3DCoat*"))):
+            api = os.path.join(folder, "UserPrefs", "PythonAPI")
+            if os.path.isfile(os.path.join(api, "coat.pyi")):
+                found.append(api)
+    return sorted(found)[-1] if found else ""
 
 CLASS_RE = re.compile(r"^class\s+([A-Za-z_][A-Za-z0-9_]*)")
 MEMBER_RE = re.compile(r"^\tdef\s+([A-Za-z_][A-Za-z0-9_]*)")
@@ -86,7 +109,7 @@ def check_script(script_path, classes, functions, cmd_functions):
 
 def main():
     args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
-    api_dir = DEFAULT_API
+    api_dir = find_api()
     if "--api" in sys.argv:
         api_dir = sys.argv[sys.argv.index("--api") + 1]
 

@@ -136,14 +136,14 @@ def main():
     theirs_menu.write_bytes(b"mine\n")
 
     # ---- stale layouts are cleared --------------------------------------------
-    for stale in ("CoatBridgeQt.py", "CoatBridge.py", "CoatBridgeScopedExport.py"):
+    for stale in ("CoatBridgeQt.py", "CoatBridge.py", "CoatBridgeDialog.py"):
         (a_scripts / "CoatBridge" / stale).write_text("old\n", encoding="utf-8")
     before = tree(a_scripts)
     report = checkout.install(a_scripts, a_coat, payload=same)
     after = tree(a_scripts)
     check("a second install is harmless and still reports ok", report.verified)
     check("stale files from earlier layouts are gone",
-          not any(k.endswith("CoatBridgeQt.py") or k.endswith("CoatBridgeScopedExport.py")
+          not any(k.endswith("CoatBridgeQt.py") or k.endswith("CoatBridgeDialog.py")
                   for k in after), sorted(k for k in after if "Coat" in k))
     check("unrelated files survive an install",
           after["CoatBridge/SomebodyElses.py"] == b"mine\n"

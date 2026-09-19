@@ -6,7 +6,7 @@
 bl_info = {
     "name": "CoatLink",
     "author": "VictoryLuode",
-    "version": (1, 10, 17),
+    "version": (1, 10, 18),
     "blender": (4, 2, 0),
     "location": "Top Bar > CoatLink",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
@@ -20,6 +20,7 @@ from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, St
 from . import transfer, ui, watcher
 
 MODE_ITEMS = [
+    ("vox", "Sculpt Object (voxel)", "Drop the mesh as a voxel sculpt object"),
     ("autopo", "Auto-Retopology", "Drop the mesh into 3D-Coat for auto-retopology"),
     ("curv", "Curve Profile", "Use the mesh as a curve profile"),
     ("mv", "Microvertex Painting", "Paint the mesh in 3D-Coat (microvertex)"),
@@ -28,7 +29,6 @@ MODE_ITEMS = [
     ("ptex", "Ptex Painting", "Paint the mesh in 3D-Coat (Ptex)"),
     ("ref", "Reference Mesh", "Drop the mesh as a reference"),
     ("retopo", "Retopo Mesh", "Drop the mesh as a new retopo layer"),
-    ("vox", "Sculpt Object (voxel)", "Drop the mesh as a voxel sculpt object"),
     ("uv", "UV Mapping", "Unwrap the mesh in 3D-Coat"),
     ("voxcombine", "Voxel Merge", "Merge everything into one voxel volume"),
     ("prim", "Voxel Primitive", "Use the mesh as a merging primitive"),
@@ -47,7 +47,7 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
         name="Import as",
         description="How 3D-Coat should open the model",
         items=MODE_ITEMS,
-        default="ppp",
+        default="vox",
     )
     show_advanced: BoolProperty(name="Advanced", default=False)
     auto_pull: BoolProperty(

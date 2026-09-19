@@ -61,13 +61,15 @@ def main():
     check("setup reports through 3D-Coat's message system", len(coat.messages) > messages_before)
     check("setup writes a log line", os.path.isfile(lib.log_path()))
 
-    # ---- the send button exports and signals, without opening anything ----
-    coat.direct_export = lambda path: open(path, "w", encoding="utf-8").write("# exported\n")
+    # ---- the send button exports the selected tree node, opening nothing ----
+    # (the whole-scene route has its own tests; the button sends the selection)
     coat.dialog_log.clear()
     status = lib.run_action("CoatBridge_Send")
-    check("send exports a model", any(path.endswith("bridge.obj") for path in cmd.calls), cmd.calls)
+    check("send exports the selected node",
+          os.path.isfile(lib.model_path(own_root, lib.EXPORT_FORMAT)),
+          lib.model_path(own_root, lib.EXPORT_FORMAT))
     check("send writes the signal Blender watches", os.path.isfile(lib.signal_path(own_root)))
-    check("send reports the result", "Sent to Blender" in status, status)
+    check("send reports the result", "selected node" in status, status)
     check("send opens no dialog", coat.dialog_log == [], coat.dialog_log)
 
     # ---- the pull button imports the queue and consumes it ----

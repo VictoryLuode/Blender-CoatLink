@@ -118,7 +118,10 @@ def main():
           hasattr(bpy.types, "COATBRIDGE_OT_send") and hasattr(bpy.types, "COATBRIDGE_OT_pull"))
     check("per-object link property registered", hasattr(bpy.types.Object, "coat_bridge_file"))
     check("timer registered", bpy.app.timers.is_registered(watcher.poll))
-    check("defaults to per-pixel painting", prefs.mode == "ppp")
+    check("defaults to a voxel sculpt object", prefs.mode == "vox")
+    from coat_bridge import MODE_ITEMS
+    check("and the voxel entry is the first one in the menu",
+          MODE_ITEMS[0][0] == "vox", [item[0] for item in MODE_ITEMS][:3])
     check("there is no format option any more", not hasattr(prefs, "fmt"))
     check("the send format is fixed to OBJ", bridge.SEND_FORMAT == "obj")
     for gone in ("apply_textures", "preset", "interval", "skip_import", "skip_export"):
@@ -165,10 +168,18 @@ def main():
     lines = read(job).splitlines()
     check("import.txt: model path first", lines[0].endswith("BlenderBridge/bridge.obj"), lines)
     check("import.txt: return path second", lines[1].endswith("BlenderBridge/bridge_back.obj"), lines)
-    check("import.txt: mode line third", lines[2] == "[ppp]", lines)
+    check("import.txt: the default mode line third", lines[2] == "[vox]", lines)
     check("import.txt: skip flags", lines[3:] == ["[SkipImport]", "[SkipExport]"], lines)
     check("import.txt: nothing else", len(lines) == 5, lines)
     check("import.txt: posix paths only", "\\" not in "".join(lines), lines)
+
+    # the preference, not just its default, is what reaches the job file
+    prefs.mode = "uv"
+    bridge.send(bpy.context)
+    check("choosing another mode changes the job file",
+          read(job).splitlines()[2] == "[uv]", read(job).splitlines())
+    prefs.mode = "vox"
+    bridge.send(bpy.context)
     check("no import.txt inside the folder",
           not os.path.isfile(os.path.join(applink.app_folder(EXCHANGE), "import.txt")))
     check("job file only in the primary root", not os.path.isfile(applink.import_txt(OTHER_ROOT)))

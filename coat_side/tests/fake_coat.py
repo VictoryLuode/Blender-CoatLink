@@ -76,6 +76,11 @@ class FakeDialog(object):
         return self._step("show")
 
 
+#: marks "the fake decides" for `current_element`, so a test can set it to None to
+#: mean "nothing is selected in the sculpt tree"
+UNSET = object()
+
+
 class FakeCoat(object):
     def __init__(self):
         self.dialog_log = []
@@ -138,9 +143,78 @@ class FakeCoat(object):
         class _Volume(object):
             def __init__(self, size):
                 self.size = size
+                self.polycount = 1000
 
             def calcWorldSpaceAABB(self):
                 return _Box(self.size)
+
+            def getPolycount(self):
+                return int(self.polycount)
+
+        self.polycount = 1000
+
+        class _Mesh(object):
+            """coat.Mesh(): what the selected-node export pulls out of the tree.
+
+            Records how it was asked (subtree / all-selected / reduction) and writes
+            a real little OBJ, so the exporter's own validation runs on real lines.
+            """
+
+            def __init__(self):
+                self.calls = []
+                self.names = ["Volume1"]
+                self.faces = 12
+                self.written = None
+
+            def fromVolume(self, volume, with_subtree=False, all_selected=False):
+                self.calls.append(("fromVolume", bool(with_subtree), bool(all_selected)))
+                return self
+
+            def fromReducedVolume(self, volume, reduction_percent,
+                                  with_subtree=False, all_selected=False):
+                self.calls.append(("fromReducedVolume", float(reduction_percent),
+                                   bool(with_subtree), bool(all_selected)))
+                return self
+
+            def valid(self):
+                return self.faces > 0
+
+            def facesCount(self):
+                return self.faces
+
+            def getObjectsCount(self):
+                return len(self.names)
+
+            def getObjectName(self, index):
+                return self.names[index]
+
+            def Write(self, path):
+                self.written = path
+                body = "".join("g %s\n" % name for name in self.names)
+                body += "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n"
+                with open(path, "w", encoding="utf-8", newline="\n") as handle:
+                    handle.write(body)
+                return True
+
+        self.meshes = []
+        #: what the next coat.Mesh() should look like: {"names": [...], "faces": n,
+        #: "write": callable}.  Tests set this instead of guessing at an instance.
+        self.mesh_template = None
+
+        def _new_mesh():
+            mesh = _Mesh()
+            template = self.mesh_template or {}
+            if "names" in template:
+                mesh.names = list(template["names"])
+            if "faces" in template:
+                mesh.faces = template["faces"]
+            if "write" in template:
+                mesh.Write = template["write"]
+            self.meshes.append(mesh)
+            return mesh
+
+        self.Mesh = _new_mesh
+        self.current_element = UNSET
 
         class _Element(object):
             def __init__(self, fake):
@@ -155,7 +229,9 @@ class FakeCoat(object):
         self.Scene = types.SimpleNamespace(importMesh=_import_mesh,
                                            GetSceneUnits=lambda: "m",
                                            GetSceneScale=lambda: 1.0,
-                                           current=lambda: _Element(self))
+                                           current=lambda: _Element(self)
+                                           if self.current_element is UNSET
+                                           else self.current_element)
 
     def dialog(self):
         return FakeDialog(self.dialog_log)

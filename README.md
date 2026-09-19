@@ -10,8 +10,8 @@ their UIs are deliberately mirrors of each other:
 | --- | --- | --- |
 | Where | **CoatLink** menu in the top bar, with **Send** and **Pull** next to it | three buttons at the end of the room tool list (Voxels / Paint) |
 | Shape | popover menu + two one-click buttons | tool buttons, plus a panel opened from the tool strip |
-| One click | `Send` / `Pull` on the bar itself | `SendToBlender` / `PullFromBlender` |
-| Options | `Import as`, `Auto receive`, `Without materials`, and an *Advanced* fold: `Axis`, `Scale override (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs` | `ReductionPercent`, `Textures`, a size readout with `RefreshStats`, and an *Advanced* fold: `Detect`, `OpenFolder`, `StartBlender`, `RemoveLauncher` |
+| One click | `Send` / `Pull` on the bar itself | `Send to Blender` / `Pull from Blender` |
+| Options | `Import as` (voxel by default), `Auto receive`, `Without materials`, and an *Advanced* fold: `Axis`, `Scale override (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs` | `Send scope`, `ReductionPercent`, `Textures`, a size readout with `RefreshStats`, and an *Advanced* fold: `Detect`, `OpenFolder`, `StartBlender`, `RemoveLauncher` |
 | Source | `coat_bridge/` (Blender add-on, 7 files) | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
 
 The 3D-Coat panel is 3D-Coat's **own** dialog (`coat.dialog()...topRight()`), never
@@ -146,6 +146,13 @@ are in place (`--scripts <folder>` if it cannot find them, `--uninstall` to undo
 
 **3D-Coat → Blender**
 
+* `Send to Blender` hands over **the node selected in the sculpt tree, plus its
+  children** - not the scene.  The panel's `Send scope` droplist switches that to
+  `whole scene`, which is 3D-Coat's own export (and the only route that can carry
+  textures).  The selection route extracts the mesh straight from the tree, applies
+  the panel's reduction percentage, and refuses rather than guessing: with nothing
+  selected it says so and sends nothing.
+
 * 3D-Coat's `File > Export To > BlenderBridge` (or `Bring object back`).  With
   **Auto receive** on, the result is imported within ~2 s and merged into the
   object it came from: same name, same materials, same place in the outliner,
@@ -206,10 +213,16 @@ exactly one axis rule and one unit rule to keep straight.
   convention.  Formats that carry their own axis (FBX) are left alone.
 * **Reduction.** A percentage in the 3D-Coat panel goes into 3D-Coat's own
   decimation slider (`$DecimationParams::ReductionPercent`) and the dialog's OK is
-  pressed for you, so its export dialog is never seen.  The percentage means
-  *removed*, not *kept*; the panel's estimate uses the formula the official
-  template uses (`remaining = original × (100 − pct) / 100`) and says so.
+  pressed for you, so its export dialog is never seen; the selected-node route
+  passes it to `fromReducedVolume(volume, reduction_percent, …)`, whose parameter
+  carries that name.  The percentage means *removed*, not *kept*; the panel's
+  estimate uses the formula the official template uses
+  (`remaining = original × (100 − pct) / 100`) and says so.
 * **Textures.** A droplist: let 3D-Coat decide, force on, force off.
+* **Selection, not the scene.**  `Send` exports `Scene.current()` with
+  `with_subtree=True, all_selected=False`, so sculpting in progress cannot leak
+  into Blender, and a return that loses its object groups is refused instead of
+  being merged.
 * **Names.** Objects keep their names in both directions.  Groups that come back
   are matched to the objects they came from and updated in place; renamed objects
   are still found; unrelated same-name objects are never overwritten.
@@ -257,6 +270,11 @@ that says so:
   (1000 simulated idle redraws, no host calls, no file access) and its statistics
   are manual (`RefreshStats`), but the live cause is **not** identified.  If you
   see it, close the panel; nothing else in the bridge depends on it.
+* **The selected-node export is new and has not been through a live round trip
+  yet.**  The API calls are the documented ones (`Scene.current()`, `fromVolume`,
+  `fromReducedVolume`, `Mesh.Write`), the OBJ it produces is validated line by line,
+  and everything that could go wrong has a test - but grouping, positions and units
+  after a real send still have to be confirmed on a live 3D-Coat.
 * **The reduction percentage is not verified end to end.**  The panel writes the
   same slider 3D-Coat's own scripts write, and that field belongs to the "decimate
   to Retopo" flow in 3D-Coat's sources; whether the AppLink export honours it on

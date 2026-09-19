@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.16.22
+
+Two behaviour changes the user asked for.  Everything else is unchanged.
+
+* **3D-Coat sends the node selected in the sculpt tree**, plus its children, instead
+  of the whole scene.  The panel gained one droplist for it (`selected node` /
+  `whole scene`), defaulting to the selection.  The extraction goes through
+  3D-Coat's own `Scene.current()` + `Mesh().fromVolume(volume, with_subtree=True,
+  all_selected=False)`, and a reduction percentage is applied with
+  `fromReducedVolume` - the parameter is named `reduction_percent` there, which is
+  also the wording the panel uses.  There is deliberately **no fallback to the
+  whole-scene export**: with nothing selected the button says so and sends nothing,
+  and a result that loses its object groups is refused rather than merged.
+  The whole-scene route (3D-Coat's own export dialog, textures included) is still
+  there - as an explicit choice, not as a silent default.
+* **Blender opens models in 3D-Coat as a voxel sculpt object by default** (`Import
+  as` now starts on `Sculpt Object (voxel)` and that entry is listed first).
+
+Also fixed: `check_coat_api.py` looked for 3D-Coat's type stubs at a hardcoded
+`D:\Program Files\3DCoat-2026`, so the API check quietly stopped checking when
+3D-Coat moved to another drive and version folder.  It now searches, newest wins,
+with `COAT_API` as an override.
+
+Tests: 3D-Coat logic 106/106 (the send path has its own file, `test_scoped_send.py`,
+19 checks - scope, subtree flag, reduction, empty selection, missing geometry and a
+merge that loses groups), tools 29/29, installer 32/32, API stub check (now really
+running), idle redraw, probe dry run, install smoke.  Blender: see v1.16.19's suite.
+
 ## v1.16.21
 
 Installing the 3D-Coat half is now one step instead of three, and the plugin code

@@ -25,6 +25,11 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import CoatBridgeReceipts as receipts
+
+try:
+    import CoatBridgeScopedExport as scoped_export
+except ImportError:  # older install without the helper
+    scoped_export = None
 import subprocess
 import sys
 import time
@@ -55,6 +60,12 @@ EXPORT_FORMAT = "obj"
 #: The value is the percentage of triangles to KEEP (0 = no reduction).
 REDUCTION_SLIDER = "$DecimationParams::ReductionPercent"
 REDUCTION_KEY = "reduction"
+
+#: what a Send hands over: the node selected in the sculpt tree (and its
+#: children), or 3D-Coat's own export, which does the whole scene
+SEND_SCOPE_KEY = "send_scope"
+SEND_SCOPES = ("selected", "scene")
+SEND_SCOPE_LABELS = "#selected node|#whole scene"
 
 #: the export dialog's "export textures" checkbox (documented as an import.txt
 #: option listed in applinks.rst, settable with the CMD module's SetBoolField)
@@ -259,6 +270,28 @@ def reduction_percent():
     except (TypeError, ValueError):
         return 0
     return max(0, min(100, value))
+
+
+def send_scope():
+    """Which part of the scene Send hands over - "selected" unless changed."""
+    value = str(load_state().get(SEND_SCOPE_KEY, "selected")).lower()
+    return value if value in SEND_SCOPES else "selected"
+
+
+def set_send_scope(value):
+    if value not in SEND_SCOPES:
+        return False
+    return save_state({SEND_SCOPE_KEY: value})
+
+
+def reduction_note():
+    """What to say when a Send carried a reduction request (nothing when it did not).
+
+    The selected-node export applies the percentage itself, so unlike the dialog
+    route there is no other place the number can show up.
+    """
+    percent = reduction_percent()
+    return " (reduction requested %d%% (unverified))" % percent if percent > 0 else ""
 
 
 def set_reduction_percent(value):
@@ -517,10 +550,10 @@ class CoatBridgePanel(object):
         # 3D-Coat's own Autoexport example panel uses.
         self.ReductionPercent = reduction_percent()
         self.Textures = TEXTURES_CHOICES.index(export_textures())
-        self.TargetSize = 1.0            # the size to scale the current object to
+        self.SendScope = SEND_SCOPES.index(send_scope())
         self.SizeLabel = "Size: -"
         self.Advanced = False
-        self._saved_controls = (self.ReductionPercent, self.Textures)
+        self._saved_controls = (self.ReductionPercent, self.Textures, self.SendScope)
         self.refresh_detail()
 
     # ---- layout -----------------------------------------------------------
@@ -528,6 +561,7 @@ class CoatBridgePanel(object):
     def ui(self):
         self.process()  # cached controls only; no scene access
         items = []
+        items.append("SendScope,[%s]" % SEND_SCOPE_LABELS)
         items.append("[1]")
         items.append("SendToBlender")
         items.append("PullFromBlender")
@@ -556,10 +590,13 @@ class CoatBridgePanel(object):
 
     def process(self):
         """No host queries or disk reads per frame. Persist actual edits only."""
-        current = (self.ReductionPercent, self.Textures)
+        current = (self.ReductionPercent, self.Textures, self.SendScope)
         if current == self._saved_controls:
             return False
         values = {REDUCTION_KEY: max(0, min(100, int(self.ReductionPercent)))}
+        scope = int(self.SendScope)
+        if 0 <= scope < len(SEND_SCOPES):
+            values[SEND_SCOPE_KEY] = SEND_SCOPES[scope]
         choice = int(self.Textures)
         if 0 <= choice < len(TEXTURES_CHOICES):
             value = TEXTURES_CHOICES[choice]
@@ -608,18 +645,45 @@ class CoatBridgePanel(object):
                 except OSError:
                     pass
 
+        if send_scope() == "selected":
+            self._export_selected(root, path)
+            return
+
         exported = self._export_via_applink(path)
         if exported:
-            self._report("Sent to Blender via the AppLink target" + export_note(),
+            self._report("Sent to Blender via the AppLink target (whole scene)" + export_note(),
                          "folder: %s" % app_folder(root))
             return
         exported = self._export_direct(path)
         if exported:
             write_signal(root, path)
-            self._report("Sent to Blender: %s%s" % (os.path.basename(path), export_note()),
+            self._report("Sent to Blender: %s (whole scene)%s" % (os.path.basename(path), export_note()),
                          "folder: %s" % app_folder(root))
             return
         self._report("Export failed", "use File > Export To > %s, or check the console" % APP_FOLDER)
+
+    def _export_selected(self, root, path):
+        """Send the node selected in the sculpt tree, plus its children.
+
+        Scene.current() is documented as "the current sculpt object", and the mesh
+        extraction takes with_subtree / all_selected explicitly, so nothing else in
+        the scene can leave by accident.  There is deliberately no fallback to the
+        whole-scene export: a bridge that quietly sends more than you selected is
+        worse than one that tells you to select a node.
+        """
+        if scoped_export is None:
+            self._report("Export helper missing", "reinstall the 3D-Coat scripts")
+            return
+        try:
+            names, faces = scoped_export.export_subtree(coat, path, reduction_percent())
+        except Exception as exc:
+            self._report("Nothing sent: %s" % exc, "select a node in the Sculpt Tree")
+            log("selected-node export refused: %s" % exc)
+            return
+        write_signal(root, path)
+        self._report("Sent %s: %s (selected node + subtree)%s"
+                     % (os.path.basename(path), ", ".join(names), reduction_note()),
+                     "%d faces | folder: %s" % (faces, app_folder(root)))
 
     def PullFromBlender(self):
         """Import the model Blender sent to us: the queue file wins, so we take

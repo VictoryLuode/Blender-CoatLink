@@ -123,7 +123,18 @@ def main():
     check("sent models are indexed", [os.path.basename(p) for p in bridge.sent_models(own_root)] == ["bridge.obj"],
           bridge.sent_models(own_root))
 
-    # ---- send, AppLink route (3D-Coat exports and announces it itself) ----
+    # ---- send, whole-scene route (3D-Coat exports and announces it itself) ----
+    # The default send scope is the selected tree node; the dialog/texture route
+    # below belongs to the whole-scene export, so ask for it explicitly.
+    def use_scope(name):
+        """Pick the send scope, panel included: process() writes its own controls
+        back, and later state resets forget what was stored."""
+        bridge.set_send_scope(name)
+        panel.SendScope = bridge.SEND_SCOPES.index(name)
+        panel.process()
+        return bridge.send_scope()
+
+    check("the whole-scene scope can be chosen", use_scope("scene") == "scene", bridge.load_state())
     os.remove(signal)
 
     def applink_export(root):
@@ -171,7 +182,10 @@ def main():
         if "," in name:
             name = name.split(",", 1)[0]
         check("layout item '%s' exists on the panel" % name, hasattr(panel, name))
-    check("layout starts with a full-width button row", items[0] == "[1]")
+    check("layout starts with the send scope",
+          items[0].startswith("SendScope,["), items[0])
+    check("then a full-width button row", items[1] == "[1]" and items[2] == "SendToBlender",
+          items[:3])
     check("layout offers the same actions as Blender",
           {"SendToBlender", "PullFromBlender", "Detect", "OpenFolder", "StartBlender"} <=
           {item.split(",", 1)[0] for item in plain}, plain)
@@ -292,6 +306,7 @@ def main():
     coat.settings_values = saved
 
     # ---- the reduction percentage (3D-Coat's own slider) ----
+    use_scope("scene")      # the dialog route below belongs to the whole-scene export
     slider = bridge.REDUCTION_SLIDER
     check("the slider id is 3D-Coat's own", slider == "$DecimationParams::ReductionPercent", slider)
 
@@ -345,6 +360,7 @@ def main():
           bridge.load_state())
 
     # ---- the texture switch (same idea, one state further) ----
+    use_scope("scene")
     field = bridge.TEXTURES_FIELD
     check("the textures field is 3D-Coat's own", field == "$ExportOpt::ExportTextures", field)
 

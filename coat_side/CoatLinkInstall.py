@@ -44,6 +44,7 @@ APP_DIRNAME = "CoatBridge"
 SCRIPT_FILES = (
     "CoatBridgeLib.py",
     "CoatBridgeReceipts.py",
+    "CoatBridgeScopedExport.py",
     "CoatBridge_Send.py",
     "CoatBridge_Pull.py",
     "CoatBridge_Setup.py",
@@ -64,7 +65,6 @@ STALE_FILES = (
     "CoatBridge.py",
     "CoatBridgeQt.py",
     "CoatBridgeDialog.py",
-    "CoatBridgeScopedExport.py",
 )
 
 TOOLS_TEMPLATE = "tools/CoatBridgeTools.xml.in"
