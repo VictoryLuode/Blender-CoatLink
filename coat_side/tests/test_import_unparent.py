@@ -119,6 +119,22 @@ def main():
     check("the flag is one plain line, so the Blender side can flip it",
           "VOXELIZE = False" in helper_text and "VOXELIZE = True" not in helper_text)
 
+    # ---- and it always says it ran, even when there was nothing to do ----------
+    coat.root.children.clear()
+    helper.main()
+    log_path = os.path.join(tmp, "Documents", "3DCoat", "CoatBridge.log")
+    with open(log_path, "r", encoding="utf-8") as handle:
+        log_text = handle.read()
+    check("the helper leaves a line saying it ran",
+          "after-import ran" in log_text, log_text[-200:])
+    check("with the counts, so the Blender side can tell what it did",
+          "0 moved, 0 to voxels" in log_text, log_text[-200:])
+    bridge_imported_tree(coat, children=("Hull",))
+    helper.main()
+    with open(log_path, "r", encoding="utf-8") as handle:
+        log_text = handle.read()
+    check("and the counts follow the real work", "1 moved" in log_text, log_text[-200:])
+
     # ---- our own Pull button: the same result through code --------------------
     coat.root.children.clear()
     coat.moves.clear()

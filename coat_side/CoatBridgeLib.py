@@ -44,7 +44,7 @@ except ImportError:  # the command module is optional at import time
 APP_FOLDER = "BlenderBridge"
 MODEL_NAME = "bridge"
 PANEL_CAPTION = "CoatLink"
-VERSION = "1.4.2"
+VERSION = "1.4.3"
 #: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
 #: there is nothing to choose - Blender reads the returned file by extension.
 #: The model 3D-Coat hands back.  OBJ both ways on purpose: the axis rule then
@@ -802,12 +802,31 @@ class CoatBridgePanel(object):
         except Exception:
             pass
 
+    @staticmethod
+    def volume_mode(volume):
+        """` · voxel volume` / ` · surface mode`, or "" when it cannot be told.
+
+        The Sculpt Tree shows the same thing as one letter (V / S), and it is the first
+        question after an import, so it belongs in the readout where it can be read
+        without hunting for the object in the tree.
+        """
+        for name, text in (("isVoxelized", " · voxel volume"),
+                           ("isSurface", " · surface mode")):
+            try:
+                if getattr(volume, name)():
+                    return text
+            except Exception:
+                continue
+        return ""
+
     def RefreshStats(self):
         """Explicit user action only: never inspect live mesh during redraw."""
         self.SizeLabel = size_line()
         try:
-            count = int(coat.Scene.current().Volume().getPolycount())
-            self.StatsLabel = "Snapshot: %d faces (not auto-refreshed)" % count
+            volume = coat.Scene.current().Volume()
+            count = int(volume.getPolycount())
+            self.StatsLabel = "Snapshot: %d faces%s (not auto-refreshed)" % (
+                count, self.volume_mode(volume))
         except Exception as exc:
             self.StatsLabel = "Statistics unavailable: %s" % exc
 

@@ -132,22 +132,22 @@ def main():
     except Exception as exc:                      # not running inside 3D-Coat
         note("after-import helper skipped: %s" % exc)
         return 0
+    converted = already = failed = 0
     if VOXELIZE:
         try:
             converted, already, failed = voxelize(coat)
-            if converted or failed:
-                note("voxel import: %d converted, %d already voxel, %d failed"
-                     % (converted, already, failed))
         except Exception as exc:
             note("could not voxelize the import: %s" % exc)
     try:
         moved = flatten(coat)
     except Exception as exc:
         note("could not flatten the import parent: %s" % exc)
-        return 0
-    if moved:
-        note("flattened the %s parent node (%d objects moved to the sculpt root)"
-             % (MODEL_STEM, moved))
+        moved = 0
+    # one line on every run, including a run with nothing to do: the Blender side reads
+    # it to tell "3D-Coat ran the after-import step" from "3D-Coat never ran it", and
+    # that difference is invisible otherwise
+    note("after-import ran: %d moved, %d to voxels, %d already voxel, %d failed"
+         % (moved, converted, already, failed))
     return moved
 
 

@@ -305,6 +305,17 @@ that says so:
   the same thing.
 * **Nothing is collapsed.**  The older builds hid the advanced half of both menus
   behind an `Advanced` fold-out.  That is gone on both sides; every control is drawn.
+* **The readout says voxel or surface.**  `Refresh sizes` in the 3D-Coat panel prints
+  `Snapshot: N faces · voxel volume` or `· surface mode` - the same thing the Sculpt Tree
+  shows as one letter (V / S), in the place you are already looking.  A build whose
+  `Volume` answers neither simply prints the count.
+* **Whether the after-import step ran is visible, not guessed.**  The helper that rides
+  along in the job file writes one line to the shared log on *every* run, including a run
+  with nothing to do (`after-import ran: 0 moved, 0 to voxels, ...`).  The menu's detail
+  lines compare that stamp with the time of the last send and say either
+  `After-import step: 3D-Coat ran it` or `not run by 3D-Coat - use To voxels in its
+  panel`.  Silence is no longer ambiguous, which matters because on the build this was
+  written against the `[pythonfile ...]` line appears to be ignored.
 * **`Remesh on send` runs over what is exported, never over your scene.**  A voxel
   Remesh modifier is put on each object going out, the export is made with modifiers
   applied, and the modifier is taken off again in a `finally` - so the mesh in the scene
@@ -322,7 +333,9 @@ that says so:
   `SetSystemPause: 1` when it loses focus and stops polling: a job file written while
   another application is in front simply sits there until you bring 3D-Coat forward.
   Practical consequence: after `Send`, switch to 3D-Coat (do not leave it minimised)
-  and the model appears.  Nothing on the Blender side can change that.
+  and the model appears.  Nothing on the Blender side can change that, so the Send
+  message says which of the two it is: `start 3D-Coat` when it is not running at all,
+  `bring 3D-Coat to the front` when it is running behind something else.
 * **A voxel import now asks to be voxelized.**  When the mode is `[vox]`, the
   after-import script that rides along in the job file is written with
   `VOXELIZE = True`, and it converts the objects of the imported group with

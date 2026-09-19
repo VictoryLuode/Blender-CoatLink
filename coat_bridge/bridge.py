@@ -170,6 +170,40 @@ def save_history(p):
         return False
 
 
+#: what the after-import helper writes on every run, in the shared log
+AFTER_IMPORT_MARK = "after-import ran"
+
+
+def after_import_seen():
+    """Did 3D-Coat run the after-import step since our last send?
+
+    True / False / None when there is nothing to compare against.  The helper writes a
+    line on *every* run - including one with nothing to do - so the absence of that line
+    is the only honest way to say 3D-Coat did not run it, which is worth knowing: on the
+    build this was written against the `[pythonfile ...]` line is ignored, and the panel
+    buttons are then the way to unparent or voxelize.
+    """
+    sent = STATE.get("last_send") or 0.0
+    if not sent:
+        return None
+    try:
+        with open(applink.shared_log_path(), encoding="utf-8", errors="replace") as handle:
+            tail = handle.readlines()[-400:]
+    except OSError:
+        return None
+    today = time.strftime("%Y-%m-%d ")
+    for line in reversed(tail):
+        if AFTER_IMPORT_MARK not in line:
+            continue
+        stamp = line.split("|", 1)[0].strip()
+        try:
+            when = time.mktime(time.strptime(today + stamp, "%Y-%m-%d %H:%M:%S"))
+        except ValueError:
+            continue
+        return when >= sent - 2.0
+    return False
+
+
 def detail_lines(context=None):
     p = prefs(context)
     if p is None:
@@ -181,6 +215,11 @@ def detail_lines(context=None):
         lines.append("Also watching: %s" % applink.app_folder(extra))
     target = STATE["target"]
     lines.append("Target object: %s" % (target["object"] if target else "none"))
+    seen = after_import_seen()
+    if seen is True:
+        lines.append("After-import step: 3D-Coat ran it")
+    elif seen is False:
+        lines.append("After-import step: not run by 3D-Coat - use To voxels in its panel")
     lines.append("Last send %s / last pull %s" % (_stamp(STATE["last_send"]), _stamp(STATE["last_pull"])))
     linked = [obj for obj in bpy.data.objects if obj.get("coat_bridge_file")]
     lines.append("Linked objects: %s" % (", ".join(obj.name for obj in linked[:6]) or "none"))
@@ -335,7 +374,11 @@ def send(context):
          % (active.name, os.path.basename(out_path), scope, len(objects),
             STATE["target"]["diagonal"] or 0.0, where))
 
-    note = "" if applink.is_coat_running() is not False else " - start 3D-Coat to pick it up"
+    if applink.is_coat_running() is False:
+        note = " - start 3D-Coat to pick it up"
+    else:
+        # 3D-Coat only reads the exchange folder while it is the active window
+        note = " - bring 3D-Coat to the front to pick it up"
     merged = "" if len(objects) == 1 else " (%d merged)" % len(objects)
     _set_message("Sent %s%s (%s) -> %s%s%s"
                  % (active.name, merged, scope, os.path.basename(out_path), note, where))

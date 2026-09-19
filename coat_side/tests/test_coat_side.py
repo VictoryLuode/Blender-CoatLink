@@ -232,6 +232,44 @@ def main():
         check("the panel control '%s' has a readable label" % name,
               translations.get(name), translations)
 
+    # ---- the readout says voxel or surface, so V/S need not be hunted for ----
+    class _ModeVolume(object):
+        def __init__(self, voxel=False, surface=False):
+            self.voxel, self.surface = voxel, surface
+
+        def getPolycount(self):
+            return 42
+
+        def isVoxelized(self):
+            return self.voxel
+
+        def isSurface(self):
+            return self.surface
+
+    class _ModeElement(object):
+        def __init__(self, volume):
+            self.volume = volume
+
+        def Volume(self):
+            return self.volume
+
+    for volume, expected in ((_ModeVolume(surface=True), "surface mode"),
+                             (_ModeVolume(voxel=True), "voxel volume")):
+        coat.current_element = _ModeElement(volume)
+        panel.RefreshStats()
+        check("the readout says '%s'" % expected, expected in panel.StatsLabel,
+              panel.StatsLabel)
+    coat.current_element = _ModeElement(_ModeVolume())      # neither answers yes
+    panel.RefreshStats()
+    check("a volume that answers neither adds nothing",
+          panel.StatsLabel.startswith("Snapshot: 42 faces"),
+          panel.StatsLabel)
+    coat.current_element = _ModeElement(None)
+    panel.RefreshStats()
+    check("an unreadable object is a sentence, not a crash",
+          panel.StatsLabel.startswith("Statistics unavailable"), panel.StatsLabel)
+    coat.current_element = UNSET
+
     # ---- "To voxels": one click for everything the tree is showing ----
     class _FakeVolume(object):
         def __init__(self, voxel=True, broken=False):

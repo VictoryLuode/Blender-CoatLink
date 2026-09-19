@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.16.35
+
+* **The 3D-Coat readout says voxel or surface.**  `Refresh sizes` now prints
+  `Snapshot: 1234 faces · voxel volume` or `· surface mode`, read from the same
+  `Volume.isVoxelized()` / `isSurface()` the Sculpt Tree draws as V / S.  After an import
+  that is the first question, and answering it in the panel saves hunting for the object.
+* **Whether the after-import step ran is now visible.**  The helper writes a line to the
+  shared log on every run, including a run with nothing to do, and the Blender menu's
+  detail lines compare its stamp with the last send: `After-import step: 3D-Coat ran it`
+  or `not run by 3D-Coat - use To voxels in its panel`.  On this build the `[pythonfile
+  ...]` line appears to be ignored, so "3D-Coat did not run it" is a normal, useful
+  answer rather than a mystery.
+* **The Send message says which of the two it is.**  `start 3D-Coat to pick it up` when it
+  is not running, `bring 3D-Coat to the front to pick it up` when it is - 3D-Coat only
+  reads the exchange folder while it is the active window.
+* Blender 1.10.28.  3D-Coat side 1.4.3.
+
+Tests: Blender 172/172 (a helper line newer than our send counts, one from before it does
+not, a log without one says it was not run, nothing sent says nothing, and the detail
+lines carry the answer) and 3D-Coat 137/137 (the readout says `voxel volume` /
+`surface mode`, adds nothing when the volume answers neither, survives an object whose
+volume cannot be read, and the helper leaves its line with the right counts on an empty
+tree and after real work) - plus tools, installer, tree report, API stub check, idle
+redraw, probe dry run, install smoke, every Blender regression script and both installer
+smoke tests.
+
 ## v1.16.34
 
 * **Tidied the Blender menu.**  Nothing was hidden and nothing was removed - the menu had

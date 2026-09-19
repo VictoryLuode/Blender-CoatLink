@@ -13,6 +13,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 
 import bpy
 
@@ -348,6 +349,38 @@ def main():
     check("send records the size for the scale check", abs(sent_diagonal - math.sqrt(3) * 2) < 0.02, sent_diagonal)
     check("UV set created for painting", len(cube.data.uv_layers) == 1)
     check("cube starts with 8 vertices", len(cube.data.vertices) == 8, len(cube.data.vertices))
+
+    # ---- is the after-import step being run at all?  the log answers it ----
+    real_log = bridge.applink.shared_log_path
+    fake_log = os.path.join(os.path.dirname(out_path), "fake-shared.log")
+    stamp = time.strftime("%H:%M:%S")
+    with open(fake_log, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("%s | 3dcoat | after-import ran: 2 moved, 1 to voxels, 0 already "
+                     "voxel, 0 failed\n" % stamp)
+    bridge.applink.shared_log_path = lambda: fake_log
+    bridge.STATE["last_send"] = time.time() - 30
+    check("a run after our send is reported as such", bridge.after_import_seen() is True,
+          bridge.after_import_seen())
+    bridge.STATE["last_send"] = time.time() + 30      # send after the helper's line
+    check("a line from before our send does not count",
+          bridge.after_import_seen() is False, bridge.after_import_seen())
+    with open(fake_log, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("%s | blender | sent something\n" % stamp)
+    check("a log with no such line says it was not run",
+          bridge.after_import_seen() is False, bridge.after_import_seen())
+    bridge.STATE["last_send"] = 0.0
+    check("nothing sent yet means nothing to say", bridge.after_import_seen() is None,
+          bridge.after_import_seen())
+    bridge.STATE["last_send"] = time.time()
+
+    with open(fake_log, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("%s | 3dcoat | after-import ran: 0 moved, 0 to voxels, 0 already "
+                     "voxel, 0 failed\n" % stamp)
+    details = bridge.detail_lines(bpy.context)
+    check("the menu's detail lines say the helper ran",
+          any("ran it" in line for line in details), details)
+    bridge.applink.shared_log_path = real_log
+    os.remove(fake_log)
 
     # ---- remesh on send: a pass over what is exported, never over the scene ----
     def vertex_count(path):
