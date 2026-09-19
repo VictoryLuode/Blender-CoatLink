@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.16.33
+
+* **`Adaptivity` for the remesh.**  A third control next to `Remesh on send` and `Voxel
+  size`: 0..1 passed straight to the Remesh modifier's adaptive option, which drops
+  polygons where the surface is flat - so a big flat panel does not cost a uniform grid
+  of triangles.  It never adds faces, an out-of-range value is clamped rather than passed
+  on, and a build without the option still remeshes.  Like the voxel size, the field is
+  always drawn and greys out when the checkbox is off.
+* Blender 1.10.26.  3D-Coat side unchanged (1.4.2).
+
+Tests: Blender 166/166 - the modifier receives the voxel size and the adaptivity that
+were set (0.02 and 0.7 reach the object), an absurd 4.0 is clamped to 1.0, a remeshed
+export with adaptivity never carries more vertices than one without, and the earlier
+remesh checks (scene untouched, only our modifier removed, coarse coarser than fine,
+off means the plain mesh) still hold - plus every regression script and both installer
+smoke tests.
+
 ## v1.16.32
 
 * **`Remesh on send`.**  A Send now voxel-remeshes what it exports.  It is done with a

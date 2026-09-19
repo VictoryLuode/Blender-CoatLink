@@ -155,9 +155,11 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
         column.prop(p, "scope", text="Scope")
         column.prop(p, "mode", text="Import as")
         column.prop(p, "remesh", text="Remesh on send")
-        row = column.row(align=True)
-        row.enabled = p.remesh          # always visible, greyed when it does nothing
-        row.prop(p, "remesh_voxel", text="Voxel size (0 = auto)")
+        for name, label in (("remesh_voxel", "Voxel size (0 = auto)"),
+                            ("remesh_adaptivity", "Adaptivity")):
+            row = column.row(align=True)
+            row.enabled = p.remesh      # always visible, greyed when it does nothing
+            row.prop(p, name, text=label)
         column.separator()
         # the two actions, given the room the point of the add-on deserves
         row = column.row(align=True)

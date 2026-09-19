@@ -75,6 +75,7 @@ def main():
     check("a send remeshes out of the box", prefs.remesh is True, prefs.remesh)
     check("with the voxel size left to the add-on", prefs.remesh_voxel == 0.0,
           prefs.remesh_voxel)
+    check("and adaptivity off", prefs.remesh_adaptivity == 0.0, prefs.remesh_adaptivity)
     prefs.remesh = False        # its own section turns it back on when it gets there
     check("menu panel registered", hasattr(bpy.types, "COATBRIDGE_PT_menu"))
     check("menu lives in the top bar",
@@ -369,6 +370,33 @@ def main():
     check("and ours is gone", "CoatLink Remesh" not in modifier_names(cube),
           modifier_names(cube))
     cube.modifiers.remove(mine)
+
+    # what goes on the object is what the panel was set to
+    probe = bpy.data.objects.new("RemeshProbe", bpy.data.meshes.new("RemeshProbeMesh"))
+    bpy.context.scene.collection.objects.link(probe)
+    added = bridge.add_remesh([probe], 0.02, 0.7)
+    modifier = probe.modifiers[0]
+    check("the remesh modifier gets the voxel size and the adaptivity",
+          added == 1 and abs(modifier.voxel_size - 0.02) < 1e-6
+          and abs(modifier.adaptivity - 0.7) < 1e-6,
+          (modifier.voxel_size, modifier.adaptivity))
+    bridge.add_remesh([probe], 0.02, 4.0)
+    check("an out-of-range adaptivity is clamped, not passed on",
+          probe.modifiers["CoatLink Remesh"].adaptivity <= 1.0,
+          probe.modifiers["CoatLink Remesh"].adaptivity)
+    bridge.remove_remesh([probe])
+    bpy.data.objects.remove(probe)
+
+    # and it reaches the export: adaptivity never adds vertices, it removes them
+    prefs.remesh_voxel = 0.02
+    bridge.send(bpy.context)
+    plain_remesh = vertex_count(out_path)
+    prefs.remesh_adaptivity = 0.5
+    bridge.send(bpy.context)
+    adaptive = vertex_count(out_path)
+    check("adaptivity does not add work to the remesh", adaptive <= plain_remesh,
+          (adaptive, plain_remesh))
+    prefs.remesh_adaptivity = 0.0
 
     # the voxel size is honoured: coarse is coarser than fine
     prefs.remesh_voxel = 0.5

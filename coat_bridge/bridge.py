@@ -62,7 +62,7 @@ def auto_voxel_size(obj):
     return biggest / 64.0 if biggest else 0.01
 
 
-def add_remesh(objects, voxel_size=0.0):
+def add_remesh(objects, voxel_size=0.0, adaptivity=0.0):
     """Put a voxel Remesh modifier on every mesh in `objects`; returns the count.
 
     Non-destructive on purpose: it changes what the export writes, not the mesh in
@@ -77,6 +77,10 @@ def add_remesh(objects, voxel_size=0.0):
             modifier = obj.modifiers.new(REMESH_MODIFIER, "REMESH")
             modifier.mode = "VOXEL"
             modifier.voxel_size = voxel_size if voxel_size > 0 else auto_voxel_size(obj)
+            try:
+                modifier.adaptivity = min(1.0, max(0.0, adaptivity))
+            except Exception:
+                pass                  # older builds without the option still remesh
             added += 1
         except Exception as error:                 # never let this stop a send
             _log("remesh: skipped %s (%s)" % (obj.name, error))
@@ -303,7 +307,9 @@ def send(context):
     # Persistent per-object export aliases survive Blender-side renaming/reload.
     for obj in objects:
         obj["coat_bridge_source_name"] = obj.name
-    remeshed = add_remesh(objects, getattr(p, "remesh_voxel", 0.0)) if p.remesh else 0
+    remeshed = (add_remesh(objects, getattr(p, "remesh_voxel", 0.0),
+                           getattr(p, "remesh_adaptivity", 0.0))
+                if p.remesh else 0)
     try:
         # the remesh only exists as a modifier, so the export has to apply modifiers
         dropped = transfer.export_model(out_path, fmt, objects,

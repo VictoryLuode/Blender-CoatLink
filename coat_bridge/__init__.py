@@ -6,7 +6,7 @@
 bl_info = {
     "name": "CoatLink",
     "author": "VictoryLuode",
-    "version": (1, 10, 25),
+    "version": (1, 10, 26),
     "blender": (4, 2, 0),
     "location": "Top Bar > CoatLink",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
@@ -60,6 +60,14 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
         default=0.0,
         min=0.0,
         subtype="DISTANCE",
+    )
+    remesh_adaptivity: FloatProperty(
+        name="Adaptivity",
+        description="Let the remesh drop polygons where the surface is flat (0 = off)",
+        default=0.0,
+        min=0.0,
+        max=1.0,
+        subtype="FACTOR",
     )
     scope: EnumProperty(
         name="Scope",
