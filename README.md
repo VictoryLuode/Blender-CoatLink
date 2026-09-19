@@ -12,12 +12,15 @@ their UIs are deliberately mirrors of each other:
 | The menu | the popover inside that button - the bar holds nothing else | the panel opened from the tool strip |
 | Scope | `Scope` droplist: **Selected** / **Whole scene** | the same droplist, at the top of the panel |
 | Actions | `Send`, `Pull` | `Send`, `Pull` |
-| Settings | `Import as` (voxel by default), `Auto receive`, `Without materials` | reduction percentage, textures, size readout with `RefreshStats` |
-| Advanced | `Axis`, `Scale override`, `Match scale`, `Modifiers`, `Skip dialogs`, then `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read return signal`, `Unlink selected` | `Detect`, `Open folder`, `Start Blender`, `RemoveLauncher` |
+| Options | `Scope` and `Import as` (voxel by default) - the two choices side by side, at the top | the same scope droplist at the top |
+| Settings | `Auto receive`, `Without materials` | reduction percentage, textures, size readout with `RefreshStats` |
+| Below that | `Axis`, `Scale override`, `Match scale`, `Modifiers`, `Skip dialogs`, `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read return signal`, `Unlink selected` | `Detect`, `Open folder`, `Start Blender`, `RemoveLauncher` |
 | Source | `coat_bridge/` (Blender add-on, 8 files) | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
 
-Both menus carry the same sections in the same order with the same words - scope,
-then `Send` / `Pull`, then the settings, then *Advanced*.  The tool-strip buttons keep
+Both menus carry the same sections in the same order with the same words - the two
+options (`Scope`, `Import as`), then `Send` / `Pull`, then the settings, then the rest.
+Nothing is behind a fold-out on either side: a control you have to unfold is the one
+you cannot find when it matters.  The tool-strip buttons keep
 their longer labels (`Send to Blender`, `Pull from Blender`) because there they stand
 on their own, outside any menu; the panel's own buttons say `Send` and `Pull`.
 
@@ -293,6 +296,8 @@ that says so:
   (1000 simulated idle redraws, no host calls, no file access) and its statistics
   are manual (`RefreshStats`), but the live cause is **not** identified.  If you
   see it, close the panel; nothing else in the bridge depends on it.
+* **Nothing is collapsed.**  The older builds hid the advanced half of both menus
+  behind an `Advanced` fold-out.  That is gone on both sides; every control is drawn.
 * **On the 3D-Coat side "whole scene" means 3D-Coat's own export,** so what it
   covers is 3D-Coat's decision (it can include hidden volumes).  The panel prints
   that under the droplist instead of pretending otherwise.  Sending only the

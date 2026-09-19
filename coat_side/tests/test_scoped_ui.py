@@ -14,7 +14,6 @@ with tempfile.TemporaryDirectory() as tmp:
     assert 'RemoveLauncher' not in items
     assert not any(lib.REOPEN_HINT in s for s in items)
     assert any('geometry only' in s for s in items)
-    panel.Advanced = True
     items = panel.ui()
     assert 'RemoveLauncher' in items
     assert any(lib.REOPEN_HINT in s for s in items)

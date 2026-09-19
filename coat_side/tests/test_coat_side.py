@@ -175,7 +175,6 @@ def main():
           bridge.EXPORT_FORMAT == "obj", bridge.EXPORT_FORMAT)
 
     # ---- panel layout mirrors the Blender menu ----
-    panel.Advanced = True
     items = panel.ui()
     plain = [item for item in items if not item.startswith(("[", "#", "---"))]
     for name in plain:
@@ -183,7 +182,13 @@ def main():
             name = name.split(",", 1)[0]
         check("layout item '%s' exists on the panel" % name, hasattr(panel, name))
     check("layout starts with the send scope",
-          items[0].startswith("SendScope,["), items[0])
+          items[0].startswith("SendScope,[#"), items[0])
+    check("the panel keeps no fold-out either", not hasattr(panel, "Advanced"))
+    check("so the advanced controls are on screen without unfolding",
+          all(name in items for name in ("Detect", "OpenFolder", "StartBlender",
+                                         "RemoveLauncher")),
+          [item for item in items if item in ("Detect", "OpenFolder", "StartBlender",
+                                              "RemoveLauncher", "Advanced")])
     check("the scope says what it will send",
           items[1] == "##" + bridge.SEND_SCOPE_HINTS[int(panel.SendScope)], items[:2])
     check("then a full-width button row", items[2] == "[1]" and items[3] == "SendToBlender",

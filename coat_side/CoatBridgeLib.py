@@ -628,7 +628,6 @@ class CoatBridgePanel(object):
         self.Textures = TEXTURES_CHOICES.index(export_textures())
         self.SendScope = SEND_SCOPES.index(send_scope())
         self.SizeLabel = "Size: -"
-        self.Advanced = False
         self._saved_controls = (self.ReductionPercent, self.Textures, self.SendScope)
         self.refresh_detail()
 
@@ -653,17 +652,15 @@ class CoatBridgePanel(object):
         items.append("##Reduction % = removed; estimate only, export not verified")
         items.append("Textures,[#from 3D-Coat|#textures on|#textures off]")
         items.append("---")
-        items.append("Advanced")
-        if self.Advanced:
-            items.append("[1 1]")
-            items.append("Detect")
-            items.append("OpenFolder")
-            items.append("[1 1]")
-            items.append("StartBlender")
-            items.append("RemoveLauncher")
+        items.append("[1 1]")
+        items.append("Detect")
+        items.append("OpenFolder")
+        items.append("[1 1]")
+        items.append("StartBlender")
+        items.append("RemoveLauncher")
         items.append("---")
         items.append("#" + self.status)
-        if self.Advanced and self.detail:
+        if self.detail:
             items.append("##" + self.detail)
         items.append("##" + REOPEN_HINT)
         return items

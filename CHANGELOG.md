@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.16.27
+
+* **The import mode is an option, not a setting.**  `Import as` now sits at the top of
+  the Blender menu next to `Scope` - the two choices you make before pressing Send,
+  both visible, instead of one up top and one below the buttons.  Voxel is still the
+  default.
+* **Nothing is collapsed any more.**  The `Advanced` fold-out is gone from both sides:
+  every control is drawn straight away, in the Blender menu and in the 3D-Coat panel.
+  A fold-out hides exactly the switch you need when something misbehaves - `Skip
+  dialogs` is in that group - and "it is one click away" is no help if you cannot see
+  it.
+* Blender 1.10.22.
+
+Tests: Blender 143/143 (the menu draws scope, then `Import as`, then Send / Pull; no
+fold flag exists on the preferences any more; every advanced control is drawn without
+unfolding) plus every regression script and both installer smoke tests.  3D-Coat
+113/113 (the panel draws its advanced buttons without unfolding, and keeps no fold
+state) plus tools 29/29, installer 32/32, tree report 11/11, API stub check, idle
+redraw, probe dry run, install smoke.
+
 ## v1.16.26
 
 * **One button on the Blender top bar, and the two menus now match.**  The bar used

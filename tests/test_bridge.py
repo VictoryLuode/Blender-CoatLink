@@ -152,13 +152,26 @@ def main():
     coat_ui.COATBRIDGE_PT_menu.draw(_MenuSelf(), bpy.context)
     check("the menu starts with the scope",
           drawn[0] == ("prop", "scope", "Scope"), drawn[:3])
+    check("then the import mode, right next to it",
+          drawn[1] == ("prop", "mode", "Import as"), drawn[:3])
     check("then the two actions, named like the 3D-Coat panel's",
           ("operator", "coatbridge.send", "Send") in drawn
           and ("operator", "coatbridge.pull", "Pull") in drawn, drawn[:4])
-    check("in that order: scope, Send, Pull",
+    check("in that order: scope, import as, Send, Pull",
           drawn.index(("prop", "scope", "Scope"))
+          < drawn.index(("prop", "mode", "Import as"))
           < drawn.index(("operator", "coatbridge.send", "Send"))
-          < drawn.index(("operator", "coatbridge.pull", "Pull")), drawn[:4])
+          < drawn.index(("operator", "coatbridge.pull", "Pull")), drawn[:5])
+
+    folded = [item[1] for item in drawn if item[0] == "prop" and item[1] == "show_advanced"]
+    check("nothing is hidden behind a fold-out", not folded, folded)
+    props = [item[1] for item in drawn if item[0] == "prop"]
+    for name in ("axis_mode", "coat_scale", "match_scale", "apply_modifiers", "skip_dialogs"):
+        check("the advanced setting '%s' is drawn straight away" % name, name in props, props)
+    ids = [item[1] for item in drawn if item[0] == "operator"]
+    for name in ("coatbridge.detect", "coatbridge.open_folder", "coatbridge.launch",
+                 "coatbridge.unlink"):
+        check("the advanced action '%s' is drawn straight away" % name, name in ids, ids)
     check("no sidebar panel left", not hasattr(bpy.types, "COATBRIDGE_PT_main"))
     check("operators registered",
           hasattr(bpy.types, "COATBRIDGE_OT_send") and hasattr(bpy.types, "COATBRIDGE_OT_pull"))
@@ -253,6 +266,9 @@ def main():
               not os.path.isfile(os.path.join(folder, "extension.txt")))
     # ---- what a Send covers: the selection (default) or the whole scene ----
     check("the scope starts on the selection", prefs.scope == "selected", prefs.scope)
+    check("the import mode is voxel out of the box", prefs.mode == "vox", prefs.mode)
+    check("there is no fold flag left to get stuck in the old state",
+          not hasattr(prefs, "show_advanced"))
 
     def exported_names():
         text = read(applink.model_path(EXCHANGE, "obj"))

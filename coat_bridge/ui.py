@@ -147,33 +147,32 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
             layout.label(text="Preferences unavailable", icon="ERROR")
             return
 
-        # Same order and wording as the 3D-Coat panel: scope, then the two actions,
-        # then the settings, then Advanced.
+        # Same order and wording as the 3D-Coat panel: the two options, then the two
+        # actions, then the rest, and nothing behind a fold-out - every control is on
+        # screen, because a hidden one is the one you cannot find when it matters.
         column = layout.column(align=True)
         column.prop(p, "scope", text="Scope")
+        column.prop(p, "mode", text="Import as")
         row = column.row(align=True)
         row.operator("coatbridge.send", text="Send", icon="EXPORT")
         row.operator("coatbridge.pull", text="Pull", icon="IMPORT")
         column.separator()
-        column.prop(p, "mode", text="Import as")
         column.prop(p, "auto_pull", text="Auto receive")
         column.prop(p, "strip_materials", text="Without materials")
         column.separator()
-        column.prop(p, "show_advanced", text="Advanced", icon="TRIA_DOWN" if p.show_advanced else "TRIA_RIGHT", emboss=False)
-        if p.show_advanced:
-            column.prop(p, "axis_mode", text="Axis")
-            column.prop(p, "coat_scale", text="Scale override (0 = auto)")
-            column.prop(p, "match_scale", text="Match scale")
-            column.prop(p, "apply_modifiers", text="Modifiers")
-            column.prop(p, "skip_dialogs", text="Skip dialogs")
-            row = column.row(align=True)
-            row.operator("coatbridge.detect", text="Detect")
-            row.operator("coatbridge.open_folder", text="Open folder")
-            column.operator("coatbridge.launch", text="Start 3D-Coat")
-            column.operator("coatbridge.pull", text="Force re-read return signal").force = True
-            column.operator("coatbridge.unlink", text="Unlink selected")
-            for line in bridge.detail_lines(context)[1:4]:
-                column.label(text=line)
+        column.prop(p, "axis_mode", text="Axis")
+        column.prop(p, "coat_scale", text="Scale override (0 = auto)")
+        column.prop(p, "match_scale", text="Match scale")
+        column.prop(p, "apply_modifiers", text="Modifiers")
+        column.prop(p, "skip_dialogs", text="Skip dialogs")
+        row = column.row(align=True)
+        row.operator("coatbridge.detect", text="Detect")
+        row.operator("coatbridge.open_folder", text="Open folder")
+        column.operator("coatbridge.launch", text="Start 3D-Coat")
+        column.operator("coatbridge.pull", text="Force re-read return signal").force = True
+        column.operator("coatbridge.unlink", text="Unlink selected")
+        for line in bridge.detail_lines(context)[1:4]:
+            column.label(text=line)
         column.separator()
         column.label(text=bridge.status(context), icon="INFO")
 
