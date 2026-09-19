@@ -20,7 +20,9 @@ their UIs are deliberately mirrors of each other:
 Both menus carry the same sections in the same order with the same words - the two
 options (`Scope`, `Import as`), then `Send` / `Pull`, then the settings, then the rest.
 Nothing is behind a fold-out on either side: a control you have to unfold is the one
-you cannot find when it matters.  The tool-strip buttons keep
+you cannot find when it matters.  Tidiness comes from grouping instead - the remesh
+settings sit in a box of their own because they are one idea, switches share a line with
+switches, and anything with a droplist keeps a whole line so its text is not cut off.  The tool-strip buttons keep
 their longer labels (`Send to Blender`, `Pull from Blender`) because there they stand
 on their own, outside any menu; the panel's own buttons say `Send` and `Pull`.
 

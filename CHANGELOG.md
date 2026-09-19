@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.16.34
+
+* **Tidied the Blender menu.**  Nothing was hidden and nothing was removed - the menu had
+  simply grown, so it was grouped instead: the remesh settings (`Remesh on send`,
+  `Voxel size`, `Adaptivity`) now sit in a box of their own, because they are one idea
+  rather than three unrelated rows; `Auto receive` and `Without materials` share a line,
+  as do the operator pairs (Detect / Open folder, Start 3D-Coat / Force re-read) and the
+  switches (`Modifiers` / `Skip dialogs`, `Scale` / `Match scale`).  `Axis` keeps a whole
+  line to itself on purpose: a droplist in half a line has its text cut off.
+  `Force re-read return signal` is now `Force re-read` - the tooltip says the rest.
+* Blender 1.10.27.  3D-Coat side unchanged (1.4.2); the two menus still read in the same
+  order with the same words.
+
+Tests: Blender 167/167 - the menu still draws the three headings, the boxes are drawn, and
+every control is still there and still reachable (the assertions that previously checked
+each advanced control one by one now also check the new grouping) - plus every regression
+script and both installer smoke tests.
+
 ## v1.16.33
 
 * **`Adaptivity` for the remesh.**  A third control next to `Remesh on send` and `Voxel

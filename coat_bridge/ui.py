@@ -147,19 +147,20 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
             layout.label(text="Preferences unavailable", icon="ERROR")
             return
 
-        # Same order and wording as the 3D-Coat panel: the two options, then the two
-        # actions, then the rest, and nothing behind a fold-out - every control is on
-        # screen, because a hidden one is the one you cannot find when it matters.
+        # Same order and wording as the 3D-Coat panel: the options, the two actions,
+        # the return settings, then Setup.  Nothing behind a fold-out, but grouped so
+        # it can be read at a glance: the remesh settings sit in a box of their own
+        # because they belong together, and same-kind rows share a line.
         column = layout.column(align=True)
         column.label(text="Send options")
         column.prop(p, "scope", text="Scope")
         column.prop(p, "mode", text="Import as")
-        column.prop(p, "remesh", text="Remesh on send")
-        for name, label in (("remesh_voxel", "Voxel size (0 = auto)"),
-                            ("remesh_adaptivity", "Adaptivity")):
-            row = column.row(align=True)
-            row.enabled = p.remesh      # always visible, greyed when it does nothing
-            row.prop(p, name, text=label)
+        box = column.box()
+        box.prop(p, "remesh", text="Remesh on send")
+        settings = box.column(align=True)
+        settings.enabled = p.remesh     # always drawn, greyed when it does nothing
+        settings.prop(p, "remesh_voxel", text="Voxel size (0 = auto)")
+        settings.prop(p, "remesh_adaptivity", text="Adaptivity")
         column.separator()
         # the two actions, given the room the point of the add-on deserves
         row = column.row(align=True)
@@ -168,21 +169,24 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
         row.operator("coatbridge.pull", text="Pull", icon="IMPORT")
         column.separator()
         column.label(text="Return")
-        column.prop(p, "auto_pull", text="Auto receive")
-        column.prop(p, "strip_materials", text="Without materials")
+        row = column.row(align=True)
+        row.prop(p, "auto_pull", text="Auto receive")
+        row.prop(p, "strip_materials", text="Without materials")
         column.separator()
         column.label(text="Setup")
         column.prop(p, "axis_mode", text="Axis")
-        column.prop(p, "coat_scale", text="Scale override (0 = auto)")
-        column.prop(p, "match_scale", text="Match scale")
-        column.prop(p, "apply_modifiers", text="Modifiers")
-        column.prop(p, "skip_dialogs", text="Skip dialogs")
+        row = column.row(align=True)
+        row.prop(p, "coat_scale", text="Scale (0 = auto)")
+        row.prop(p, "match_scale", text="Match scale")
+        row = column.row(align=True)
+        row.prop(p, "apply_modifiers", text="Modifiers")
+        row.prop(p, "skip_dialogs", text="Skip dialogs")
         row = column.row(align=True)
         row.operator("coatbridge.detect", text="Detect", icon="VIEWZOOM")
         row.operator("coatbridge.open_folder", text="Open folder", icon="FILE_FOLDER")
-        column.operator("coatbridge.launch", text="Start 3D-Coat", icon="PLAY")
-        column.operator("coatbridge.pull", text="Force re-read return signal",
-                        icon="FILE_REFRESH").force = True
+        row = column.row(align=True)
+        row.operator("coatbridge.launch", text="Start 3D-Coat", icon="PLAY")
+        row.operator("coatbridge.pull", text="Force re-read", icon="FILE_REFRESH").force = True
         column.operator("coatbridge.unlink", text="Unlink selected", icon="UNLINKED")
         for line in bridge.detail_lines(context)[1:4]:
             column.label(text=line)

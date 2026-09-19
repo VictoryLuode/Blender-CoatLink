@@ -135,6 +135,13 @@ def main():
         """What an operator call returns: the menu sets properties on it."""
 
     class _MenuColumn(object):
+        def column(self, align=False):
+            return _MenuColumn()
+
+        def box(self):
+            drawn.append(("box", None))
+            return _MenuColumn()
+
         def prop(self, owner, name, **kwargs):
             drawn.append(("prop", name, kwargs.get("text")))
 
@@ -181,12 +188,14 @@ def main():
           < drawn.index(("label", "Setup"))
           < drawn.index(("prop", "axis_mode", "Axis")), drawn[:8])
     props = [item[1] for item in drawn if item[0] == "prop"]
+    check("the remesh settings are framed as one group", ("box", None) in drawn,
+          [item for item in drawn if item[0] == "box"])
     for name in ("axis_mode", "coat_scale", "match_scale", "apply_modifiers", "skip_dialogs"):
-        check("the advanced setting '%s' is drawn straight away" % name, name in props, props)
+        check("the setting '%s' is drawn straight away" % name, name in props, props)
     ids = [item[1] for item in drawn if item[0] == "operator"]
     for name in ("coatbridge.detect", "coatbridge.open_folder", "coatbridge.launch",
                  "coatbridge.unlink"):
-        check("the advanced action '%s' is drawn straight away" % name, name in ids, ids)
+        check("the action '%s' is drawn straight away" % name, name in ids, ids)
     check("no sidebar panel left", not hasattr(bpy.types, "COATBRIDGE_PT_main"))
     check("operators registered",
           hasattr(bpy.types, "COATBRIDGE_OT_send") and hasattr(bpy.types, "COATBRIDGE_OT_pull"))
