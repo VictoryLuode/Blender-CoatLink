@@ -23,6 +23,10 @@ Also fixed: `check_coat_api.py` looked for 3D-Coat's type stubs at a hardcoded
 3D-Coat moved to another drive and version folder.  It now searches, newest wins,
 with `COAT_API` as an override.
 
+Notes from the live install: with 3D-Coat in `C:\Program Files` the icon folder needs
+administrator rights, so the installer skips the four icons and says so - the buttons
+and the panel work regardless, and running it as administrator once copies them.
+
 Tests: 3D-Coat logic 106/106 (the send path has its own file, `test_scoped_send.py`,
 19 checks - scope, subtree flag, reduction, empty selection, missing geometry and a
 merge that loses groups), tools 29/29, installer 32/32, API stub check (now really

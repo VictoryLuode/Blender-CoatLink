@@ -50,7 +50,11 @@ Unzip the release and **double-click `install.cmd`**.  That is the whole job:
   paths - 3D-Coat needs absolute script paths, which is why the XMLs are generated
   rather than shipped
 * it copies the button icons next to 3D-Coat's own when that folder is writable,
-  and carries on without them when it is not (no admin rights anywhere)
+  and carries on without them when it is not (no admin rights anywhere).  If
+  3D-Coat lives in `C:\Program Files` that folder needs administrator rights -
+  run `install.cmd` once **as administrator** to get the icons, or keep the default
+  tool icons: the buttons and the panel work either way, and the installer says
+  which of the two happened
 * it clears out anything an older layout of this project left behind
 * running it twice is harmless
 
