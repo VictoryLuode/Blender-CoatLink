@@ -18,7 +18,7 @@ import tempfile
 import types
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fake_coat import FakeCoat, UNSET, build_environment  # shared fake 3D-Coat API
+from fake_coat import FakeCoat, TreeNode, UNSET, build_environment  # shared fake 3D-Coat API
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LIB = os.path.join(HERE, "..", "CoatBridgeLib.py")
@@ -232,79 +232,83 @@ def main():
         check("the panel control '%s' has a readable label" % name,
               translations.get(name), translations)
 
-    # ---- "To voxels": the one click that fixes a surface-mode import ----
+    # ---- "To voxels": one click for everything the tree is showing ----
     class _FakeVolume(object):
-        def __init__(self, voxel):
+        def __init__(self, voxel=True, broken=False):
             self.voxel = voxel
+            self.broken = broken
             self.converted = 0
 
         def isVoxelized(self):
             return self.voxel
 
         def toVoxels(self):
+            if self.broken:
+                raise RuntimeError("cannot voxelize")
             self.converted += 1
             self.voxel = True
 
         def getPolycount(self):
             return 12
 
-    class _FakeNode(object):
-        def __init__(self, name, volumes, children=()):
-            self._name = name
-            self.volumes = volumes
-            self.children = list(children)
+    def node(name, fake_volume, parent=None, visible=True):
+        """A tree node with the parts the action reads, faked per instance."""
+        element = TreeNode(name, coat, parent)
+        element.Volume = lambda: fake_volume
+        element.visible = lambda: visible
+        return element
 
-        def name(self):
-            return self._name
+    # a scene like the real one: a packaging group from an import, one plain visible
+    # object, and one switched off in the tree
+    coat.root.children.clear()
+    coat.removed.clear()
+    wrapper = node("bridge", _FakeVolume(True), coat.root)
+    surface_obj = node("Cube.169", _FakeVolume(False), wrapper)
+    voxel_obj = node("Cube.170", _FakeVolume(True), wrapper)
+    plain = node("Box", _FakeVolume(False), coat.root)
+    hidden = node("Cube.171", _FakeVolume(False), coat.root, visible=False)
 
-        def Volume(self):
-            return self.volumes
-
-        def childCount(self):
-            return len(self.children)
-
-        def child(self, index):
-            return self.children[index] if 0 <= index < len(self.children) else None
-
-    surface = _FakeVolume(False)
-    voxel = _FakeVolume(True)
-    group = _FakeNode("bridge", surface,
-                      [_FakeNode("Cube.169", _FakeVolume(False)),
-                       _FakeNode("Cube.170", voxel)])
-    coat.current_element = group       # what 3D-Coat reports as the current object
-    panel.VoxelizeSelected()
-    check("To voxels converts the objects under the group",
-          group.children[0].volumes.converted == 1, group.children[0].volumes.converted)
+    panel.VoxelizeVisible()
+    check("To voxels converts every visible surface object",
+          surface_obj.Volume().converted == 1 and plain.Volume().converted == 1,
+          (surface_obj.Volume().converted, plain.Volume().converted))
+    check("and leaves the ones that are already voxel volumes",
+          voxel_obj.Volume().converted == 0, voxel_obj.Volume().converted)
     check("and does not convert the packaging node itself",
-          surface.converted == 0, surface.converted)
-    check("and leaves one that is already a voxel volume alone",
-          voxel.converted == 0, voxel.converted)
-    check("and says what it did",
-          panel.status == "To voxels: 1 to voxels, 1 already voxel", panel.status)
-    panel.VoxelizeSelected()
+          wrapper.Volume().converted == 0, wrapper.Volume().converted)
+    check("and does not touch an object that is switched off in the tree",
+          hidden.Volume().converted == 0, hidden.Volume().converted)
+    check("and says exactly what it did",
+          panel.status == "To voxels: 2 to voxels, 1 already voxel, 1 hidden, left alone",
+          panel.status)
+
+    panel.VoxelizeVisible()
     check("running it again converts nothing new",
-          group.children[0].volumes.converted == 1 and panel.status == "To voxels: 2 already voxel",
-          (group.children[0].volumes.converted, panel.status))
+          surface_obj.Volume().converted == 1
+          and panel.status == "To voxels: 3 already voxel, 1 hidden, left alone",
+          panel.status)
 
-    class _EmptyNode(object):
-        def name(self):
-            return "nothing"
+    broken = node("Broken", _FakeVolume(False, broken=True), coat.root)
+    panel.VoxelizeVisible()
+    check("an object that cannot be converted is reported, not thrown",
+          "1 could not be converted" in panel.status, panel.status)
+    broken.remove()
 
-        def Volume(self):
-            raise RuntimeError("no volume")
+    coat.root.children.clear()
+    panel.VoxelizeVisible()
+    check("an empty tree is a sentence, not a crash",
+          panel.status == "Nothing in the Sculpt Tree to convert", panel.status)
 
-        def childCount(self):
-            return 0
-
-    coat.current_element = _EmptyNode()
-    panel.VoxelizeSelected()
-    check("an object with no volume is reported, not thrown",
-          "could not be converted" in panel.status, panel.status)
-    coat.current_element = None
-    panel.VoxelizeSelected()
-    check("nothing selected is a sentence, not a crash",
-          panel.status == "Select an object in the Sculpt Tree first", panel.status)
-    coat.current_element = UNSET        # back to "the fake decides"
+    # a build whose SceneElement has no visible() at all: everything visible is the
+    # safe reading, so nothing is silently skipped
+    coat.root.children.clear()
+    unknown = node("NoVisibility", _FakeVolume(False), coat.root)
+    del unknown.visible
+    panel.VoxelizeVisible()
+    check("a build that cannot answer 'visible' converts rather than skips",
+          unknown.Volume().converted == 1, panel.status)
+    check("and the old selection-only name is gone",
+          not hasattr(panel, "VoxelizeSelected"))
 
     # ---- menu registration (the panel entry already ran it) ----
     bridge.save_state({"menus": [], "tools": []})   # forget the entry's registration

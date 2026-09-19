@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.16.31
+
+* **`To voxels` now covers the whole tree, not the selection.**  It converts every
+  object the Sculpt Tree is showing - the point being that after an import you want the
+  scene ready, not one object at a time.  Leaves only: a node with children is the
+  packaging group around an import, so it is walked into rather than converted.  Objects
+  switched off in the tree are counted and left alone (`N hidden, left alone`), the ones
+  already voxelized are counted too, and a build whose `SceneElement` cannot answer
+  `visible()` converts rather than skips - one object too many is easier to undo than
+  silently skipping the one you wanted.  The sculpt root itself is never treated as an
+  object, so an empty tree says `Nothing in the Sculpt Tree to convert` instead of
+  reading the root's volume.
+* 3D-Coat side 1.4.2.  Blender side unchanged (1.10.24).
+
+Tests: 3D-Coat 133/133 - over a tree with a packaging group, a plain visible object, one
+switched off and one already voxel, it converts exactly the two visible surface objects,
+reports `2 to voxels, 1 already voxel, 1 hidden, left alone`, is idempotent on a second
+press, reports an object whose volume cannot be read, says so on an empty tree, and
+converts rather than skips when `visible()` is missing - plus tools, installer, tree
+report, API stub check, idle redraw, probe dry run and install smoke.
+
 ## v1.16.30
 
 * **A voxel import now asks to be voxelized.**  Models have been arriving in 3D-Coat in

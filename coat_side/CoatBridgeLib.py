@@ -44,7 +44,7 @@ except ImportError:  # the command module is optional at import time
 APP_FOLDER = "BlenderBridge"
 MODEL_NAME = "bridge"
 PANEL_CAPTION = "CoatLink"
-VERSION = "1.4.1"
+VERSION = "1.4.2"
 #: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
 #: there is nothing to choose - Blender reads the returned file by extension.
 #: The model 3D-Coat hands back.  OBJ both ways on purpose: the axis rule then
@@ -480,7 +480,7 @@ PANEL_LABELS = {
     "OpenFolder": "Open folder",
     "StartBlender": "Start Blender",
     "RemoveLauncher": "Remove tool buttons",
-    "VoxelizeSelected": "To voxels",
+    "VoxelizeVisible": "To voxels",
 }
 
 ACTION_LABELS = {
@@ -667,8 +667,8 @@ class CoatBridgePanel(object):
         items.append("SendToBlender")
         items.append("PullFromBlender")
         items.append("[1]")
-        items.append("VoxelizeSelected")
-        items.append("##makes the selected object and its children voxel volumes")
+        items.append("VoxelizeVisible")
+        items.append("##makes every visible object in the Sculpt Tree a voxel volume")
         items.append("---")
         items.append("#Send options")
         items.append("#" + self.SizeLabel)
@@ -709,22 +709,24 @@ class CoatBridgePanel(object):
             self._saved_controls = current
         return False
 
-    def _voxel_targets(self):
-        """The current object, and everything under it when it is a group.
+    def _visible_voxel_targets(self):
+        """Every object the Sculpt Tree is showing right now.
 
-        AppLink hands a multi-object model over as one parent node with a child per
-        object, so converting only `Scene.current()` would leave the real objects
-        behind.  A node that has children is packaging and is walked into, not
-        converted, so no empty wrapper volume is created.  Bounded, and it never
-        moves or deletes anything.
+        Leaves only: a node with children is packaging (the group 3D-Coat wraps an
+        import in), and converting it would leave a stray extra volume behind.  When
+        the visibility question cannot be answered - a build without
+        `SceneElement.visible` answers nothing - the object counts as visible:
+        converting one object too many is easier to undo than silently skipping the
+        one you wanted.  Returns (targets, hidden count), never raises, bounded.
         """
         try:
-            current = coat.Scene.current()
+            root = coat.Scene.sculptRoot()
         except Exception:
-            return []
-        out = []
+            return [], 0
+        targets = []
+        hidden = [0]
 
-        def collect(element, depth=0):
+        def walk(element, depth=0):
             if element is None or depth > 8:
                 return
             try:
@@ -734,26 +736,44 @@ class CoatBridgePanel(object):
             if count:
                 for index in range(count):
                     try:
-                        collect(element.child(index), depth + 1)
+                        walk(element.child(index), depth + 1)
                     except Exception:
                         continue
-            else:
-                out.append(element)
+                return
+            try:
+                if not element.visible():
+                    hidden[0] += 1
+                    return
+            except Exception:
+                pass                      # no answer: treat it as visible
+            targets.append(element)
 
-        collect(current)
-        return out
+        # the sculpt root is the container, never an object: walking from it would
+        # treat an empty tree as one node whose volume cannot be read
+        try:
+            count = root.childCount()
+        except Exception:
+            count = 0
+        for index in range(count):
+            try:
+                walk(root.child(index))
+            except Exception:
+                continue
+        return targets, hidden[0]
 
-    def VoxelizeSelected(self):
-        """Turn the selected Sculpt Tree object into voxel volumes.
+    def VoxelizeVisible(self):
+        """Turn every visible object in the Sculpt Tree into voxel volumes.
 
-        The import mode is not ours to force - 3D-Coat does that from import.txt - so
-        when a model arrives in surface mode this is the one click that puts it where
-        the sculpting tools want it.  Objects that are already voxelized are counted
-        and left alone, and anything that fails is reported rather than thrown.
+        The import mode is not ours to force - 3D-Coat decides that from import.txt -
+        and it has been handing models over in surface mode whatever the mode line
+        says.  This is the one click that puts the whole scene where the sculpting
+        tools want it.  Objects that are already voxelized are counted and left alone,
+        hidden ones are reported but not touched, and a failure is a sentence in the
+        status line rather than an exception.
         """
-        targets = self._voxel_targets()
-        if not targets:
-            self.status = "Select an object in the Sculpt Tree first"
+        targets, hidden = self._visible_voxel_targets()
+        if not targets and not hidden:
+            self.status = "Nothing in the Sculpt Tree to convert"
             return
         converted = already = failed = 0
         for element in targets:
@@ -771,6 +791,8 @@ class CoatBridgePanel(object):
             parts.append("%d to voxels" % converted)
         if already:
             parts.append("%d already voxel" % already)
+        if hidden:
+            parts.append("%d hidden, left alone" % hidden)
         if failed:
             parts.append("%d could not be converted" % failed)
         self.status = "To voxels: " + (", ".join(parts) if parts else "nothing to do")
