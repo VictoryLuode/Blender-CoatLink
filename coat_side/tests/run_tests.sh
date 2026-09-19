@@ -31,6 +31,7 @@ run coat_side/tests/test_coat_side.py
 run coat_side/tests/test_coat_tools.py
 run coat_side/tests/test_idle_draw.py
 run coat_side/tests/test_panel_probe.py
+run coat_side/tests/test_tree_report.py
 run coat_side/tests/test_coatlink_install.py
 run coat_side/tests/test_scoped_send.py
 run coat_side/tests/test_import_unparent.py
