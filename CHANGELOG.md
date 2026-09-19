@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.16.25
+
+* **The 3D-Coat panel now says what its `Send scope` actually sends.**  The
+  droplist sits at the very top, directly above `Send to Blender`, and a line under
+  it reports the current choice: "selected node + its children" or "3D-Coat's own
+  export (all volumes, its own rules)".  The two are not the same thing - the
+  selection is extracted by the bridge, the scene goes through 3D-Coat's own export
+  - and a control that hides that difference is worse than no control.
+* Not shipped, but looked up: 3D-Coat's own `Export Selected Objects` ("selected
+  Sculpt Tree layers") and its decimate-and-export-all-visible-volumes action are
+  the routes to a visible-objects-only scene send from 3D-Coat.  Neither is verified,
+  so neither is in this build; the README says so under Known limitations.
+
+Tests: 3D-Coat logic 108/108 (the scope hint follows the droplist, and the layout
+checks were adjusted for the two new lines), tools 29/29, installer 32/32, API stub
+check, idle redraw, probe dry run, install smoke.  Blender side unchanged (129/129).
+
 ## v1.16.24
 
 * **A `Whole scene` toggle, left of `Send` on the Blender top bar.**  Off (the

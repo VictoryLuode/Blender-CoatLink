@@ -66,6 +66,10 @@ REDUCTION_KEY = "reduction"
 SEND_SCOPE_KEY = "send_scope"
 SEND_SCOPES = ("selected", "scene")
 SEND_SCOPE_LABELS = "#selected node|#whole scene"
+#: what each scope actually hands over - the two are not the same thing, and 3D-Coat
+#: decides for itself what its own export covers, so the panel says so
+SEND_SCOPE_HINTS = ("selected node + its children",
+                    "3D-Coat's own export (all volumes, its own rules)")
 
 #: the export dialog's "export textures" checkbox (documented as an import.txt
 #: option listed in applinks.rst, settable with the CMD module's SetBoolField)
@@ -623,6 +627,10 @@ class CoatBridgePanel(object):
         self.process()  # cached controls only; no scene access
         items = []
         items.append("SendScope,[%s]" % SEND_SCOPE_LABELS)
+        try:
+            items.append("##" + SEND_SCOPE_HINTS[int(self.SendScope)])
+        except (IndexError, TypeError, ValueError):
+            pass
         items.append("[1]")
         items.append("SendToBlender")
         items.append("PullFromBlender")

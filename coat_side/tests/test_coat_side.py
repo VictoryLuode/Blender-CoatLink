@@ -184,8 +184,15 @@ def main():
         check("layout item '%s' exists on the panel" % name, hasattr(panel, name))
     check("layout starts with the send scope",
           items[0].startswith("SendScope,["), items[0])
-    check("then a full-width button row", items[1] == "[1]" and items[2] == "SendToBlender",
-          items[:3])
+    check("the scope says what it will send",
+          items[1] == "##" + bridge.SEND_SCOPE_HINTS[int(panel.SendScope)], items[:2])
+    check("then a full-width button row", items[2] == "[1]" and items[3] == "SendToBlender",
+          items[:4])
+    panel.SendScope = bridge.SEND_SCOPES.index("selected")
+    check("choosing another scope changes the hint",
+          any(item == "##" + bridge.SEND_SCOPE_HINTS[0] for item in panel.ui()),
+          [item for item in panel.ui() if item.startswith("##")][:2])
+    panel.SendScope = bridge.SEND_SCOPES.index("scene")
     check("layout offers the same actions as Blender",
           {"SendToBlender", "PullFromBlender", "Detect", "OpenFolder", "StartBlender"} <=
           {item.split(",", 1)[0] for item in plain}, plain)

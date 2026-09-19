@@ -10,7 +10,7 @@ their UIs are deliberately mirrors of each other:
 | --- | --- | --- |
 | Where | **CoatLink** menu in the top bar, with **Send** and **Pull** next to it | three buttons at the end of the room tool list (Voxels / Paint) |
 | Shape | popover menu + two one-click buttons | tool buttons, plus a panel opened from the tool strip |
-| Scope | `Whole scene` toggle, left of `Send` | `Send scope` droplist, above `Send to Blender` |
+| Scope | `Whole scene` toggle, left of `Send` | `Send scope` droplist at the top of the panel, directly above `Send to Blender`, with a line under it saying what the current choice sends |
 | One click | `Send` / `Pull` on the bar itself | `Send to Blender` / `Pull from Blender` |
 | Options | `Import as` (voxel by default), `Auto receive`, `Without materials`, and an *Advanced* fold: `Axis`, `Scale override (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs` | `ReductionPercent`, `Textures`, a size readout with `RefreshStats`, and an *Advanced* fold: `Detect`, `OpenFolder`, `StartBlender`, `RemoveLauncher` |
 | Source | `coat_bridge/` (Blender add-on, 8 files) | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
@@ -287,6 +287,13 @@ that says so:
   (1000 simulated idle redraws, no host calls, no file access) and its statistics
   are manual (`RefreshStats`), but the live cause is **not** identified.  If you
   see it, close the panel; nothing else in the bridge depends on it.
+* **On the 3D-Coat side "whole scene" means 3D-Coat's own export,** so what it
+  covers is 3D-Coat's decision (it can include hidden volumes).  The panel prints
+  that under the droplist instead of pretending otherwise.  Sending only the
+  *visible* tree objects from 3D-Coat would need one of 3D-Coat's own commands -
+  `Export Selected Objects` ("selected Sculpt Tree layers") or the
+  decimate-and-export-all-visible-volumes action - and neither has been verified
+  here, so nothing was guessed into the release.
 * **Unparenting the imported objects relies on `[pythonfile …]`,** which the
   AppLink documentation says needs 3D-Coat 2025.12 or newer; on an older build the
   job file keeps the line, 3D-Coat ignores it, and the model arrives under its
