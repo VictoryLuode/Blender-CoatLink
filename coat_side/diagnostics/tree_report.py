@@ -88,12 +88,14 @@ def build_report():
     lines = ["CoatLink - Sculpt Tree report",
              "written %s" % time.strftime("%Y-%m-%d %H:%M:%S"),
              ""]
-    for label, call in (("room", coat.Scene.currentRoom),
-                        ("scene file", coat.Scene.currentSceneFilepath),
-                        ("scene units", coat.Scene.GetSceneUnits),
-                        ("scene scale", coat.Scene.GetSceneScale)):
+    # every field is looked up and called inside the guard: the published stubs and
+    # the running build do not always agree (Scene.currentRoom is in the stub for
+    # 3D-Coat 2025.17 but not in the build), and a missing one must not end the report
+    for label, name in (("scene file", "currentSceneFilepath"),
+                        ("scene units", "GetSceneUnits"),
+                        ("scene scale", "GetSceneScale")):
         try:
-            lines.append("%s: %s" % (label, call()))
+            lines.append("%s: %s" % (label, getattr(coat.Scene, name)()))
         except Exception as error:
             lines.append("%s: ? (%s)" % (label, error))
     lines.append("")

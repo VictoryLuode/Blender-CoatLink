@@ -48,7 +48,7 @@ bad = sorted(name for name in called if name in FORBIDDEN)
 check("it calls nothing that writes", not bad, bad)
 
 # 2. what it does reach for: only the read side of the API
-for needed in ("sculptRoot", "currentRoom", "childCount", "Volume", "getPolycount"):
+for needed in ("sculptRoot", "getattr", "childCount", "Volume", "getPolycount"):
     check("it uses %s" % needed, needed in source, needed)
 
 # 3. the report path is 3D-Coat's own folder, and nothing machine specific is baked in
@@ -56,6 +56,8 @@ check("the report is named", 'REPORT_NAME = "CoatLink-TreeReport.txt"' in source
 check("no absolute path is baked into the script",
       "C:/" not in source and "C:\\" not in source and "/Users/" not in source)
 check("it says it is read-only", "Read-only" in source)
+check("it asks for nothing the build may not have",
+      "coat.Scene.currentRoom" not in source and "getattr(coat.Scene, name)" in source)
 
 failed = [name for name, ok, _ in checks if not ok]
 print("RESULT: %d/%d checks passed" % (len(checks) - len(failed), len(checks)))
