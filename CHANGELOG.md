@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.16.29
+
+* **`To voxels` in the 3D-Coat panel.**  Models sent from Blender have been arriving in
+  3D-Coat in *surface* mode (`S` in the Sculpt Tree) even though the job file asks for
+  `[vox]`, and getting them where the sculpting tools want them meant doing it by hand.
+  The panel now has the one click: it voxelizes the object selected in the Sculpt Tree
+  and everything under it, walks into a packaging node instead of converting it (no
+  empty wrapper volume), leaves objects that are already voxelized alone, reports
+  `N to voxels, M already voxel`, and turns any failure into a sentence rather than an
+  exception.  It also refreshes the size readout afterwards.
+* 3D-Coat side 1.4.1.  Blender side unchanged (1.10.23).
+
+Tests: 3D-Coat 130/130 - the conversion runs over a group without touching the wrapper,
+skips what is already voxel, is idempotent on a second press, reports an object whose
+volume cannot be read, and says what to do when nothing is selected - plus tools 29/29,
+installer 32/32, tree report 11/11, API stub check, idle redraw, probe dry run, install
+smoke.
+
 ## v1.16.28
 
 * **The 3D-Coat panel stopped showing code names.**  3D-Coat labels a panel control by

@@ -18,7 +18,7 @@ import tempfile
 import types
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fake_coat import FakeCoat, build_environment  # shared fake 3D-Coat API
+from fake_coat import FakeCoat, UNSET, build_environment  # shared fake 3D-Coat API
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LIB = os.path.join(HERE, "..", "CoatBridgeLib.py")
@@ -231,6 +231,80 @@ def main():
                  "Detect", "OpenFolder", "StartBlender", "RemoveLauncher"):
         check("the panel control '%s' has a readable label" % name,
               translations.get(name), translations)
+
+    # ---- "To voxels": the one click that fixes a surface-mode import ----
+    class _FakeVolume(object):
+        def __init__(self, voxel):
+            self.voxel = voxel
+            self.converted = 0
+
+        def isVoxelized(self):
+            return self.voxel
+
+        def toVoxels(self):
+            self.converted += 1
+            self.voxel = True
+
+        def getPolycount(self):
+            return 12
+
+    class _FakeNode(object):
+        def __init__(self, name, volumes, children=()):
+            self._name = name
+            self.volumes = volumes
+            self.children = list(children)
+
+        def name(self):
+            return self._name
+
+        def Volume(self):
+            return self.volumes
+
+        def childCount(self):
+            return len(self.children)
+
+        def child(self, index):
+            return self.children[index] if 0 <= index < len(self.children) else None
+
+    surface = _FakeVolume(False)
+    voxel = _FakeVolume(True)
+    group = _FakeNode("bridge", surface,
+                      [_FakeNode("Cube.169", _FakeVolume(False)),
+                       _FakeNode("Cube.170", voxel)])
+    coat.current_element = group       # what 3D-Coat reports as the current object
+    panel.VoxelizeSelected()
+    check("To voxels converts the objects under the group",
+          group.children[0].volumes.converted == 1, group.children[0].volumes.converted)
+    check("and does not convert the packaging node itself",
+          surface.converted == 0, surface.converted)
+    check("and leaves one that is already a voxel volume alone",
+          voxel.converted == 0, voxel.converted)
+    check("and says what it did",
+          panel.status == "To voxels: 1 to voxels, 1 already voxel", panel.status)
+    panel.VoxelizeSelected()
+    check("running it again converts nothing new",
+          group.children[0].volumes.converted == 1 and panel.status == "To voxels: 2 already voxel",
+          (group.children[0].volumes.converted, panel.status))
+
+    class _EmptyNode(object):
+        def name(self):
+            return "nothing"
+
+        def Volume(self):
+            raise RuntimeError("no volume")
+
+        def childCount(self):
+            return 0
+
+    coat.current_element = _EmptyNode()
+    panel.VoxelizeSelected()
+    check("an object with no volume is reported, not thrown",
+          "could not be converted" in panel.status, panel.status)
+    coat.current_element = None
+    panel.VoxelizeSelected()
+    check("nothing selected is a sentence, not a crash",
+          panel.status == "Select an object in the Sculpt Tree first", panel.status)
+    coat.current_element = UNSET        # back to "the fake decides"
 
     # ---- menu registration (the panel entry already ran it) ----
     bridge.save_state({"menus": [], "tools": []})   # forget the entry's registration

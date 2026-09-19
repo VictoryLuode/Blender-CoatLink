@@ -11,7 +11,7 @@ their UIs are deliberately mirrors of each other:
 | Where | one **CoatLink** button in the top bar | three buttons at the end of the room tool list (Voxels / Paint) |
 | The menu | the popover inside that button - the bar holds nothing else | the panel opened from the tool strip |
 | Scope | `Scope` droplist: **Selected** / **Whole scene** | the same droplist, at the top of the panel |
-| Actions | `Send`, `Pull` | `Send`, `Pull` |
+| Actions | `Send`, `Pull` | `Send`, `Pull`, and `To voxels` (turns the selected object and its children into voxel volumes) |
 | Options | under **Send options**: `Scope` and `Import as` (voxel by default) | the same scope droplist, first thing in the panel |
 | Settings | `Auto receive`, `Without materials` | reduction percentage, textures, size readout with `RefreshStats` |
 | Below that | under **Setup**: `Axis`, `Scale override`, `Match scale`, `Modifiers`, `Skip dialogs`, then `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read return signal`, `Unlink selected` | under **Setup**: `Detect`, `Open folder`, `Start Blender`, `Remove tool buttons` |
@@ -303,6 +303,18 @@ that says so:
   the same thing.
 * **Nothing is collapsed.**  The older builds hid the advanced half of both menus
   behind an `Advanced` fold-out.  That is gone on both sides; every control is drawn.
+* **The import mode is asked for, not guaranteed.**  Blender writes the mode on the
+  third line of `import.txt` (`[vox]` for a voxel import) and 3D-Coat's own log shows
+  it reading that line - but models have still arrived in *surface* mode, as
+  `S` in the Sculpt Tree (`Volume.isSurface()`, against `isVoxelized()`).  Two things
+  are suspects and neither is confirmed: the `[SkipImport]` / `[SkipExport]` lines we
+  add to make the trip silent (3D-Coat documents `[SkipImport]` as "skip the import
+  dialog, default options will be used", and the official Blender AppLink never adds
+  it), and the `[pythonfile ...]` line (documented for 3D-Coat 2025.12+, and the
+  after-import unparenting it runs did not happen either).  Until that is settled the
+  panel's **`To voxels`** button is the reliable way to get a voxel volume: it
+  converts the current object, walks into packaging nodes rather than converting them,
+  counts what was already voxel, and reports failures instead of throwing.
 * **On the 3D-Coat side "whole scene" means 3D-Coat's own export,** so what it
   covers is 3D-Coat's decision (it can include hidden volumes).  The panel prints
   that under the droplist instead of pretending otherwise.  Sending only the

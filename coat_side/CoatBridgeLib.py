@@ -44,7 +44,7 @@ except ImportError:  # the command module is optional at import time
 APP_FOLDER = "BlenderBridge"
 MODEL_NAME = "bridge"
 PANEL_CAPTION = "CoatLink"
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 #: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
 #: there is nothing to choose - Blender reads the returned file by extension.
 #: The model 3D-Coat hands back.  OBJ both ways on purpose: the axis rule then
@@ -480,6 +480,7 @@ PANEL_LABELS = {
     "OpenFolder": "Open folder",
     "StartBlender": "Start Blender",
     "RemoveLauncher": "Remove tool buttons",
+    "VoxelizeSelected": "To voxels",
 }
 
 ACTION_LABELS = {
@@ -665,6 +666,9 @@ class CoatBridgePanel(object):
         items.append("[1 1]")
         items.append("SendToBlender")
         items.append("PullFromBlender")
+        items.append("[1]")
+        items.append("VoxelizeSelected")
+        items.append("##makes the selected object and its children voxel volumes")
         items.append("---")
         items.append("#Send options")
         items.append("#" + self.SizeLabel)
@@ -704,6 +708,77 @@ class CoatBridgePanel(object):
         if save_state(values):
             self._saved_controls = current
         return False
+
+    def _voxel_targets(self):
+        """The current object, and everything under it when it is a group.
+
+        AppLink hands a multi-object model over as one parent node with a child per
+        object, so converting only `Scene.current()` would leave the real objects
+        behind.  A node that has children is packaging and is walked into, not
+        converted, so no empty wrapper volume is created.  Bounded, and it never
+        moves or deletes anything.
+        """
+        try:
+            current = coat.Scene.current()
+        except Exception:
+            return []
+        out = []
+
+        def collect(element, depth=0):
+            if element is None or depth > 8:
+                return
+            try:
+                count = element.childCount()
+            except Exception:
+                count = 0
+            if count:
+                for index in range(count):
+                    try:
+                        collect(element.child(index), depth + 1)
+                    except Exception:
+                        continue
+            else:
+                out.append(element)
+
+        collect(current)
+        return out
+
+    def VoxelizeSelected(self):
+        """Turn the selected Sculpt Tree object into voxel volumes.
+
+        The import mode is not ours to force - 3D-Coat does that from import.txt - so
+        when a model arrives in surface mode this is the one click that puts it where
+        the sculpting tools want it.  Objects that are already voxelized are counted
+        and left alone, and anything that fails is reported rather than thrown.
+        """
+        targets = self._voxel_targets()
+        if not targets:
+            self.status = "Select an object in the Sculpt Tree first"
+            return
+        converted = already = failed = 0
+        for element in targets:
+            try:
+                volume = element.Volume()
+                if volume.isVoxelized():
+                    already += 1
+                    continue
+                volume.toVoxels()
+                converted += 1
+            except Exception:
+                failed += 1
+        parts = []
+        if converted:
+            parts.append("%d to voxels" % converted)
+        if already:
+            parts.append("%d already voxel" % already)
+        if failed:
+            parts.append("%d could not be converted" % failed)
+        self.status = "To voxels: " + (", ".join(parts) if parts else "nothing to do")
+        log(self.status)
+        try:
+            self.RefreshStats()
+        except Exception:
+            pass
 
     def RefreshStats(self):
         """Explicit user action only: never inspect live mesh during redraw."""
