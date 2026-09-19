@@ -138,7 +138,7 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
     bl_label = "CoatLink"
     bl_space_type = "TOPBAR"
     bl_region_type = "HEADER"
-    bl_ui_units_x = 16
+    bl_ui_units_x = 18
 
     def draw(self, context):
         layout = self.layout
@@ -151,26 +151,33 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
         # actions, then the rest, and nothing behind a fold-out - every control is on
         # screen, because a hidden one is the one you cannot find when it matters.
         column = layout.column(align=True)
+        column.label(text="Send options")
         column.prop(p, "scope", text="Scope")
         column.prop(p, "mode", text="Import as")
+        column.separator()
+        # the two actions, given the room the point of the add-on deserves
         row = column.row(align=True)
+        row.scale_y = 1.4
         row.operator("coatbridge.send", text="Send", icon="EXPORT")
         row.operator("coatbridge.pull", text="Pull", icon="IMPORT")
         column.separator()
+        column.label(text="Return")
         column.prop(p, "auto_pull", text="Auto receive")
         column.prop(p, "strip_materials", text="Without materials")
         column.separator()
+        column.label(text="Setup")
         column.prop(p, "axis_mode", text="Axis")
         column.prop(p, "coat_scale", text="Scale override (0 = auto)")
         column.prop(p, "match_scale", text="Match scale")
         column.prop(p, "apply_modifiers", text="Modifiers")
         column.prop(p, "skip_dialogs", text="Skip dialogs")
         row = column.row(align=True)
-        row.operator("coatbridge.detect", text="Detect")
-        row.operator("coatbridge.open_folder", text="Open folder")
-        column.operator("coatbridge.launch", text="Start 3D-Coat")
-        column.operator("coatbridge.pull", text="Force re-read return signal").force = True
-        column.operator("coatbridge.unlink", text="Unlink selected")
+        row.operator("coatbridge.detect", text="Detect", icon="VIEWZOOM")
+        row.operator("coatbridge.open_folder", text="Open folder", icon="FILE_FOLDER")
+        column.operator("coatbridge.launch", text="Start 3D-Coat", icon="PLAY")
+        column.operator("coatbridge.pull", text="Force re-read return signal",
+                        icon="FILE_REFRESH").force = True
+        column.operator("coatbridge.unlink", text="Unlink selected", icon="UNLINKED")
         for line in bridge.detail_lines(context)[1:4]:
             column.label(text=line)
         column.separator()

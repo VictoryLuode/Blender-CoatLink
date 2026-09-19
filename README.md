@@ -12,9 +12,9 @@ their UIs are deliberately mirrors of each other:
 | The menu | the popover inside that button - the bar holds nothing else | the panel opened from the tool strip |
 | Scope | `Scope` droplist: **Selected** / **Whole scene** | the same droplist, at the top of the panel |
 | Actions | `Send`, `Pull` | `Send`, `Pull` |
-| Options | `Scope` and `Import as` (voxel by default) - the two choices side by side, at the top | the same scope droplist at the top |
+| Options | under **Send options**: `Scope` and `Import as` (voxel by default) | the same scope droplist, first thing in the panel |
 | Settings | `Auto receive`, `Without materials` | reduction percentage, textures, size readout with `RefreshStats` |
-| Below that | `Axis`, `Scale override`, `Match scale`, `Modifiers`, `Skip dialogs`, `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read return signal`, `Unlink selected` | `Detect`, `Open folder`, `Start Blender`, `RemoveLauncher` |
+| Below that | under **Setup**: `Axis`, `Scale override`, `Match scale`, `Modifiers`, `Skip dialogs`, then `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read return signal`, `Unlink selected` | under **Setup**: `Detect`, `Open folder`, `Start Blender`, `Remove tool buttons` |
 | Source | `coat_bridge/` (Blender add-on, 8 files) | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
 
 Both menus carry the same sections in the same order with the same words - the two
@@ -296,6 +296,11 @@ that says so:
   (1000 simulated idle redraws, no host calls, no file access) and its statistics
   are manual (`RefreshStats`), but the live cause is **not** identified.  If you
   see it, close the panel; nothing else in the bridge depends on it.
+* **Words, not identifiers.**  3D-Coat labels a panel control by its own name unless
+  that name is translated, so the panel used to read `SendScope`, `ReductionPercent`,
+  `RefreshStats`.  Every one of those now carries a translation (`Scope`, `Reduction
+  percent`, `Refresh sizes`, ...), matching the Blender menu where the two sides mean
+  the same thing.
 * **Nothing is collapsed.**  The older builds hid the advanced half of both menus
   behind an `Advanced` fold-out.  That is gone on both sides; every control is drawn.
 * **On the 3D-Coat side "whole scene" means 3D-Coat's own export,** so what it

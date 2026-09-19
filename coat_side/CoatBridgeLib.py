@@ -467,6 +467,21 @@ def apply_reduction(percent=None):
 #: what the panel's buttons say (the tool-strip buttons use ACTION_LABELS instead)
 PANEL_ACTION_LABELS = {"SendToBlender": "Send", "PullFromBlender": "Pull"}
 
+#: 3D-Coat labels a panel control by its own name unless that name is translated, so
+#: without this the panel reads "SendScope", "ReductionPercent", "RefreshStats" - the
+#: words the code uses, not words a person uses.  The wording matches the Blender menu
+#: wherever the two mean the same thing.
+PANEL_LABELS = {
+    "SendScope": "Scope",
+    "ReductionPercent": "Reduction percent",
+    "Textures": "Textures",
+    "RefreshStats": "Refresh sizes",
+    "Detect": "Detect",
+    "OpenFolder": "Open folder",
+    "StartBlender": "Start Blender",
+    "RemoveLauncher": "Remove tool buttons",
+}
+
 ACTION_LABELS = {
     "CoatBridge_Send": ("SendToBlender", "Send to Blender"),
     "CoatBridge_Pull": ("PullFromBlender", "Pull from Blender"),
@@ -572,6 +587,11 @@ def coat_settings_info():
 def add_translations():
     """Give the tool buttons readable labels.  3D-Coat shows the raw id until a
     translation exists, so every action calls this when it runs."""
+    for name, label in PANEL_LABELS.items():
+        try:
+            coat.ui.addTranslation(name, label)
+        except Exception:
+            pass  # a missing translation is cosmetic; never break registration
     for tool_id, (_method, label) in ACTION_LABELS.items():
         try:
             coat.ui.addTranslation(tool_id, label)
@@ -641,10 +661,12 @@ class CoatBridgePanel(object):
             items.append("##" + SEND_SCOPE_HINTS[int(self.SendScope)])
         except (IndexError, TypeError, ValueError):
             pass
-        items.append("[1]")
+        # the two actions side by side, like the Blender menu draws them
+        items.append("[1 1]")
         items.append("SendToBlender")
         items.append("PullFromBlender")
         items.append("---")
+        items.append("#Send options")
         items.append("#" + self.SizeLabel)
         items.append("ReductionPercent,[0,100]")
         items.append("RefreshStats")
@@ -652,6 +674,7 @@ class CoatBridgePanel(object):
         items.append("##Reduction % = removed; estimate only, export not verified")
         items.append("Textures,[#from 3D-Coat|#textures on|#textures off]")
         items.append("---")
+        items.append("#Setup")
         items.append("[1 1]")
         items.append("Detect")
         items.append("OpenFolder")

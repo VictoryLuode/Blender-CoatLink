@@ -150,10 +150,11 @@ def main():
         layout = _MenuLayout()
 
     coat_ui.COATBRIDGE_PT_menu.draw(_MenuSelf(), bpy.context)
-    check("the menu starts with the scope",
-          drawn[0] == ("prop", "scope", "Scope"), drawn[:3])
-    check("then the import mode, right next to it",
-          drawn[1] == ("prop", "mode", "Import as"), drawn[:3])
+    check("the menu starts with the Send options heading",
+          drawn[0] == ("label", "Send options"), drawn[:3])
+    check("under it the scope, then the import mode",
+          drawn[1] == ("prop", "scope", "Scope")
+          and drawn[2] == ("prop", "mode", "Import as"), drawn[:4])
     check("then the two actions, named like the 3D-Coat panel's",
           ("operator", "coatbridge.send", "Send") in drawn
           and ("operator", "coatbridge.pull", "Pull") in drawn, drawn[:4])
@@ -165,6 +166,15 @@ def main():
 
     folded = [item[1] for item in drawn if item[0] == "prop" and item[1] == "show_advanced"]
     check("nothing is hidden behind a fold-out", not folded, folded)
+    labels = [item[1] for item in drawn if item[0] == "label"]
+    for header in ("Send options", "Return", "Setup"):
+        check("the menu has a '%s' heading" % header, header in labels, labels)
+    check("the headings come before what they head",
+          drawn.index(("label", "Send options")) < drawn.index(("prop", "scope", "Scope"))
+          < drawn.index(("prop", "mode", "Import as"))
+          < drawn.index(("label", "Return"))
+          < drawn.index(("label", "Setup"))
+          < drawn.index(("prop", "axis_mode", "Axis")), drawn[:8])
     props = [item[1] for item in drawn if item[0] == "prop"]
     for name in ("axis_mode", "coat_scale", "match_scale", "apply_modifiers", "skip_dialogs"):
         check("the advanced setting '%s' is drawn straight away" % name, name in props, props)

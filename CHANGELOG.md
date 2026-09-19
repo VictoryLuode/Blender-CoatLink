@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.16.28
+
+* **The 3D-Coat panel stopped showing code names.**  3D-Coat labels a panel control by
+  the name in the script unless that name is translated, so the panel read
+  `SendScope`, `ReductionPercent`, `Textures`, `RefreshStats`, `OpenFolder`,
+  `StartBlender`, `RemoveLauncher`.  All of them are translated now - `Scope`,
+  `Reduction percent`, `Refresh sizes`, `Open folder`, `Start Blender`, `Remove tool
+  buttons` - with the wording borrowed from the Blender menu wherever the two mean the
+  same thing.
+* Send and Pull share one row in the 3D-Coat panel, the way the Blender menu draws
+  them, instead of being two full-width bars.
+* Both menus are grouped under the same headings - **Send options**, **Return**,
+  **Setup** - and every action in the Blender menu carries an icon (Detect, Open
+  folder, Start 3D-Coat, Force re-read, Unlink), with Send / Pull given a taller row
+  because they are the point of the add-on.  Nothing is hidden: the headings group,
+  they do not fold.
+* Blender 1.10.23.
+
+Tests: Blender 147/147 (the headings are drawn in order, ahead of what they head) plus
+every regression script and both installer smoke tests.  3D-Coat 122/122 (every panel
+control has a readable label, Send and Pull share a row, the headings are there) plus
+tools 29/29, installer 32/32, tree report 11/11, API stub check, idle redraw, probe dry
+run, install smoke.
+
 ## v1.16.27
 
 * **The import mode is an option, not a setting.**  `Import as` now sits at the top of

@@ -191,8 +191,13 @@ def main():
                                               "RemoveLauncher", "Advanced")])
     check("the scope says what it will send",
           items[1] == "##" + bridge.SEND_SCOPE_HINTS[int(panel.SendScope)], items[:2])
-    check("then a full-width button row", items[2] == "[1]" and items[3] == "SendToBlender",
-          items[:4])
+    check("then the two actions in one row, like the Blender menu",
+          items[2] == "[1 1]" and items[3] == "SendToBlender" and items[4] == "PullFromBlender",
+          items[:5])
+    check("with the sections headed like the Blender menu's",
+          "Send options" in [item[1:] for item in items if item.startswith("#")]
+          and "Setup" in [item[1:] for item in items if item.startswith("#")],
+          [item for item in items if item.startswith("#")])
     panel.SendScope = bridge.SEND_SCOPES.index("selected")
     check("choosing another scope changes the hint",
           any(item == "##" + bridge.SEND_SCOPE_HINTS[0] for item in panel.ui()),
@@ -222,6 +227,10 @@ def main():
           bridge.SEND_SCOPE_LABELS == "#Selected|#Whole scene", bridge.SEND_SCOPE_LABELS)
     check("and both scopes are explained under it",
           len(bridge.SEND_SCOPE_HINTS) == 2, bridge.SEND_SCOPE_HINTS)
+    for name in ("SendScope", "ReductionPercent", "Textures", "RefreshStats",
+                 "Detect", "OpenFolder", "StartBlender", "RemoveLauncher"):
+        check("the panel control '%s' has a readable label" % name,
+              translations.get(name), translations)
 
     # ---- menu registration (the panel entry already ran it) ----
     bridge.save_state({"menus": [], "tools": []})   # forget the entry's registration
