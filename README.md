@@ -10,9 +10,10 @@ their UIs are deliberately mirrors of each other:
 | --- | --- | --- |
 | Where | **CoatLink** menu in the top bar, with **Send** and **Pull** next to it | three buttons at the end of the room tool list (Voxels / Paint) |
 | Shape | popover menu + two one-click buttons | tool buttons, plus a panel opened from the tool strip |
+| Scope | `Whole scene` toggle, left of `Send` | `Send scope` droplist, above `Send to Blender` |
 | One click | `Send` / `Pull` on the bar itself | `Send to Blender` / `Pull from Blender` |
-| Options | `Import as` (voxel by default), `Auto receive`, `Without materials`, and an *Advanced* fold: `Axis`, `Scale override (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs` | `Send scope`, `ReductionPercent`, `Textures`, a size readout with `RefreshStats`, and an *Advanced* fold: `Detect`, `OpenFolder`, `StartBlender`, `RemoveLauncher` |
-| Source | `coat_bridge/` (Blender add-on, 7 files) | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
+| Options | `Import as` (voxel by default), `Auto receive`, `Without materials`, and an *Advanced* fold: `Axis`, `Scale override (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs` | `ReductionPercent`, `Textures`, a size readout with `RefreshStats`, and an *Advanced* fold: `Detect`, `OpenFolder`, `StartBlender`, `RemoveLauncher` |
+| Source | `coat_bridge/` (Blender add-on, 8 files) | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
 
 The 3D-Coat panel is 3D-Coat's **own** dialog (`coat.dialog()...topRight()`), never
 a window of ours and never Qt.  Its controls are native too, using the layout
@@ -142,7 +143,9 @@ are in place (`--scripts <folder>` if it cannot find them, `--uninstall` to undo
 
 **Blender → 3D-Coat**
 
-1. Select the object to work on (no selection = every visible mesh).
+1. Select the object to work on (no selection = every visible mesh), or switch on
+   the **`Whole scene`** toggle left of `Send` to send every visible object.  The
+   status line always says which scope the send used.
 2. Pick how 3D-Coat should open it in `Import as`: `Per-Pixel Painting`,
    `Sculpt Object (voxel)`, `Retopo Mesh`, `Auto-Retopology`, …
 3. **Send**.  If 3D-Coat is not running the job waits in the exchange folder
@@ -169,6 +172,7 @@ are in place (`--scripts <folder>` if it cannot find them, `--uninstall` to undo
 
 | Entry | Meaning |
 | --- | --- |
+| Whole scene (top bar) | Send every visible object instead of the selection |
 | Send / Pull (top bar) | Export the selection and queue it / take a returned model now |
 | Import as | How 3D-Coat opens the mesh (`[ppp]`, `[vox]`, `[uv]`, `[autopo]`, …) |
 | Auto receive | Watch the exchange folder every 2 s; off = manual **Pull** only |

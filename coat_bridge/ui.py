@@ -189,6 +189,11 @@ def topbar_drawer(self, context):
         return
     row = self.layout.row(align=True)
     row.popover(panel=POPOVER_ID, text="CoatLink", icon="COLLAPSEMENU")
+    # what Send should cover, right before it: the selection (default) or every
+    # visible object.  A toggle, so the current scope is visible at a glance.
+    preferences = bridge.prefs(context)
+    if preferences is not None:
+        row.prop(preferences, "whole_scene", text="Whole scene", toggle=True, emboss=False)
     row.operator("coatbridge.send", text="Send", icon="EXPORT")
     row.operator("coatbridge.pull", text="Pull", icon="IMPORT")
 

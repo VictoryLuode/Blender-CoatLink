@@ -6,7 +6,7 @@
 bl_info = {
     "name": "CoatLink",
     "author": "VictoryLuode",
-    "version": (1, 10, 19),
+    "version": (1, 10, 20),
     "blender": (4, 2, 0),
     "location": "Top Bar > CoatLink",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
@@ -48,6 +48,11 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
         description="How 3D-Coat should open the model",
         items=MODE_ITEMS,
         default="vox",
+    )
+    whole_scene: BoolProperty(
+        name="Whole scene",
+        description="Send every visible object in the scene, not just the selection",
+        default=False,
     )
     show_advanced: BoolProperty(name="Advanced", default=False)
     auto_pull: BoolProperty(

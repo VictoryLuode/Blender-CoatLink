@@ -228,7 +228,7 @@ def send(context):
     if not os.path.isdir(primary):
         raise RuntimeError("exchange folder not found: %s (press Detect in the panel)" % primary)
 
-    objects = _send_objects(context)
+    objects, scope = _send_objects(context, getattr(p, "whole_scene", False))
     active = context.view_layer.objects.active
     if active not in objects:
         active = objects[0]
@@ -267,12 +267,14 @@ def send(context):
     if swap is not None:
         applied.append("swap Y/Z" if swap else "Y up")
     where = " [%s]" % ", ".join(applied) if applied else ""
-    _log("sent %s: %s diagonal %.4f m%s" % (active.name, os.path.basename(out_path),
-                                            STATE["target"]["diagonal"] or 0.0, where))
+    _log("sent %s: %s (%s, %d object(s)) diagonal %.4f m%s"
+         % (active.name, os.path.basename(out_path), scope, len(objects),
+            STATE["target"]["diagonal"] or 0.0, where))
 
     note = "" if applink.is_coat_running() is not False else " - start 3D-Coat to pick it up"
     merged = "" if len(objects) == 1 else " (%d merged)" % len(objects)
-    _set_message("Sent %s%s -> %s%s%s" % (active.name, merged, os.path.basename(out_path), note, where))
+    _set_message("Sent %s%s (%s) -> %s%s%s"
+                 % (active.name, merged, scope, os.path.basename(out_path), note, where))
     if dropped:
         STATE["log"].append("dropped unsupported options: %s" % ", ".join(dropped))
     return out_path
@@ -425,15 +427,30 @@ def _pull_once(context, force):
     return messages
 
 
-def _send_objects(context):
+def visible_meshes(context):
+    return [obj for obj in context.scene.objects
+            if obj.type == "MESH" and obj.visible_get()]
+
+
+def _send_objects(context, whole_scene=False):
+    """What a Send exports.
+
+    `whole_scene` (the toggle left of Send) means every visible mesh; otherwise the
+    selection, falling back to every visible mesh when nothing is selected - the
+    behaviour this add-on always had.
+    """
+    if whole_scene:
+        visible = visible_meshes(context)
+        if not visible:
+            raise RuntimeError("no visible mesh object in the scene")
+        return visible, "whole scene"
     selected = [obj for obj in context.selected_objects if obj.type == "MESH"]
     if selected:
-        return selected
-    visible = [obj for obj in context.scene.objects
-               if obj.type == "MESH" and obj.visible_get()]
+        return selected, "selection"
+    visible = visible_meshes(context)
     if not visible:
         raise RuntimeError("no mesh object in the scene")
-    return visible
+    return visible, "whole scene (nothing selected)"
 
 
 def _object(name):

@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.16.24
+
+* **A `Whole scene` toggle, left of `Send` on the Blender top bar.**  Off (the
+  default) a send exports the selection, as before; on, it exports every visible
+  object in the scene.  Hidden objects stay out, the status line names the scope it
+  used (`(selection)` / `(whole scene)`), and the log line records it with the object
+  count.  The 3D-Coat panel already had the matching control (`Send scope`,
+  `selected node` / `whole scene`) directly above its `Send to Blender` button.
+* Blender 1.10.20.
+
+Tests: Blender 129/129 (eight new checks: the toggle is drawn left of Send, it is off
+by default, a send with it off exports only the selection, with it on exports both
+visible objects, a hidden object stays out, switching back restores the selection,
+and the status says which scope was used) plus every regression script and both
+installer smoke tests.  3D-Coat side unchanged and green (106/106, 29/29, 32/32,
+API stubs, idle redraw, probe, install smoke).
+
 ## v1.16.23
 
 * **An imported model no longer arrives under a `bridge` parent in 3D-Coat.**

@@ -94,6 +94,9 @@ def main():
             def operator(self, idname, **kwargs):
                 entries.append(("operator", idname, kwargs.get("text"), kwargs.get("icon")))
 
+            def prop(self, owner, name, **kwargs):
+                entries.append(("prop", name, kwargs.get("text"), kwargs.get("toggle")))
+
         class _Layout(object):
             def row(self, align=False):
                 return _Row()
@@ -102,17 +105,20 @@ def main():
             layout = _Layout()
 
         def _context(alignment):
-            return type("Ctx", (), {"region": type("Region", (), {"alignment": alignment})()})()
+            return type("Ctx", (), {"region": type("Region", (), {"alignment": alignment})(),
+                                    "preferences": bpy.context.preferences})()
 
         coat_ui.topbar_drawer(_Self(), _context("RIGHT"))
         check("the top bar draws the settings menu", entries[:1] ==
               [("popover", coat_ui.POPOVER_ID, "CoatLink", "COLLAPSEMENU")], entries)
-        check("Send sits to the right of it",
-              entries[1] == ("operator", "coatbridge.send", "Send", "EXPORT"), entries)
+        check("the send scope sits to the left of Send",
+              entries[1] == ("prop", "whole_scene", "Whole scene", True), entries)
+        check("Send sits to its right",
+              entries[2] == ("operator", "coatbridge.send", "Send", "EXPORT"), entries)
         check("and Pull next to Send",
-              entries[2] == ("operator", "coatbridge.pull", "Pull", "IMPORT"), entries)
+              entries[3] == ("operator", "coatbridge.pull", "Pull", "IMPORT"), entries)
         check("the bar adds nothing on the left side", (coat_ui.topbar_drawer(_Self(), _context("LEFT")),
-                                                        len(entries))[1] == 3, entries)
+                                                        len(entries))[1] == 4, entries)
     check("no sidebar panel left", not hasattr(bpy.types, "COATBRIDGE_PT_main"))
     check("operators registered",
           hasattr(bpy.types, "COATBRIDGE_OT_send") and hasattr(bpy.types, "COATBRIDGE_OT_pull"))
@@ -205,6 +211,44 @@ def main():
               os.listdir(folder) if os.path.isdir(folder) else "missing")
         check("no extension.txt in %s" % os.path.basename(root),
               not os.path.isfile(os.path.join(folder, "extension.txt")))
+    # ---- what a Send covers: the selection (default) or the whole scene ----
+    check("the whole-scene toggle starts off", prefs.whole_scene is False)
+
+    def exported_names():
+        text = read(applink.model_path(EXCHANGE, "obj"))
+        return sorted({line[2:].strip() for line in text.splitlines()
+                       if line.startswith(("o ", "g "))})
+
+    bpy.ops.mesh.primitive_cube_add(size=1)
+    other = bpy.context.active_object
+    other.name = "BridgeOther"
+    cube.select_set(True)
+    other.select_set(False)
+    bpy.context.view_layer.objects.active = cube
+
+    bridge.send(bpy.context)
+    check("Send exports the selection", exported_names() == ["BridgeCube"], exported_names())
+    check("and says which scope it used", "(selection)" in bridge.status(bpy.context),
+          bridge.status(bpy.context))
+
+    prefs.whole_scene = True
+    bridge.send(bpy.context)
+    check("the toggle sends every visible object",
+          set(exported_names()) == {"BridgeCube", "BridgeOther"}, exported_names())
+    check("and the status says so", "whole scene" in bridge.status(bpy.context),
+          bridge.status(bpy.context))
+
+    other.hide_set(True)
+    bridge.send(bpy.context)
+    check("a hidden object stays out of the whole-scene send",
+          exported_names() == ["BridgeCube"], exported_names())
+    other.hide_set(False)
+    prefs.whole_scene = False
+    bridge.send(bpy.context)
+    check("switching it back sends the selection again",
+          exported_names() == ["BridgeCube"], exported_names())
+    bpy.data.objects.remove(other, do_unlink=True)
+
     check("send remembers the target object", bridge.STATE["target"]["object"] == "BridgeCube",
           bridge.STATE["target"])
     sent_diagonal = bridge.STATE["target"].get("diagonal") or 0.0
