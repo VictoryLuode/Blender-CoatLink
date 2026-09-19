@@ -12,7 +12,7 @@ their UIs are deliberately mirrors of each other:
 | The menu | the popover inside that button - the bar holds nothing else | the panel opened from the tool strip |
 | Scope | `Scope` droplist: **Selected** / **Whole scene** | the same droplist, at the top of the panel |
 | Actions | `Send`, `Pull` | `Send`, `Pull`, and `To voxels` (turns every visible object in the Sculpt Tree into a voxel volume) |
-| Options | under **Send options**: `Scope` and `Import as` (voxel by default) | the same scope droplist, first thing in the panel |
+| Options | under **Send options**: `Scope`, `Import as` (voxel by default), `Remesh on send` and `Voxel size` | the same scope droplist, first thing in the panel |
 | Settings | `Auto receive`, `Without materials` | reduction percentage, textures, size readout with `RefreshStats` |
 | Below that | under **Setup**: `Axis`, `Scale override`, `Match scale`, `Modifiers`, `Skip dialogs`, then `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read return signal`, `Unlink selected` | under **Setup**: `Detect`, `Open folder`, `Start Blender`, `Remove tool buttons` |
 | Source | `coat_bridge/` (Blender add-on, 8 files) | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
@@ -303,6 +303,16 @@ that says so:
   the same thing.
 * **Nothing is collapsed.**  The older builds hid the advanced half of both menus
   behind an `Advanced` fold-out.  That is gone on both sides; every control is drawn.
+* **`Remesh on send` runs over what is exported, never over your scene.**  A voxel
+  Remesh modifier is put on each object going out, the export is made with modifiers
+  applied, and the modifier is taken off again in a `finally` - so the mesh in the scene
+  is untouched, object names are untouched, and a modifier you added yourself survives
+  (only the one named `CoatLink Remesh` is removed).  `Voxel size` takes a distance;
+  0 means the add-on picks about 64 voxels across the object's largest dimension, which
+  keeps a metre-scale model in the hundreds of thousands of faces rather than millions.
+  Both controls are in the menu and always drawn: the field stays visible, greyed out,
+  when the checkbox is off.  It is on by default - turn it off and the export is exactly
+  the mesh you have.
 * **3D-Coat only reads the exchange folder while it is the active window.**  It logs
   `SetSystemPause: 1` when it loses focus and stops polling: a job file written while
   another application is in front simply sits there until you bring 3D-Coat forward.

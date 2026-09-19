@@ -6,7 +6,7 @@
 bl_info = {
     "name": "CoatLink",
     "author": "VictoryLuode",
-    "version": (1, 10, 24),
+    "version": (1, 10, 25),
     "blender": (4, 2, 0),
     "location": "Top Bar > CoatLink",
     "description": "Minimal two-way model bridge between Blender and 3D-Coat (AppLink protocol)",
@@ -48,6 +48,18 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
         description="How 3D-Coat should open the model",
         items=MODE_ITEMS,
         default="vox",
+    )
+    remesh: BoolProperty(
+        name="Remesh on send",
+        description="Voxel-remesh what is exported; the meshes in the scene are left alone",
+        default=True,
+    )
+    remesh_voxel: FloatProperty(
+        name="Voxel size",
+        description="Voxel size for that remesh; 0 picks one from the object's size",
+        default=0.0,
+        min=0.0,
+        subtype="DISTANCE",
     )
     scope: EnumProperty(
         name="Scope",

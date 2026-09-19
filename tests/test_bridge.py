@@ -72,6 +72,10 @@ def main():
 
     prefs = bpy.context.preferences.addons["coat_bridge"].preferences
     check("preferences reachable", prefs is not None)
+    check("a send remeshes out of the box", prefs.remesh is True, prefs.remesh)
+    check("with the voxel size left to the add-on", prefs.remesh_voxel == 0.0,
+          prefs.remesh_voxel)
+    prefs.remesh = False        # its own section turns it back on when it gets there
     check("menu panel registered", hasattr(bpy.types, "COATBRIDGE_PT_menu"))
     check("menu lives in the top bar",
           bpy.types.COATBRIDGE_PT_menu.bl_space_type == "TOPBAR"
@@ -335,6 +339,55 @@ def main():
     check("UV set created for painting", len(cube.data.uv_layers) == 1)
     check("cube starts with 8 vertices", len(cube.data.vertices) == 8, len(cube.data.vertices))
 
+    # ---- remesh on send: a pass over what is exported, never over the scene ----
+    def vertex_count(path):
+        text = open(path, encoding="utf-8", errors="replace").read()
+        return len([line for line in text.splitlines() if line.startswith("v ")])
+
+    def modifier_names(obj):
+        return [item.name for item in obj.modifiers]
+
+    check("no remesh modifier is left behind from earlier sends",
+          "CoatLink Remesh" not in modifier_names(cube), modifier_names(cube))
+    prefs.remesh = True
+    bridge.send(bpy.context)
+    remeshed_vertices = vertex_count(out_path)
+    check("a remeshed export really is remeshed, not the same box",
+          remeshed_vertices > 100, remeshed_vertices)
+    check("the mesh in the scene is not touched (a cube is still a cube)",
+          len(cube.data.vertices) == 8, len(cube.data.vertices))
+    check("and the temporary modifier is taken off again",
+          "CoatLink Remesh" not in modifier_names(cube), modifier_names(cube))
+    check("the status says it was remeshed", "remeshed" in bridge.status(bpy.context),
+          bridge.status(bpy.context))
+
+    # a modifier the user put there is theirs: it survives, and only ours is removed
+    mine = cube.modifiers.new("Mine", "SUBSURF")
+    bridge.send(bpy.context)
+    check("a modifier the user made is still there", "Mine" in modifier_names(cube),
+          modifier_names(cube))
+    check("and ours is gone", "CoatLink Remesh" not in modifier_names(cube),
+          modifier_names(cube))
+    cube.modifiers.remove(mine)
+
+    # the voxel size is honoured: coarse is coarser than fine
+    prefs.remesh_voxel = 0.5
+    bridge.send(bpy.context)
+    coarse = vertex_count(out_path)
+    prefs.remesh_voxel = 0.02
+    bridge.send(bpy.context)
+    fine = vertex_count(out_path)
+    check("a coarse voxel size exports fewer vertices than a fine one", coarse < fine,
+          (coarse, fine))
+    prefs.remesh_voxel = 0.0
+
+    prefs.remesh = False
+    bridge.send(bpy.context)
+    check("with remesh off the export is the plain mesh", vertex_count(out_path) == 8,
+          vertex_count(out_path))
+    # left off on purpose: the axis and scale sections below compare exact vertex
+    # coordinates, and a remeshed mesh has slightly different ones
+
     # ---- simulate 3D-Coat returning a denser model into the primary root ----
     bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=1.6)
     returned = bpy.context.active_object
@@ -428,6 +481,8 @@ def main():
     prefs.strip_materials = False
 
     # ---- 3D-Coat's scale and axis: detected, then matched ----
+    check("these compare coordinates exactly, so remesh stays off here",
+          prefs.remesh is False, prefs.remesh)
     def obj_points(path):
         points = set()
         for line in read(path).splitlines():

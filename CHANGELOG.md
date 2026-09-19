@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.16.32
+
+* **`Remesh on send`.**  A Send now voxel-remeshes what it exports.  It is done with a
+  temporary Remesh modifier on each object going out, an export with modifiers applied,
+  and the modifier removed in a `finally` - the scene's meshes are never modified, object
+  names are never touched, and your own modifiers survive (only the one named `CoatLink
+  Remesh` is taken off).
+* **`Voxel size` next to it.**  A distance; `0` lets the add-on pick about 64 voxels
+  across the object's largest dimension, which keeps a metre-scale model in the hundreds
+  of thousands of faces rather than millions.  Both controls sit in the menu under
+  *Send options* and are always drawn: the voxel-size field stays visible and greys out
+  when the checkbox is off.  Remesh is on by default; switch it off and the export is
+  exactly the mesh you have.
+* The status line and the shared log say `remeshed N` when it happened, so a send is
+  never ambiguous about what went out.
+* Blender 1.10.25.  3D-Coat side unchanged (1.4.2).
+
+Tests: Blender 162/162 - a remeshed export has far more vertices than the 8 of the cube
+while the cube in the scene still has 8; no `CoatLink Remesh` is left behind; a modifier
+the user added is still there afterwards; a coarse voxel size exports fewer vertices than
+a fine one; with remesh off the export is byte-for-byte the plain mesh; and the axis and
+scale sections state that they compare coordinates exactly, which is why they run with
+remesh off - plus every regression script and both installer smoke tests.
+
 ## v1.16.31
 
 * **`To voxels` now covers the whole tree, not the selection.**  It converts every

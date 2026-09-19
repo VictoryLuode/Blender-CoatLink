@@ -44,6 +44,55 @@ STATE = {
 }
 
 
+#: the name we give the temporary modifier, so removing it can never touch one of
+#: the user's own
+REMESH_MODIFIER = "CoatLink Remesh"
+
+
+def auto_voxel_size(obj):
+    """A voxel size for an object that was not given one.
+
+    About 64 voxels across its largest dimension: fine enough to keep the shape,
+    coarse enough that a metre-scale model does not become millions of faces.
+    """
+    try:
+        biggest = max(obj.dimensions)
+    except Exception:
+        biggest = 0.0
+    return biggest / 64.0 if biggest else 0.01
+
+
+def add_remesh(objects, voxel_size=0.0):
+    """Put a voxel Remesh modifier on every mesh in `objects`; returns the count.
+
+    Non-destructive on purpose: it changes what the export writes, not the mesh in
+    the scene, and `remove_remesh` takes it off again after the export.  A failure on
+    one object is logged and skipped rather than stopping the send.
+    """
+    added = 0
+    for obj in objects:
+        if getattr(obj, "type", "") != "MESH":
+            continue
+        try:
+            modifier = obj.modifiers.new(REMESH_MODIFIER, "REMESH")
+            modifier.mode = "VOXEL"
+            modifier.voxel_size = voxel_size if voxel_size > 0 else auto_voxel_size(obj)
+            added += 1
+        except Exception as error:                 # never let this stop a send
+            _log("remesh: skipped %s (%s)" % (obj.name, error))
+    return added
+
+
+def remove_remesh(objects):
+    """Take our modifier off again, and only ours."""
+    for obj in objects:
+        try:
+            for modifier in [item for item in obj.modifiers if item.name == REMESH_MODIFIER]:
+                obj.modifiers.remove(modifier)
+        except Exception:
+            pass
+
+
 def prefs(context=None):
     ctx = context or bpy.context
     addons = getattr(ctx.preferences, "addons", None)
@@ -254,7 +303,14 @@ def send(context):
     # Persistent per-object export aliases survive Blender-side renaming/reload.
     for obj in objects:
         obj["coat_bridge_source_name"] = obj.name
-    dropped = transfer.export_model(out_path, fmt, objects, p.apply_modifiers, overrides)
+    remeshed = add_remesh(objects, getattr(p, "remesh_voxel", 0.0)) if p.remesh else 0
+    try:
+        # the remesh only exists as a modifier, so the export has to apply modifiers
+        dropped = transfer.export_model(out_path, fmt, objects,
+                                        p.apply_modifiers or bool(remeshed), overrides)
+    finally:
+        if remeshed:
+            remove_remesh(objects)
     applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
 
     STATE["target"] = {"object": active.name, "file": out_path, "diagonal": _diagonal(objects[0])}
@@ -266,6 +322,8 @@ def send(context):
         applied.append("x%s (%s)" % (_trim(scale), scale_from))
     if swap is not None:
         applied.append("swap Y/Z" if swap else "Y up")
+    if remeshed:
+        applied.append("remeshed" if len(objects) == 1 else "remeshed %d" % remeshed)
     where = " [%s]" % ", ".join(applied) if applied else ""
     _log("sent %s: %s (%s, %d object(s)) diagonal %.4f m%s"
          % (active.name, os.path.basename(out_path), scope, len(objects),
