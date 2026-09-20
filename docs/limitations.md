@@ -57,10 +57,21 @@ so.  The short version is on the [README](../README.md).
   plain Python and only its installer is Windows-specific.
 * **Button icons need an elevated run** when 3D-Coat lives under `C:\Program Files`; they are
   skipped and reported otherwise, and the buttons use their default icons.
-* **Installing through 3D-Coat's own extension system** (`.3dcpack`, "Install Extension") would
-  need no console, no double-click and no unzip.  It is not shipped because the package layout
-  for scripts and menu entries is not documented anywhere verifiable - 3D-Coat's own builder
-  would have to produce a reference package first.
+* **No `.3dcpack` is shipped, and that is measured, not assumed.**  A pack is a zip whose
+  entries land relative to 3D-Coat's user folder, so it *could* carry the scripts - but nothing
+  in it can create a working menu entry, and the experiment that showed this was:
+  1. every `ExtraMenuItems` XML that exists (ours, LKS's, CoatMenu's, 3D-Coat's own template)
+     carries an **absolute** script path, and
+  2. a pack cannot know the absolute path of the machine it lands on: `%USERPROFILE%\…`,
+     `%USERPROFILE%/…`, `~/…` and a path relative to the user folder (`Scripts/…`) were all
+     tried in a live 3D-Coat and all failed with "file not found" - only the absolute path
+     worked, and
+  3. a pack cannot self-register either: a `cExtension` folder that is not listed in
+     `cExtensions/startup.txt` is **not loaded**, and a pack can only replace that file, not add
+     a line to it (which would drop the user's other extensions).
+  So a pack would still end with "and now run this script once" - one step more than
+  `CoatLink-Setup.cmd`, which is verified working.  The extension-pack door stays closed until
+  one of those three facts changes.
 * **Subtree-scoped export** (only the current node plus its children instead of the whole sculpt
   tree) exists on the `parked/subtree-scoped-panel` branch and is **not** in the released code,
   because the grouping, positions and units of its output were never verified on a live round

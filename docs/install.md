@@ -10,6 +10,14 @@ Every door runs the same installer; they differ only in what they fetch and how 
 | one console line | pastes the URL line from the [README](../README.md) | an internet connection |
 | `install.sh` / `install.ps1` | runs it in a shell (PowerShell does both halves) | bash, or Windows PowerShell |
 
+**Why there is no `.3dcpack`:** 3D-Coat's own extension packs are the neatest idea, and they were
+measured rather than guessed at.  A pack installs files relative to 3D-Coat's user folder, but
+every `ExtraMenuItems` XML needs an **absolute** script path - `%USERPROFILE%\…`, `~/…` and even
+`Scripts/…` relative to the user folder all fail in a live 3D-Coat - and a pack cannot register an
+extension either, because a `cExtension` folder that is not listed in
+`cExtensions/startup.txt` is not loaded, and a pack can only replace that file.  A pack would
+therefore end with "now run this script once": one step *more* than `CoatLink-Setup.cmd`.
+
 The rest of this page is for the case where you would rather place the files yourself, or where
 automatic detection needs help.
 
