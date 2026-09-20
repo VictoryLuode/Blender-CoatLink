@@ -3,6 +3,12 @@
 **A small, predictable two-way model bridge between Blender and 3D-Coat.** Models only: no
 baking, no texture nodes, no scene surgery.
 
+<img src="docs/images/blender-menu.png" width="300" alt="The CoatLink menu, opened from the single CoatLink button in Blender's top bar">
+<img src="docs/images/3dcoat-panel.jpg" width="620" alt="The CoatLink panel in 3D-Coat: scope, Send/Pull, To voxels, send options, setup and status">
+
+<sub>The CoatLink menu in Blender's top bar &nbsp;·&nbsp; the CoatLink panel in 3D-Coat.  Both carry
+the same sections in the same order.</sub>
+
 * one **CoatLink** button in Blender's top bar and one panel in 3D-Coat - both carry the same
   sections in the same order with the same words
 * `Send` / `Pull` in both directions.  Objects keep their names, their materials and their
