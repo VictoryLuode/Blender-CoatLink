@@ -28,8 +28,14 @@ FULL="dist/Blender-CoatLink-$VERSION.zip"
 mkdir -p dist
 rm -f dist/coat_bridge.zip "$FULL"
 
-git archive --format=zip --prefix="coat_bridge/" "$REF:coat_bridge" -o dist/coat_bridge.zip
-git archive --format=zip --prefix="Blender-CoatLink-$VERSION/" "$REF" -o "$FULL"
+# `git archive` asks the checkout configuration what line endings to write, and on a
+# machine whose git defaults to CRLF that produced archives with CRLF while the
+# repository stores LF - so the downloads differed from the sources.  Both settings are
+# pinned here, which is what makes the archives equal the committed bytes.
+ARCHIVE=(git -c core.autocrlf=false -c core.eol=lf archive --format=zip)
+
+"${ARCHIVE[@]}" --prefix="coat_bridge/" "$REF:coat_bridge" -o dist/coat_bridge.zip
+"${ARCHIVE[@]}" --prefix="Blender-CoatLink-$VERSION/" "$REF" -o "$FULL"
 
 # the 3D-Coat half as one file: paste it into 3D-Coat's Python console, or run it
 # with any Python.  Built from the committed sources, like the archives above.
