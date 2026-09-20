@@ -1,5 +1,56 @@
 # Changelog
 
+## v1.16.36
+
+Blender 1.10.29, 3D-Coat side 1.4.4.  A bug-fix and feedback round: nothing here changes
+the exchange format, the object linking, or the two menus' wording.
+
+
+* 3D-Coat `To voxels` now presses the host's own conversion rather than only calling the
+  API: every tree row has an S/V badge (`$VoxTreeBranch.VoxSurf.<object>`) whose tooltip
+  is "Press this button to transform surface to voxel representation" - the conversion the
+  user does by hand and reports as more accurate than `Volume.toVoxels()`. The badged
+  conversion is verified by reading the volume back after a few frames; if the press did
+  nothing (an object 3D-Coat does not offer it on) the code falls back to the API, so the
+  button can never silently do nothing. Status reports how many came via the tree button.
+* That conversion raises a dialog per object; the panel now accepts it itself
+  (`$DialogButton#1` handed to 3D-Coat as the press's callback, which it calls every
+  frame the dialog is up), so a whole scene converts from one click instead of one
+  confirmation per object. It accepts the dialog's defaults, so cancelling for a single
+  object mid-run is no longer possible.
+* Blender menu divisions made uniform: exactly one divider before each section heading
+  (`Send options`, `Return`, `Setup`, `Status`) and none inside a section, so the
+  stray divider between the remesh group and the Send/Pull row is gone. Status is now a
+  section like the others instead of the only boxed one - the remesh group stays the
+  single framed sub-block. Tests assert the divider count, that every divider introduces
+  a heading, that no heading is inside a box, and that only one box exists.
+* 3D-Coat native panel: fixed-height wrapped status/detail/statistics rows, a full-width
+  Status section, and Copy details (Windows clipboard, explicit click only). Copying
+  preserves the original diagnostic readout; clipboard errors are reported in-panel.
+  Rename Refresh sizes to Refresh info; keep all model queries out of idle redraws.
+* 3D-Coat panel reports the queue: `Queue: <file> waiting - press Pull` or
+  `Queue: nothing waiting from Blender`, so the next step after a Blender Send is
+  obvious. The queue file is read by explicit actions and by opening the panel only -
+  a test drives 500 redraws and asserts no queue read, no state-file access and no host
+  API call.
+* Blender feedback: a fixed four-line wrapped Status box replaces clipped technical
+  path labels. Copy details provides the complete status and diagnostic paths on demand
+  via the local clipboard, with an explicit local-path warning. No new window or upload.
+* Keep Send/Pull errors and empty manual Pull results in the status readout; disabled
+  Send/Pull tooltips explain that Object Mode is required. All settings remain expanded.
+* Fix PowerShell auto-detection selecting an old Blender installation: compare numeric
+  version directories rather than identical `addons` leaf names. Cover multiple
+  installed versions, 5.10 versus 5.9, and non-version backup folders.
+* Preserve same-named user modifiers; remove temporary remesh instances by ownership.
+* Honor the Modifiers switch explicitly, including remesh-only exports; restore user
+  modifier visibility on failure.
+* Skip hidden parent branches and unknown visibility during manual To voxels.
+* After-import evidence is dated and read from a bounded log tail; missing evidence is
+  reported as unconfirmed, never as proof the script did not run. Prior foreground-only and ignored-script
+  claims below were diagnostic hypotheses, not verified host behavior.
+* Regression coverage uses isolated Blender exports and a simulated 3D-Coat tree.
+  Automatic S-to-V import behavior has not been validated on the live host.
+
 ## v1.16.35
 
 * **The 3D-Coat readout says voxel or surface.**  `Refresh sizes` now prints

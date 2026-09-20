@@ -33,6 +33,7 @@ except ImportError:  # older install without the helper
 import subprocess
 import sys
 import time
+import textwrap
 
 import coat
 
@@ -44,7 +45,7 @@ except ImportError:  # the command module is optional at import time
 APP_FOLDER = "BlenderBridge"
 MODEL_NAME = "bridge"
 PANEL_CAPTION = "CoatLink"
-VERSION = "1.4.3"
+VERSION = "1.4.4"
 #: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
 #: there is nothing to choose - Blender reads the returned file by extension.
 #: The model 3D-Coat hands back.  OBJ both ways on purpose: the axis rule then
@@ -78,6 +79,16 @@ TEXTURES_KEY = "textures"
 
 #: the panel's native droplist: index -> stored value
 TEXTURES_CHOICES = (None, True, False)
+
+#: The S/V badge in a sculpt-tree row.  Its own tooltip reads "Press this button to
+#: transform surface to voxel representation", so pressing it is 3D-Coat doing the
+#: conversion itself - the same thing the user does by hand, and the one they report
+#: as more accurate than the Volume.toVoxels() API.  The id carries the object name.
+VOXEL_TOGGLE_ID = "$VoxTreeBranch.VoxSurf.%s"
+
+#: how many times to look at the object after pressing the badge before concluding
+#: the press did nothing (3D-Coat carries the conversion out over a few frames)
+VOXEL_TOGGLE_POLLS = 3
 STATE_FILE = "CoatBridge.json"
 RUN_MARKER = "run.txt"
 MENU_ID = "CoatBridge"
@@ -475,7 +486,8 @@ PANEL_LABELS = {
     "SendScope": "Scope",
     "ReductionPercent": "Reduction percent",
     "Textures": "Textures",
-    "RefreshStats": "Refresh sizes",
+    "RefreshStats": "Refresh info",
+    "CopyDetails": "Copy details",
     "Detect": "Detect",
     "OpenFolder": "Open folder",
     "StartBlender": "Start Blender",
@@ -635,6 +647,54 @@ def run_action(tool_id):
 # the panel
 # --------------------------------------------------------------------------
 
+def voxelize_via_tree(element, name):
+    """Press the tree row's own S/V badge.  True when the object turned voxel.
+
+    Verified by reading the volume back instead of trusting the press: for an object
+    3D-Coat does not offer the badge on, nothing happens and the caller falls back to
+    the Volume API.  Never raises - this runs from a button, in a live scene.
+
+    The badge raises a small dialog (its OK is `$DialogButton#1`), and 3D-Coat calls
+    the callback we hand to `ui.cmd` on every frame that dialog is up - so the dialog
+    is accepted here instead of waiting for a click per object.
+    """
+    if not name:
+        return False
+
+    def accept():
+        try:
+            coat.ui.cmd("$DialogButton#1")
+        except Exception:
+            pass
+
+    try:
+        coat.ui.cmd(VOXEL_TOGGLE_ID % name, accept)
+    except TypeError:                     # a build whose ui.cmd takes one argument
+        try:
+            coat.ui.cmd(VOXEL_TOGGLE_ID % name)
+        except Exception:
+            return False
+    except Exception:
+        return False
+    for _ in range(VOXEL_TOGGLE_POLLS):
+        try:
+            coat.io.step(2)          # let 3D-Coat carry the conversion out
+            if element.Volume().isVoxelized():
+                return True
+        except Exception:
+            return False
+    return False
+
+
+def panel_text_rows(text, count):
+    """Bound native label width/height without querying the host or the disk."""
+    lines = textwrap.wrap(str(text), width=44) or [""]
+    if len(lines) > count:
+        lines = lines[:count]
+        lines[-1] = lines[-1][:41] + "..."
+    return ["##" + (line or " ") for line in lines + [""] * (count - len(lines))]
+
+
 class CoatBridgePanel(object):
     """State object for the dialog: attributes become controls, the ui() list
     is the layout, methods whose names appear in that list become buttons."""
@@ -649,6 +709,8 @@ class CoatBridgePanel(object):
         self.Textures = TEXTURES_CHOICES.index(export_textures())
         self.SendScope = SEND_SCOPES.index(send_scope())
         self.SizeLabel = "Size: -"
+        #: queue state, recomputed only by explicit actions (disk I/O)
+        self.QueueLabel = ""
         self._saved_controls = (self.ReductionPercent, self.Textures, self.SendScope)
         self.refresh_detail()
 
@@ -674,7 +736,8 @@ class CoatBridgePanel(object):
         items.append("#" + self.SizeLabel)
         items.append("ReductionPercent,[0,100]")
         items.append("RefreshStats")
-        items.append("##" + getattr(self, "StatsLabel", "Statistics paused; click RefreshStats"))
+        items.extend(panel_text_rows(
+            getattr(self, "StatsLabel", "Statistics paused; click Refresh info"), 2))
         items.append("##Reduction % = removed; estimate only, export not verified")
         items.append("Textures,[#from 3D-Coat|#textures on|#textures off]")
         items.append("---")
@@ -685,12 +748,34 @@ class CoatBridgePanel(object):
         items.append("[1 1]")
         items.append("StartBlender")
         items.append("RemoveLauncher")
+        items.append("[1]")
         items.append("---")
-        items.append("#" + self.status)
-        if self.detail:
-            items.append("##" + self.detail)
+        items.append("#Status")
+        items.extend(panel_text_rows(self.status, 4))
+        items.extend(panel_text_rows(self.detail, 2))
+        items.append("CopyDetails")
+        items.append("##copies full details, including local paths")
+        items.extend(panel_text_rows(self.QueueLabel, 1))
         items.append("##" + REOPEN_HINT)
         return items
+
+    def CopyDetails(self):
+        """Explicit local clipboard action; never called by redraw."""
+        report = "\n".join((PANEL_CAPTION, self.status, self.detail, self.SizeLabel,
+                            getattr(self, "StatsLabel", "Statistics not refreshed")))
+        try:
+            if sys.platform != "win32":
+                raise RuntimeError("clipboard copying is currently available on Windows only")
+            subprocess.run(["clip.exe"], input=report.encode("utf-16"),
+                           check=True, timeout=5, creationflags=subprocess.CREATE_NO_WINDOW)
+        except Exception as exc:
+            self._report("Could not copy details: %s" % exc, "Use the CoatBridge log instead")
+            return
+        # Preserve the diagnostic readout being copied, rather than replacing it.
+        try:
+            coat.ui.showInfoMessage("Details copied (includes local paths)", 2500)
+        except Exception:
+            pass
 
     def process(self):
         """No host queries or disk reads per frame. Persist actual edits only."""
@@ -713,11 +798,9 @@ class CoatBridgePanel(object):
         """Every object the Sculpt Tree is showing right now.
 
         Leaves only: a node with children is packaging (the group 3D-Coat wraps an
-        import in), and converting it would leave a stray extra volume behind.  When
-        the visibility question cannot be answered - a build without
-        `SceneElement.visible` answers nothing - the object counts as visible:
-        converting one object too many is easier to undo than silently skipping the
-        one you wanted.  Returns (targets, hidden count), never raises, bounded.
+        import in), and converting it would leave a stray extra volume behind.
+        Hidden or unreadable branches are skipped before visiting children.
+        Returns (targets, skipped branch count), never raises, bounded.
         """
         try:
             root = coat.Scene.sculptRoot()
@@ -730,9 +813,17 @@ class CoatBridgePanel(object):
             if element is None or depth > 8:
                 return
             try:
+                visible = element.visible()
+            except Exception:
+                visible = False
+            if not visible:
+                hidden[0] += 1
+                return
+            try:
                 count = element.childCount()
             except Exception:
-                count = 0
+                hidden[0] += 1
+                return
             if count:
                 for index in range(count):
                     try:
@@ -740,12 +831,6 @@ class CoatBridgePanel(object):
                     except Exception:
                         continue
                 return
-            try:
-                if not element.visible():
-                    hidden[0] += 1
-                    return
-            except Exception:
-                pass                      # no answer: treat it as visible
             targets.append(element)
 
         # the sculpt root is the container, never an object: walking from it would
@@ -776,11 +861,17 @@ class CoatBridgePanel(object):
             self.status = "Nothing in the Sculpt Tree to convert"
             return
         converted = already = failed = 0
+        via_tree = 0
         for element in targets:
             try:
                 volume = element.Volume()
                 if volume.isVoxelized():
                     already += 1
+                    continue
+                # 3D-Coat's own badge first: it is the conversion the user trusts
+                if voxelize_via_tree(element, _element_name(element)):
+                    converted += 1
+                    via_tree += 1
                     continue
                 volume.toVoxels()
                 converted += 1
@@ -789,10 +880,12 @@ class CoatBridgePanel(object):
         parts = []
         if converted:
             parts.append("%d to voxels" % converted)
+        if via_tree:
+            parts.append("%d via 3D-Coat's tree button" % via_tree)
         if already:
             parts.append("%d already voxel" % already)
         if hidden:
-            parts.append("%d hidden, left alone" % hidden)
+            parts.append("%d hidden/unreadable branches, left alone" % hidden)
         if failed:
             parts.append("%d could not be converted" % failed)
         self.status = "To voxels: " + (", ".join(parts) if parts else "nothing to do")
@@ -834,11 +927,14 @@ class CoatBridgePanel(object):
         root = primary_root()
         if not root:
             self.detail = "exchange folder not found - press Detect"
+            self.QueueLabel = ""
             return
         queued = read_import_model(root)
         parts = ["Folder: " + os.path.basename(root)]
         parts.append("waiting: " + os.path.basename(queued) if queued else "waiting: nothing")
         self.detail = " | ".join(parts)
+        self.QueueLabel = ("Queue: %s waiting - press Pull" % os.path.basename(queued)
+                           if queued else "Queue: nothing waiting from Blender")
     # ---- actions ----------------------------------------------------------
 
     def SendToBlender(self):
@@ -1053,6 +1149,14 @@ class CoatBridgePanel(object):
         log(status + (" | " + detail if detail else ""))
         self.status = status
         self.detail = detail
+        try:
+            # the queue readout is disk I/O, so only an explicit action refreshes it
+            root = primary_root()
+            queued = read_import_model(root) if root else ""
+            self.QueueLabel = ("Queue: %s waiting - press Pull" % os.path.basename(queued)
+                               if queued else "Queue: nothing waiting from Blender")
+        except Exception:
+            pass
         try:
             coat.ui.showInfoMessage(status, 2500)
         except Exception:

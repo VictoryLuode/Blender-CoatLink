@@ -92,6 +92,26 @@ MSYS2_ARG_CONV_EXCL='*' "$PS" -NoProfile -ExecutionPolicy Bypass \
 [ -f "$B/blender/5.2/scripts/addons/coat_bridge/__init__.py" ] \
     && check "a second run is harmless" yes || check "a second run is harmless" no
 
+# Automatic detection must sort version directories, not identical 'addons' leaves.
+AUTO="$TMP/autodetect"
+for version in 3.6 4.0 4.1 4.2 4.3 4.4 4.5 5.0 5.1 5.2 5.9 5.10 backup; do
+    mkdir -p "$AUTO/$version/scripts/addons"
+done
+BLENDER_CONFIG_DIR="$(cygpath -w "$AUTO")" BLENDER_ADDON_DIR='' \
+MSYS2_ARG_CONV_EXCL='*' "$PS" -NoProfile -ExecutionPolicy Bypass \
+    -File "$(cygpath -w "$REPO/install.ps1")" -BlenderOnly > "$TMP/auto.log" 2>&1
+auto_status=$?
+if [ "$auto_status" -eq 0 ] && [ -f "$AUTO/5.10/scripts/addons/coat_bridge/__init__.py" ]; then
+    check "automatic detection selects the highest numeric Blender version" yes
+else
+    check "automatic detection selects the highest numeric Blender version" no
+fi
+for version in 3.6 4.0 4.1 4.2 4.3 4.4 4.5 5.0 5.1 5.2 5.9 backup; do
+    [ ! -d "$AUTO/$version/scripts/addons/coat_bridge" ] \
+        && check "automatic detection leaves $version alone" yes \
+        || check "automatic detection leaves $version alone" no
+done
+
 if [ "$failed" -eq 0 ]; then
     echo
     echo "POWERSHELL INSTALLER TEST PASSED"

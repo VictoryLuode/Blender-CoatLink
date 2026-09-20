@@ -124,6 +124,7 @@ def main():
 
     # ---- the menu itself: scope, the two actions, then the settings ----
     drawn = []
+    boxed_labels = []
 
     class _MenuLayout(object):
         def column(self, align=False):
@@ -136,12 +137,15 @@ def main():
         """What an operator call returns: the menu sets properties on it."""
 
     class _MenuColumn(object):
+        def __init__(self, in_box=False):
+            self.in_box = in_box
+
         def column(self, align=False):
-            return _MenuColumn()
+            return _MenuColumn(self.in_box)
 
         def box(self):
             drawn.append(("box", None))
-            return _MenuColumn()
+            return _MenuColumn(True)
 
         def prop(self, owner, name, **kwargs):
             drawn.append(("prop", name, kwargs.get("text")))
@@ -152,9 +156,11 @@ def main():
 
         def label(self, **kwargs):
             drawn.append(("label", kwargs.get("text")))
+            if self.in_box:
+                boxed_labels.append(kwargs.get("text"))
 
         def row(self, align=False):
-            return _MenuColumn()
+            return _MenuColumn(self.in_box)
 
         def separator(self):
             drawn.append(("separator", None))
@@ -188,6 +194,26 @@ def main():
           < drawn.index(("label", "Return"))
           < drawn.index(("label", "Setup"))
           < drawn.index(("prop", "axis_mode", "Axis")), drawn[:8])
+    # Sections must read alike: one divider before each heading, and none elsewhere.
+    divider_positions = [index for index, item in enumerate(drawn) if item[0] == "separator"]
+    heading_positions = [index for index, item in enumerate(drawn) if item[0] == "label"]
+    check("there is one divider per section boundary",
+          len(divider_positions) == 3, divider_positions)
+    check("every divider introduces a section heading",
+          all(drawn[index + 1][0] == "label" for index in divider_positions),
+          [(drawn[i], drawn[i + 1]) for i in divider_positions])
+    check("no divider sits in the middle of a section",
+          all(drawn[index + 1] == ("label", None) or drawn[index + 1][0] == "label"
+              for index in divider_positions), divider_positions)
+    check("the four sections are all present in order",
+          [drawn[index + 1][1] for index in divider_positions] == ["Return", "Setup", "Status"],
+          [drawn[index + 1] for index in divider_positions])
+    check("only the remesh sub-group is framed, so no section is boxed",
+          [item for item in drawn if item[0] == "box"] == [("box", None)]
+          and boxed_labels == [], boxed_labels)
+    check("Status is a section like the others, with the readout under it",
+          drawn.index(("label", "Status")) < drawn.index(("operator", "coatbridge.copy_details", "Copy details")),
+          drawn[-6:])
     props = [item[1] for item in drawn if item[0] == "prop"]
     check("the remesh settings are framed as one group", ("box", None) in drawn,
           [item for item in drawn if item[0] == "box"])
@@ -200,6 +226,51 @@ def main():
     check("no sidebar panel left", not hasattr(bpy.types, "COATBRIDGE_PT_main"))
     check("operators registered",
           hasattr(bpy.types, "COATBRIDGE_OT_send") and hasattr(bpy.types, "COATBRIDGE_OT_pull"))
+    check("a copy-details action is available without opening another window",
+          hasattr(bpy.types, "COATBRIDGE_OT_copy_details"))
+    formatter = getattr(coat_ui, "status_lines", None)
+    check("status text has a bounded four-line readout",
+          formatter is not None and len(formatter("Ready")) == 4)
+    if formatter:
+        lines = formatter("Long object name " * 80)
+        check("long status lines fit the readout and mark truncation",
+              len(lines) == 4 and all(len(line) <= 44 for line in lines)
+              and lines[-1].endswith("..."), lines)
+    class _FailedAction(object):
+        def report(self, *args):
+            pass
+    saved_send = bridge.send
+    saved_message = bridge.STATE["message"]
+    def fail_send(context):
+        raise RuntimeError("Missing exchange folder; press Detect")
+    bridge.send = fail_send
+    try:
+        result = coat_ui.COATBRIDGE_OT_send.execute(_FailedAction(), bpy.context)
+        check("send errors remain visible after the toast disappears",
+              result == {"CANCELLED"} and "Missing exchange folder" in bridge.STATE["message"],
+              bridge.STATE["message"])
+    finally:
+        bridge.send = saved_send
+        bridge.STATE["message"] = saved_message
+    class _PollProbe(object):
+        messages = []
+        @classmethod
+        def poll_message_set(cls, message):
+            cls.messages.append(message)
+    edit_context = type("Ctx", (), {"mode": "EDIT_MESH"})()
+    for operator_class in (coat_ui.COATBRIDGE_OT_send, coat_ui.COATBRIDGE_OT_pull):
+        enabled = operator_class.poll.__func__(_PollProbe, edit_context)
+        check("disabled %s explains how to enable it" % operator_class.bl_idname,
+              not enabled and "Object Mode" in _PollProbe.messages[-1])
+    class _ClipboardContext(object):
+        preferences = bpy.context.preferences
+        window_manager = type("WindowManager", (), {"clipboard": ""})()
+    copy_context = _ClipboardContext()
+    result = coat_ui.COATBRIDGE_OT_copy_details.execute(_FailedAction(), copy_context)
+    check("copy details preserves full diagnostic paths without changing the real clipboard",
+          result == {"FINISHED"}
+          and "Job file:" in copy_context.window_manager.clipboard
+          and "CoatLink" in copy_context.window_manager.clipboard)
     check("per-object link property registered", hasattr(bpy.types.Object, "coat_bridge_file"))
     check("timer registered", bpy.app.timers.is_registered(watcher.poll))
     check("defaults to a voxel sculpt object", prefs.mode == "vox")
@@ -353,7 +424,7 @@ def main():
     # ---- is the after-import step being run at all?  the log answers it ----
     real_log = bridge.applink.shared_log_path
     fake_log = os.path.join(os.path.dirname(out_path), "fake-shared.log")
-    stamp = time.strftime("%H:%M:%S")
+    stamp = time.strftime("%Y-%m-%d %H:%M:%S")
     with open(fake_log, "w", encoding="utf-8", newline="\n") as handle:
         handle.write("%s | 3dcoat | after-import ran: 2 moved, 1 to voxels, 0 already "
                      "voxel, 0 failed\n" % stamp)
@@ -371,7 +442,7 @@ def main():
     bridge.STATE["last_send"] = 0.0
     check("nothing sent yet means nothing to say", bridge.after_import_seen() is None,
           bridge.after_import_seen())
-    bridge.STATE["last_send"] = time.time()
+    bridge.STATE["last_send"] = time.time() - 1
 
     with open(fake_log, "w", encoding="utf-8", newline="\n") as handle:
         handle.write("%s | 3dcoat | after-import ran: 0 moved, 0 to voxels, 0 already "
@@ -379,8 +450,32 @@ def main():
     details = bridge.detail_lines(bpy.context)
     check("the menu's detail lines say the helper ran",
           any("ran it" in line for line in details), details)
+    with open(fake_log, "w", encoding="utf-8") as handle:
+        handle.write("%s | 3dcoat | after-import ran: old record\n" %
+                     time.strftime("%H:%M:%S"))
+    check("undated logs cannot prove which day the helper ran",
+          bridge.after_import_seen() is not True)
+    details = bridge.detail_lines(bpy.context)
+    check("missing confirmation does not claim the helper never ran",
+          any("not confirmed" in line for line in details), details)
+    with open(fake_log, "w", encoding="utf-8") as handle:
+        handle.write("2000-01-01 23:59:59 | 3dcoat | after-import ran: old record\n")
+    check("a prior day's record is not a confirmation",
+          bridge.after_import_seen() is False)
     bridge.applink.shared_log_path = real_log
     os.remove(fake_log)
+
+    # A user modifier with our preferred name is still owned by the user.
+    owned = cube.modifiers.new(bridge.REMESH_MODIFIER, "BEVEL")
+    owned_pointer = owned.as_pointer()
+    bridge.add_remesh([cube], 0.1)
+    bridge.remove_remesh([cube])
+    check("remesh cleanup preserves a same-named user modifier",
+          any(m.as_pointer() == owned_pointer for m in cube.modifiers))
+    check("remesh cleanup removes the actual temporary modifier",
+          not any(m.type == "REMESH" for m in cube.modifiers))
+    for m in list(cube.modifiers):
+        cube.modifiers.remove(m)
 
     # ---- remesh on send: a pass over what is exported, never over the scene ----
     def vertex_count(path):
@@ -389,6 +484,16 @@ def main():
 
     def modifier_names(obj):
         return [item.name for item in obj.modifiers]
+
+    user_subsurf = cube.modifiers.new("User subdivision", "SUBSURF")
+    user_subsurf.levels = 1
+    transfer.export_model(out_path, "obj", [cube], apply_modifiers=False)
+    check("disabled modifiers export the original eight vertices",
+          vertex_count(out_path) == 8, vertex_count(out_path))
+    transfer.export_model(out_path, "obj", [cube], apply_modifiers=True)
+    check("enabled modifiers export the evaluated geometry",
+          vertex_count(out_path) > 8, vertex_count(out_path))
+    cube.modifiers.remove(user_subsurf)
 
     check("no remesh modifier is left behind from earlier sends",
           "CoatLink Remesh" not in modifier_names(cube), modifier_names(cube))
@@ -403,6 +508,40 @@ def main():
           "CoatLink Remesh" not in modifier_names(cube), modifier_names(cube))
     check("the status says it was remeshed", "remeshed" in bridge.status(bpy.context),
           bridge.status(bpy.context))
+
+    # Remesh does not override the user's disabled Modifiers option.
+    saved_apply = prefs.apply_modifiers
+    prefs.apply_modifiers = False
+    prefs.remesh_voxel = 0.1
+    bridge.send(bpy.context)
+    remesh_only = vertex_count(out_path)
+    user_subsurf = cube.modifiers.new("Disabled for export", "SUBSURF")
+    user_subsurf.levels = 2
+    bridge.send(bpy.context)
+    check("remesh respects the disabled user-modifier setting",
+          vertex_count(out_path) == remesh_only,
+          (vertex_count(out_path), remesh_only))
+    check("user modifier visibility is restored after export",
+          user_subsurf.show_viewport and user_subsurf.show_render)
+    real_export = transfer.export_model
+    def failed_export(*args, **kwargs):
+        raise RuntimeError("injected export failure")
+    transfer.export_model = failed_export
+    try:
+        try:
+            bridge.send(bpy.context)
+        except RuntimeError as error:
+            check("export failure is propagated", "injected export failure" in str(error))
+        else:
+            check("export failure is propagated", False)
+    finally:
+        transfer.export_model = real_export
+    check("failed export restores user modifiers and removes temporary remesh",
+          user_subsurf.show_viewport and user_subsurf.show_render
+          and not any(m.type == "REMESH" for m in cube.modifiers))
+    cube.modifiers.remove(user_subsurf)
+    prefs.apply_modifiers = saved_apply
+    prefs.remesh_voxel = 0.0
 
     # a modifier the user put there is theirs: it survives, and only ours is removed
     mine = cube.modifiers.new("Mine", "SUBSURF")

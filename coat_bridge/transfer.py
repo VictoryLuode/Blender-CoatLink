@@ -179,8 +179,11 @@ def export_model(filepath, fmt, objects, apply_modifiers=True, overrides=None):
 
     kwargs = dict(spec(fmt)["export_kwargs"])
     kwargs.update({key: value for key, value in (overrides or {}).items() if value is not None})
-    if not apply_modifiers:
-        kwargs.pop("apply_modifiers", None)
+    # Omitting the flag restores the exporter default (True), not False.
+    if fmt == "fbx":
+        kwargs["use_mesh_modifiers"] = bool(apply_modifiers)
+    else:
+        kwargs["apply_modifiers"] = bool(apply_modifiers)
     select_only(objects)
     return _call(op, filepath, kwargs, "%s export" % fmt.upper())
 

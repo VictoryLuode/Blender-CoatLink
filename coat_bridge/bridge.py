@@ -17,6 +17,7 @@ import json
 import os
 import time
 import traceback
+from datetime import datetime
 
 import bpy
 from mathutils import Matrix, Vector
@@ -44,9 +45,9 @@ STATE = {
 }
 
 
-#: the name we give the temporary modifier, so removing it can never touch one of
-#: the user's own
+#: Display name only; ownership is tracked separately by instance.
 REMESH_MODIFIER = "CoatLink Remesh"
+_remesh_owned = []  # exact (object, modifier) instances, never user-owned names
 
 
 def auto_voxel_size(obj):
@@ -75,6 +76,7 @@ def add_remesh(objects, voxel_size=0.0, adaptivity=0.0):
             continue
         try:
             modifier = obj.modifiers.new(REMESH_MODIFIER, "REMESH")
+            _remesh_owned.append((obj, modifier))
             modifier.mode = "VOXEL"
             modifier.voxel_size = voxel_size if voxel_size > 0 else auto_voxel_size(obj)
             try:
@@ -83,18 +85,24 @@ def add_remesh(objects, voxel_size=0.0, adaptivity=0.0):
                 pass                  # older builds without the option still remesh
             added += 1
         except Exception as error:                 # never let this stop a send
+            remove_remesh([obj])
             _log("remesh: skipped %s (%s)" % (obj.name, error))
     return added
 
 
 def remove_remesh(objects):
     """Take our modifier off again, and only ours."""
-    for obj in objects:
+    for obj, modifier in list(_remesh_owned):
         try:
-            for modifier in [item for item in obj.modifiers if item.name == REMESH_MODIFIER]:
-                obj.modifiers.remove(modifier)
-        except Exception:
-            pass
+            if obj not in objects:
+                continue
+            obj.modifiers.remove(modifier)
+        except ReferenceError:
+            pass  # object/modifier was already removed by the host
+        else:
+            _remesh_owned.remove((obj, modifier))
+            continue
+        _remesh_owned.remove((obj, modifier))
 
 
 def prefs(context=None):
@@ -177,30 +185,35 @@ AFTER_IMPORT_MARK = "after-import ran"
 def after_import_seen():
     """Did 3D-Coat run the after-import step since our last send?
 
-    True / False / None when there is nothing to compare against.  The helper writes a
-    line on *every* run - including one with nothing to do - so the absence of that line
-    is the only honest way to say 3D-Coat did not run it, which is worth knowing: on the
-    build this was written against the `[pythonfile ...]` line is ignored, and the panel
-    buttons are then the way to unparent or voxelize.
+    True means dated execution evidence after the last send; False means unconfirmed,
+    not proof of non-execution. None means no send or an unreadable log.
+    This is diagnostic evidence, not a per-job success receipt.
     """
     sent = STATE.get("last_send") or 0.0
     if not sent:
         return None
     try:
-        with open(applink.shared_log_path(), encoding="utf-8", errors="replace") as handle:
-            tail = handle.readlines()[-400:]
+        with open(applink.shared_log_path(), "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            start = max(0, handle.tell() - 65536)
+            handle.seek(start)
+            if start:
+                handle.readline()  # discard a partial first line
+            tail = handle.read(65536).decode("utf-8", errors="replace").splitlines()
     except OSError:
         return None
-    today = time.strftime("%Y-%m-%d ")
     for line in reversed(tail):
-        if AFTER_IMPORT_MARK not in line:
+        fields = line.split("|", 2)
+        if (len(fields) != 3 or fields[1].strip() != "3dcoat"
+                or not fields[2].strip().startswith(AFTER_IMPORT_MARK + ":")):
             continue
-        stamp = line.split("|", 1)[0].strip()
+        stamp = fields[0].strip()
         try:
-            when = time.mktime(time.strptime(today + stamp, "%Y-%m-%d %H:%M:%S"))
+            when = datetime.fromisoformat(stamp).timestamp()
         except ValueError:
             continue
-        return when >= sent - 2.0
+        if sent <= when <= time.time():
+            return True
     return False
 
 
@@ -218,8 +231,8 @@ def detail_lines(context=None):
     seen = after_import_seen()
     if seen is True:
         lines.append("After-import step: 3D-Coat ran it")
-    elif seen is False:
-        lines.append("After-import step: not run by 3D-Coat - use To voxels in its panel")
+    elif STATE.get("last_send"):
+        lines.append("After-import step: not confirmed (no readable dated record)")
     lines.append("Last send %s / last pull %s" % (_stamp(STATE["last_send"]), _stamp(STATE["last_pull"])))
     linked = [obj for obj in bpy.data.objects if obj.get("coat_bridge_file")]
     lines.append("Linked objects: %s" % (", ".join(obj.name for obj in linked[:6]) or "none"))
@@ -346,16 +359,29 @@ def send(context):
     # Persistent per-object export aliases survive Blender-side renaming/reload.
     for obj in objects:
         obj["coat_bridge_source_name"] = obj.name
-    remeshed = (add_remesh(objects, getattr(p, "remesh_voxel", 0.0),
-                           getattr(p, "remesh_adaptivity", 0.0))
-                if p.remesh else 0)
+    suspended = []
+    remeshed = 0
     try:
+        if p.remesh and not p.apply_modifiers:
+            for obj in objects:
+                for modifier in obj.modifiers:
+                    suspended.append((modifier, modifier.show_viewport, modifier.show_render))
+                    modifier.show_viewport = False
+                    modifier.show_render = False
+            bpy.context.view_layer.update()
+        remeshed = (add_remesh(objects, getattr(p, "remesh_voxel", 0.0),
+                               getattr(p, "remesh_adaptivity", 0.0))
+                    if p.remesh else 0)
         # the remesh only exists as a modifier, so the export has to apply modifiers
         dropped = transfer.export_model(out_path, fmt, objects,
                                         p.apply_modifiers or bool(remeshed), overrides)
     finally:
-        if remeshed:
+        try:
             remove_remesh(objects)
+        finally:
+            for modifier, viewport, render in suspended:
+                modifier.show_viewport = viewport
+                modifier.show_render = render
     applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
 
     STATE["target"] = {"object": active.name, "file": out_path, "diagonal": _diagonal(objects[0])}
@@ -377,7 +403,7 @@ def send(context):
     if applink.is_coat_running() is False:
         note = " - start 3D-Coat to pick it up"
     else:
-        # 3D-Coat only reads the exchange folder while it is the active window
+        # A focus change may help on builds that pause in the background.
         note = " - bring 3D-Coat to the front to pick it up"
     merged = "" if len(objects) == 1 else " (%d merged)" % len(objects)
     _set_message("Sent %s%s (%s) -> %s%s%s"

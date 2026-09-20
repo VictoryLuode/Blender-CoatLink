@@ -11,12 +11,22 @@ into TOPBAR_HT_upper_bar and drawn only in the right-hand group.
 
 import os
 import subprocess
+import textwrap
 
 import bpy
 
 from . import applink, bridge
 
 POPOVER_ID = "COATBRIDGE_PT_menu"
+
+
+def status_lines(message):
+    """Fixed-height readout; Copy details preserves the complete text."""
+    lines = textwrap.wrap(str(message), width=44) or [""]
+    if len(lines) > 4:
+        lines = lines[:4]
+        lines[-1] = lines[-1][:41] + "..."
+    return lines + [""] * (4 - len(lines))
 
 
 class COATBRIDGE_OT_send(bpy.types.Operator):
@@ -27,12 +37,16 @@ class COATBRIDGE_OT_send(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.mode == "OBJECT"
+        if context.mode != "OBJECT":
+            cls.poll_message_set("Switch to Object Mode to send models")
+            return False
+        return True
 
     def execute(self, context):
         try:
             path = bridge.send(context)
         except Exception as exc:
+            bridge._set_message("Send failed: %s" % exc)
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
         self.report({"INFO"}, "Queued for 3D-Coat: %s" % os.path.basename(path))
@@ -47,7 +61,10 @@ class COATBRIDGE_OT_pull(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.mode == "OBJECT"
+        if context.mode != "OBJECT":
+            cls.poll_message_set("Switch to Object Mode to receive models")
+            return False
+        return True
 
     force: bpy.props.BoolProperty(default=False)
 
@@ -55,9 +72,11 @@ class COATBRIDGE_OT_pull(bpy.types.Operator):
         try:
             messages = bridge.pull(context, force=self.force)
         except Exception as exc:
+            bridge._set_message("Pull failed: %s" % exc)
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
         if not messages:
+            bridge._set_message("No new model. Send from 3D-Coat first.")
             self.report({"INFO"}, "No new model. Send from 3D-Coat first.")
         for message in messages:
             self.report({"INFO"}, message)
@@ -131,6 +150,18 @@ class COATBRIDGE_OT_unlink(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class COATBRIDGE_OT_copy_details(bpy.types.Operator):
+    bl_idname = "coatbridge.copy_details"
+    bl_label = "Copy details"
+    bl_description = "Copy the full status, exchange paths and recent diagnostics to the clipboard (may contain local paths)"
+
+    def execute(self, context):
+        context.window_manager.clipboard = "\n".join(
+            ["CoatLink", bridge.status(context)] + bridge.detail_lines(context))
+        self.report({"INFO"}, "Details copied (includes local paths)")
+        return {"FINISHED"}
+
+
 class COATBRIDGE_PT_menu(bpy.types.Panel):
     """The whole bridge UI, opened from the top-bar button."""
 
@@ -161,7 +192,6 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
         settings.enabled = p.remesh     # always drawn, greyed when it does nothing
         settings.prop(p, "remesh_voxel", text="Voxel size (0 = auto)")
         settings.prop(p, "remesh_adaptivity", text="Adaptivity")
-        column.separator()
         # the two actions, given the room the point of the add-on deserves
         row = column.row(align=True)
         row.scale_y = 1.4
@@ -188,10 +218,13 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
         row.operator("coatbridge.launch", text="Start 3D-Coat", icon="PLAY")
         row.operator("coatbridge.pull", text="Force re-read", icon="FILE_REFRESH").force = True
         column.operator("coatbridge.unlink", text="Unlink selected", icon="UNLINKED")
-        for line in bridge.detail_lines(context)[1:4]:
-            column.label(text=line)
+        # A section like the ones above it: the divider introduces the heading, and
+        # only the remesh sub-group is framed, so no section is drawn differently.
         column.separator()
-        column.label(text=bridge.status(context), icon="INFO")
+        column.label(text="Status")
+        for line in status_lines(bridge.status(context)):
+            column.label(text=line or " ")
+        column.operator("coatbridge.copy_details", text="Copy details", icon="COPYDOWN")
 
 
 CLASSES = (
@@ -201,6 +234,7 @@ CLASSES = (
     COATBRIDGE_OT_open_folder,
     COATBRIDGE_OT_launch,
     COATBRIDGE_OT_unlink,
+    COATBRIDGE_OT_copy_details,
     COATBRIDGE_PT_menu,
 )
 

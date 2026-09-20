@@ -49,7 +49,17 @@ function Get-BlenderAddons {
     if ($env:BLENDER_ADDON_DIR) { return $env:BLENDER_ADDON_DIR }
     $root = if ($env:BLENDER_CONFIG_DIR) { $env:BLENDER_CONFIG_DIR }
             else { Join-Path $env:APPDATA 'Blender Foundation\Blender' }
-    return Find-Newest @( (Join-Path $root '*\scripts\addons') )
+    # The leaf names are all 'addons'; compare the version directory instead.
+    $versions = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Name -match '^\d+\.\d+(\.\d+)?$' -and
+            (Test-Path -LiteralPath (Join-Path $_.FullName 'scripts\addons') -PathType Container)
+        } |
+        Sort-Object -Property @{Expression = { [version]$_.Name }} -Descending)
+    if ($versions.Count -gt 0) {
+        return Join-Path $versions[0].FullName 'scripts\addons'
+    }
+    return $null
 }
 
 function Get-CoatScripts {

@@ -19,6 +19,7 @@ imports from the add-on.
 
 import os
 import time
+from datetime import datetime
 
 #: the parent 3D-Coat creates is named after the model file
 MODEL_STEM = "bridge"
@@ -40,7 +41,8 @@ def note(message):
         folder = os.path.join(os.path.expanduser("~"), "Documents", "3DCoat")
         os.makedirs(folder, exist_ok=True)
         with open(os.path.join(folder, LOG_NAME), "a", encoding="utf-8", newline="\n") as handle:
-            handle.write("%s | 3dcoat | %s\n" % (time.strftime("%H:%M:%S"), message))
+            handle.write("%s | 3dcoat | %s\n" % (
+                datetime.now().isoformat(sep=" ", timespec="microseconds"), message))
     except Exception:
         pass
 
@@ -143,9 +145,7 @@ def main():
     except Exception as exc:
         note("could not flatten the import parent: %s" % exc)
         moved = 0
-    # one line on every run, including a run with nothing to do: the Blender side reads
-    # it to tell "3D-Coat ran the after-import step" from "3D-Coat never ran it", and
-    # that difference is invisible otherwise
+    # Best-effort execution evidence; absence cannot prove the helper never ran.
     note("after-import ran: %d moved, %d to voxels, %d already voxel, %d failed"
          % (moved, converted, already, failed))
     return moved

@@ -309,18 +309,20 @@ that says so:
   `Snapshot: N faces · voxel volume` or `· surface mode` - the same thing the Sculpt Tree
   shows as one letter (V / S), in the place you are already looking.  A build whose
   `Volume` answers neither simply prints the count.
-* **Whether the after-import step ran is visible, not guessed.**  The helper that rides
-  along in the job file writes one line to the shared log on *every* run, including a run
-  with nothing to do (`after-import ran: 0 moved, 0 to voxels, ...`).  The menu's detail
-  lines compare that stamp with the time of the last send and say either
-  `After-import step: 3D-Coat ran it` or `not run by 3D-Coat - use To voxels in its
-  panel`.  Silence is no longer ambiguous, which matters because on the build this was
-  written against the `[pythonfile ...]` line appears to be ignored.
+* **After-import diagnostics report evidence, not guesses.** The helper attempts to
+  write a dated, microsecond-resolution execution record. Blender reads only the log's
+  bounded tail. An absent, unreadable, undated or old record means `not confirmed`,
+  never proof that the script did not run. A newer record confirms execution, not
+  successful voxel conversion or an exact job identity. The cause of S-mode imports
+  and whether `[pythonfile ...]` executes on the affected host remain unverified.
 * **`Remesh on send` runs over what is exported, never over your scene.**  A voxel
   Remesh modifier is put on each object going out, the export is made with modifiers
   applied, and the modifier is taken off again in a `finally` - so the mesh in the scene
   is untouched, object names are untouched, and a modifier you added yourself survives
-  (only the one named `CoatLink Remesh` is removed).  `Voxel size` takes a distance;
+  (only the actual modifier instance created by this send is removed, even if a user
+  modifier has the same name). With `Modifiers` off, user modifiers are temporarily
+  disabled during remesh/export and their flags restored even on export failure.
+  `Voxel size` takes a distance;
   0 means the add-on picks about 64 voxels across the object's largest dimension, which
   keeps a metre-scale model in the hundreds of thousands of faces rather than millions.
   `Adaptivity` (0..1) is passed to the same modifier and lets the remesh drop polygons
@@ -329,13 +331,12 @@ that says so:
   on.  All three controls are in the menu and always drawn: the two fields stay visible
   and grey out when the checkbox is off.  It is on by default - turn it off and the export is exactly
   the mesh you have.
-* **3D-Coat only reads the exchange folder while it is the active window.**  It logs
-  `SetSystemPause: 1` when it loses focus and stops polling: a job file written while
-  another application is in front simply sits there until you bring 3D-Coat forward.
-  Practical consequence: after `Send`, switch to 3D-Coat (do not leave it minimised)
-  and the model appears.  Nothing on the Blender side can change that, so the Send
-  message says which of the two it is: `start 3D-Coat` when it is not running at all,
-  `bring 3D-Coat to the front` when it is running behind something else.
+* **Try bringing 3D-Coat forward if a job is waiting.** Background pause messages were
+  observed during troubleshooting, but foreground-only polling is not established for
+  every build. The Send hint checks whether the process runs, not which window is active.
+* **Visible-only voxel conversion skips hidden branches.** A hidden parent excludes
+  its descendants. Unreadable visibility or child lists are skipped conservatively;
+  the status reports skipped branches rather than claiming an exact object count.
 * **A voxel import now asks to be voxelized.**  When the mode is `[vox]`, the
   after-import script that rides along in the job file is written with
   `VOXELIZE = True`, and it converts the objects of the imported group with
@@ -360,6 +361,20 @@ that says so:
   instead of throwing.  On a build whose `SceneElement` cannot answer `visible()` it
   converts rather than skips - one object too many is easier to undo than silently
   skipping the one you wanted.
+* **`To voxels` presses 3D-Coat's own button first.**  Every tree row carries an S/V
+  badge whose tooltip reads *"Press this button to transform surface to voxel
+  representation"*; its widget id (`$VoxTreeBranch.VoxSurf.<object>`) is the one
+  3D-Coat writes into its own click log when that badge is used by hand, and the
+  conversion is then 3D-Coat's rather than a generic API call.  The panel presses it
+  for each surface object, waits a few frames and reads the volume back: if the badge
+  did not convert anything (an object 3D-Coat does not offer it on), it falls back to
+  `Volume.toVoxels()`, so the button never silently does nothing.  The status says how
+  many were converted through the tree button.
+  The badge raises a dialog for each object - and 3D-Coat calls the callback given to
+  `ui.cmd` on every frame a dialog it opened is up, so the panel presses that dialog's
+  OK (`$DialogButton#1`) itself: one click converts the scene, instead of one click plus
+  a confirmation per object.  Dialog defaults are accepted, so an individual object
+  cannot be skipped mid-run.
 * **On the 3D-Coat side "whole scene" means 3D-Coat's own export,** so what it
   covers is 3D-Coat's decision (it can include hidden volumes).  The panel prints
   that under the droplist instead of pretending otherwise.  Sending only the

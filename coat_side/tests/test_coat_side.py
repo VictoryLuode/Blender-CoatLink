@@ -105,6 +105,55 @@ def main():
 
     # ---- pull ----
     panel = bridge.CoatBridgePanel()
+    check("the native panel exposes Copy details", "CopyDetails" in panel.ui())
+    check("refresh label describes sizes and voxel/surface statistics",
+          bridge.PANEL_LABELS["RefreshStats"] == "Refresh info")
+    panel.status = "A very long status " * 60
+    panel.detail = "C:/a/very/long/path/" * 60
+    long_layout = panel.ui()
+    check("the status section uses bounded native text rows",
+          "#Status" in long_layout and max(map(len, long_layout)) <= 100,
+          max(map(len, long_layout)))
+    original_run = bridge.subprocess.run
+    clipboard_calls = []
+    before_status, before_detail = panel.status, panel.detail
+    bridge.subprocess.run = lambda *args, **kwargs: clipboard_calls.append((args, kwargs))
+    try:
+        panel.CopyDetails()
+        check("copy includes untruncated diagnostic text and preserves the readout",
+              len(clipboard_calls) == 1
+              and before_detail in clipboard_calls[0][1]["input"].decode("utf-16")
+              and panel.status == before_status and panel.detail == before_detail)
+        def clipboard_failure(*args, **kwargs):
+            raise OSError("clipboard unavailable")
+        bridge.subprocess.run = clipboard_failure
+        panel.CopyDetails()
+        check("clipboard errors stay visible instead of escaping the native callback",
+              "Could not copy details" in panel.status, panel.status)
+    finally:
+        bridge.subprocess.run = original_run
+    panel.status = "Ready"
+    panel.detail = ""
+    check("short and long diagnostics occupy the same number of native rows",
+          len(panel.ui()) == len(long_layout))
+
+    # ---- Queue readout: what Blender left for us, without reading disk per frame ----
+    queue_root = bridge.primary_root()
+    panel.refresh_detail()
+    check("an empty queue is reported as such",
+          "nothing" in panel.QueueLabel, panel.QueueLabel)
+    queued_path = os.path.join(bridge.app_folder(queue_root), "queued.obj")
+    with open(queued_path, "w", encoding="utf-8") as handle:
+        handle.write("# fake model\n")
+    with open(bridge.import_txt(queue_root), "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(os.path.abspath(queued_path).replace("\\", "/") + "\n[ppp]\n")
+    panel.refresh_detail()
+    check("a queued model is named, so Pull is obviously the next step",
+          "queued.obj" in panel.QueueLabel, panel.QueueLabel)
+    check("the queue readout is drawn in the panel",
+          any(item.startswith("##") and "queued.obj" in item for item in panel.ui()), panel.ui()[-8:])
+    os.remove(queued_path)
+    os.remove(bridge.import_txt(queue_root))
     panel.PullFromBlender()
     check("pull imports the queued model", coat.scene_imports == [queued_model], coat.scene_imports)
     check("pull reports what it took", "Pulled" in panel.status, panel.status)
@@ -317,13 +366,13 @@ def main():
     check("and does not touch an object that is switched off in the tree",
           hidden.Volume().converted == 0, hidden.Volume().converted)
     check("and says exactly what it did",
-          panel.status == "To voxels: 2 to voxels, 1 already voxel, 1 hidden, left alone",
+          panel.status == "To voxels: 2 to voxels, 1 already voxel, 1 hidden/unreadable branches, left alone",
           panel.status)
 
     panel.VoxelizeVisible()
     check("running it again converts nothing new",
           surface_obj.Volume().converted == 1
-          and panel.status == "To voxels: 3 already voxel, 1 hidden, left alone",
+          and panel.status == "To voxels: 3 already voxel, 1 hidden/unreadable branches, left alone",
           panel.status)
 
     broken = node("Broken", _FakeVolume(False, broken=True), coat.root)
@@ -337,18 +386,80 @@ def main():
     check("an empty tree is a sentence, not a crash",
           panel.status == "Nothing in the Sculpt Tree to convert", panel.status)
 
-    # a build whose SceneElement has no visible() at all: everything visible is the
-    # safe reading, so nothing is silently skipped
+    # Hidden parents hide their descendants, even when a child's local flag is on.
+    coat.root.children.clear()
+    hidden_group = node("Hidden group", _FakeVolume(False), coat.root, visible=False)
+    hidden_child = node("Child", _FakeVolume(False), hidden_group)
+    panel.VoxelizeVisible()
+    check("a hidden parent's child is never converted",
+          hidden_child.Volume().converted == 0, panel.status)
+
+    # Unknown visibility is not permission to modify geometry.
     coat.root.children.clear()
     unknown = node("NoVisibility", _FakeVolume(False), coat.root)
     del unknown.visible
     panel.VoxelizeVisible()
-    check("a build that cannot answer 'visible' converts rather than skips",
-          unknown.Volume().converted == 1, panel.status)
+    check("unknown visibility leaves geometry untouched",
+          unknown.Volume().converted == 0, panel.status)
     check("and the old selection-only name is gone",
           not hasattr(panel, "VoxelizeSelected"))
 
-    # ---- menu registration (the panel entry already ran it) ----
+    # ---- To voxels should press 3D-Coat's own tree badge, not just the API ----
+    # The badge is the button in a tree row (id `$VoxTreeBranch.VoxSurf.<name>`)
+    # whose own tooltip reads "Press this button to transform surface to voxel
+    # representation" - the conversion the user does by hand and reports as more
+    # accurate than the Volume API, so it is tried first and verified afterwards.
+    coat.root.children.clear()
+    pressed = []
+    real_cmd = coat.ui.cmd
+    converts = []
+
+    def record_and_maybe_convert(*args):
+        if args and isinstance(args[0], str) and args[0].startswith("$VoxTreeBranch"):
+            pressed.append(args[0])
+            for element in converts:
+                if args[0] == bridge.VOXEL_TOGGLE_ID % element.name():
+                    element.Volume().voxel = True      # 3D-Coat's own button did it
+        return real_cmd(*args)
+
+    coat.ui.cmd = record_and_maybe_convert
+    try:
+        badged = node("Badged", _FakeVolume(False), coat.root)
+        converts.append(badged)
+        silently_ignored = node("Ignored by host", _FakeVolume(False), coat.root)
+        already_voxel = node("AlreadyVoxel", _FakeVolume(True), coat.root)
+        def confirm_clicks():
+            return [call for call in real_cmd.calls
+                    if call and call[0] == "$DialogButton#1"]
+        confirms_before = len(confirm_clicks())
+        panel.VoxelizeVisible()
+        check("the conversion dialog is accepted without the user clicking OK",
+              len(confirm_clicks()) > confirms_before, real_cmd.calls[-4:])
+        check("the accept is handed to 3D-Coat as the press's callback",
+              any(len(call) > 1 and callable(call[1]) for call in real_cmd.calls
+                  if call and str(call[0]).startswith("$VoxTreeBranch")),
+              [call for call in real_cmd.calls if call and len(call) > 1])
+        check("the tree row's own badge is pressed for a surface object",
+              (bridge.VOXEL_TOGGLE_ID % "Badged") in pressed, pressed)
+        check("and the conversion it caused is what the panel counts",
+              badged.Volume().voxel is True and badged.Volume().converted == 0,
+              (badged.Volume().voxel, badged.Volume().converted))
+        check("the status says the tree button did it",
+              "via 3D-Coat's tree button" in panel.status, panel.status)
+        check("an object the badge does nothing for falls back to the API",
+              silently_ignored.Volume().converted == 1
+              and silently_ignored.Volume().voxel is True,
+              (silently_ignored.Volume().converted, panel.status))
+        check("an object that is already voxel is not pressed",
+              (bridge.VOXEL_TOGGLE_ID % "AlreadyVoxel") not in pressed, pressed)
+        check("the badge id is the one 3D-Coat logs for its own clicks",
+              bridge.VOXEL_TOGGLE_ID.endswith("%s")
+              and bridge.VOXEL_TOGGLE_ID.startswith("$VoxTreeBranch.VoxSurf."),
+              bridge.VOXEL_TOGGLE_ID)
+    finally:
+        coat.ui.cmd = real_cmd
+
+    # ---- menu registration (the panel entry already ran it) ----'''
     bridge.save_state({"menus": [], "tools": []})   # forget the entry's registration
     coat.menu_inserted = False      # and that 3D-Coat reports the menu missing again
     coat.inserted = []

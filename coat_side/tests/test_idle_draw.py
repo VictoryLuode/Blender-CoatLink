@@ -75,11 +75,19 @@ def main():
     state_calls = []
     for name in ("load_state", "save_state"):
         setattr(bridge, name, _recorder("bridge." + name, getattr(bridge, name), state_calls))
+    # The queue readout is disk I/O too: it may only be recomputed by an explicit
+    # action, never by a redraw.
+    disk_calls = []
+    bridge.read_import_model = _recorder(
+        "bridge.read_import_model", bridge.read_import_model, disk_calls)
 
     panel = bridge.CoatBridgePanel()
+    panel.refresh_detail = _recorder("panel.refresh_detail", panel.refresh_detail, disk_calls)
     panel.ui()                                  # first draw may read nothing host side
     host_calls[:] = []
     state_calls[:] = []
+    # the constructor legitimately refreshes the queue once; redraws may not
+    disk_calls[:] = []
 
     for _ in range(500):
         panel.ui()
@@ -87,6 +95,7 @@ def main():
 
     check("500 redraws touch no host API", host_calls == [], sorted(set(host_calls)))
     check("500 redraws touch no state file", state_calls == [], sorted(set(state_calls)))
+    check("500 redraws read no queue file", disk_calls == [], sorted(set(disk_calls)))
     check("the host surface really was instrumented (>12 entry points)",
           len(watched) > 12, len(watched))
 
