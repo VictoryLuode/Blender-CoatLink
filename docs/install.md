@@ -1,0 +1,55 @@
+# Installing by hand, and explicit paths
+
+Both installers are the easy way (`install.cmd`, `install.sh`, `install.ps1`,
+`CoatLink-Setup.py` - see the [README](../README.md)).  This page is for the case where you
+would rather place the files yourself, or where automatic detection needs help.
+
+## The five destinations
+
+`<ver>` is your Blender version folder.
+
+| What | From | To |
+| --- | --- | --- |
+| Blender add-on | `coat_bridge\` (8 `.py` files) | `%APPDATA%\Blender Foundation\Blender\<ver>\scripts\addons\coat_bridge\` |
+| 3D-Coat scripts | `coat_side\CoatBridge*.py` (6 files: the library, the receipts helper, the scoped-export helper and the three entries) | `%USERPROFILE%\Documents\3DCoat\UserPrefs\Scripts\CoatBridge\` |
+| Tool buttons | `coat_side\tools\CoatBridgeTools.xml.in` | `…\Scripts\ExtraMenuItems\CoatBridgeTools.xml`, with every `__SCRIPT_DIR__` replaced by the `CoatBridge` folder above, forward slashes (`C:/Users/…/CoatBridge`) |
+| Scripts menu entry | the block below | `…\Scripts\ExtraMenuItems\CoatBridge.xml` |
+| Button icons (optional) | `coat_side\icon\*.png` (4 files) | `<3D-Coat program folder>\data\Textures\icons64\` |
+
+`CoatBridge.xml`, verbatim, with the same forward-slash path:
+
+```xml
+<ClassArray.ExtraMenuItem>
+	<ExtraMenuItem>
+		<MenuPath>Scripts</MenuPath>
+		<MenuItem>CoatBridge</MenuItem>
+		<inRoom></inRoom>
+		<inSection></inSection>
+		<Command>script:C:/Users/you/Documents/3DCoat/UserPrefs/Scripts/CoatBridge/CoatBridge_Setup.py</Command>
+	</ExtraMenuItem>
+</ClassArray.ExtraMenuItem>
+```
+
+Then start Blender, enable **CoatLink** and press **Detect**.
+
+The two XML files are the fiddly part - every path in them has to be yours - so
+`python coat_side/CoatLinkInstall.py` will write both for you once the scripts are in place.
+
+## Explicit paths
+
+When detection is not enough:
+
+* PowerShell: `-BlenderAddons`, `-CoatScripts`, `-CoatDir`, plus `-BlenderOnly` / `-CoatOnly`
+  for one half
+* bash: the same three in that order, or `BLENDER_ADDON_DIR`, `COAT_SCRIPTS_DIR`, `COAT_DIR`
+* Python: `--scripts`, `--coat`, `--uninstall`
+
+## Uninstalling
+
+`install.cmd --uninstall`, `.\install.ps1 -Uninstall`, `./install.sh --uninstall` or
+`python coat_side/CoatLinkInstall.py --uninstall`.
+
+It removes its own scripts, its two XML files and the icons it added, clears the launcher
+record it wrote into 3D-Coat's `CoatBridge.json` (leaving your panel settings in that file
+alone), and deletes nothing else.  Files another extension or you put in the same folders are
+left untouched - a test asserts exactly that.
