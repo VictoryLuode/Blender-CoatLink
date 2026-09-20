@@ -13,8 +13,8 @@ their UIs are deliberately mirrors of each other:
 | Scope | `Scope` droplist: **Selected** / **Whole scene** | the same droplist, at the top of the panel |
 | Actions | `Send`, `Pull` | `Send`, `Pull`, and `To voxels` (turns every visible object in the Sculpt Tree into a voxel volume) |
 | Options | under **Send options**: `Scope`, `Import as` (voxel by default), `Remesh on send`, `Voxel size`, `Adaptivity` | the same scope droplist, first thing in the panel |
-| Settings | `Auto receive`, `Without materials` | reduction percentage, textures, size readout with `RefreshStats` |
-| Below that | under **Setup**: `Axis`, `Scale override`, `Match scale`, `Modifiers`, `Skip dialogs`, then `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read return signal`, `Unlink selected` | under **Setup**: `Detect`, `Open folder`, `Start Blender`, `Remove tool buttons` |
+| Settings | `Auto receive`, `Without materials` | reduction percentage, textures, size and mode readout with `Refresh info` |
+| Below that | under **Setup**: `Axis`, `Scale (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs`, then `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read`, `Unlink selected`.  Under **Status**: the readout and `Copy details` | under **Setup**: `Detect`, `Open folder`, `Start Blender`, `Remove tool buttons`, then the status section and `Copy details` |
 | Source | `coat_bridge/` (Blender add-on, 8 files) | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
 
 Both menus carry the same sections in the same order with the same words - the two
@@ -154,9 +154,9 @@ are in place (`--scripts <folder>` if it cannot find them, `--uninstall` to undo
 
 **Blender → 3D-Coat**
 
-1. Select the object to work on (no selection = every visible mesh), or switch on
-   the **`Whole scene`** toggle left of `Send` to send every visible object.  The
-   status line always says which scope the send used.
+1. Select the object to work on, or set `Scope` to `Whole scene` to send every
+   visible object (a 3D-Coat style import arrives as one `bridge` group either way).
+   The status line always says which scope the send used.
 2. Pick how 3D-Coat should open it in `Import as`: `Per-Pixel Painting`,
    `Sculpt Object (voxel)`, `Retopo Mesh`, `Auto-Retopology`, …
 3. **Send**.  If 3D-Coat is not running the job waits in the exchange folder
@@ -176,25 +176,29 @@ are in place (`--scripts <folder>` if it cannot find them, `--uninstall` to undo
   object it came from: same name, same materials, same place in the outliner,
   new geometry.  Separate objects stay separate objects.
 * `Unlink selected` stops tracking an object, so the next pull becomes a new
-  object instead of replacing it.  `Force re-read return signal` in the
-  *Advanced* fold pulls the last model again on purpose.
+  object instead of replacing it.  `Force re-read` does the same pull again on
+  purpose, ignoring the record of what was already imported.
 
 ### Menu contents (Blender side)
 
+The top bar holds **one** button - `CoatLink` - and everything below lives inside it.
+
 | Entry | Meaning |
 | --- | --- |
-| Whole scene (top bar) | Send every visible object instead of the selection |
-| Send / Pull (top bar) | Export the selection and queue it / take a returned model now |
-| Import as | How 3D-Coat opens the mesh (`[ppp]`, `[vox]`, `[uv]`, `[autopo]`, …) |
+| Scope | Selection (default) or every visible object |
+| Import as | How 3D-Coat opens the mesh (`[vox]` by default, plus `[ppp]`, `[uv]`, `[autopo]`, …) |
+| Remesh on send / Voxel size / Adaptivity | Voxel-remesh the export only; the scene is untouched |
+| Send / Pull | Export the selection and queue it / take a returned model now |
 | Auto receive | Watch the exchange folder every 2 s; off = manual **Pull** only |
 | Without materials | A pulled model arrives as bare geometry |
-| Axis / Scale override | Read from 3D-Coat, or forced (see below) |
+| Axis / Scale | Read from 3D-Coat, or forced (see below) |
 | Match scale | Keep the recorded size when a pulled model comes back at another size |
 | Modifiers | Export evaluated meshes |
 | Skip dialogs | Let 3D-Coat import and export with its current settings |
 | Detect / Folder | Find the exchange folder and prepare the AppLink folder / open it |
 | Start 3D-Coat | Launch 3D-Coat so it picks up the queued import |
-| Force re-read return signal | Pull the last return model again, ignoring the pull record |
+| Force re-read | Pull the last return model again, ignoring the pull record |
+| Copy details | Put the full status and diagnostic paths on the clipboard |
 | Unlink selected | Stop tracking, so the next pull becomes a new object |
 
 ## The exchange, in full
@@ -296,19 +300,21 @@ that says so:
 * **The face count in 3D-Coat's sculpt tree was reported to climb while the
   CoatLink panel is open.**  The panel's redraw path is proven side-effect free
   (1000 simulated idle redraws, no host calls, no file access) and its statistics
-  are manual (`RefreshStats`), but the live cause is **not** identified.  If you
+  are manual (`Refresh info`), but the live cause is **not** identified.  If you
   see it, close the panel; nothing else in the bridge depends on it.
 * **Words, not identifiers.**  3D-Coat labels a panel control by its own name unless
   that name is translated, so the panel used to read `SendScope`, `ReductionPercent`,
   `RefreshStats`.  Every one of those now carries a translation (`Scope`, `Reduction
-  percent`, `Refresh sizes`, ...), matching the Blender menu where the two sides mean
+  percent`, `Refresh info`, ...), matching the Blender menu where the two sides mean
   the same thing.
 * **Nothing is collapsed.**  The older builds hid the advanced half of both menus
   behind an `Advanced` fold-out.  That is gone on both sides; every control is drawn.
-* **The readout says voxel or surface.**  `Refresh sizes` in the 3D-Coat panel prints
+* **The readout says voxel or surface.**  `Refresh info` in the 3D-Coat panel prints
   `Snapshot: N faces · voxel volume` or `· surface mode` - the same thing the Sculpt Tree
-  shows as one letter (V / S), in the place you are already looking.  A build whose
-  `Volume` answers neither simply prints the count.
+  shows as one letter (V / S), in the place you are already looking.  It also reports
+  how much of the tree is still surface (`2 of 3 visible objects in surface mode - press
+  To voxels`), which is the question right after an import.  A build whose `Volume`
+  answers neither simply prints the count.
 * **After-import diagnostics report evidence, not guesses.** The helper attempts to
   write a dated, microsecond-resolution execution record. Blender reads only the log's
   bounded tail. An absent, unreadable, undated or old record means `not confirmed`,
