@@ -1,8 +1,17 @@
-# Installing by hand, and explicit paths
+# The installation doors, installing by hand, and explicit paths
 
-Both installers are the easy way (`install.cmd`, `install.sh`, `install.ps1`,
-`CoatLink-Setup.py` - see the [README](../README.md)).  This page is for the case where you
-would rather place the files yourself, or where automatic detection needs help.
+Every door runs the same installer; they differ only in what they fetch and how they start:
+
+| Door | What the user does | Needs |
+| --- | --- | --- |
+| `CoatLink-Setup.cmd` | downloads it, double-clicks | Windows, `curl` (built in since Windows 10) |
+| `install.cmd` | unzips the release, double-clicks | Windows |
+| `CoatLink-Setup.py` | downloads it, pastes one line into **Scripts > Show Python console** | nothing else - 3D-Coat's own Python runs it |
+| one console line | pastes the URL line from the [README](../README.md) | an internet connection |
+| `install.sh` / `install.ps1` | runs it in a shell (PowerShell does both halves) | bash, or Windows PowerShell |
+
+The rest of this page is for the case where you would rather place the files yourself, or where
+automatic detection needs help.
 
 ## The five destinations
 
@@ -47,7 +56,8 @@ When detection is not enough:
 ## Uninstalling
 
 `install.cmd --uninstall`, `.\install.ps1 -Uninstall`, `./install.sh --uninstall` or
-`python coat_side/CoatLinkInstall.py --uninstall`.
+`python coat_side/CoatLinkInstall.py --uninstall` (the one double-click downloader only
+installs; use one of these to take it out again).
 
 It removes its own scripts, its two XML files and the icons it added, clears the launcher
 record it wrote into 3D-Coat's `CoatBridge.json` (leaving your panel settings in that file

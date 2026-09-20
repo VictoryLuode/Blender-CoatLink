@@ -26,18 +26,24 @@ the same sections in the same order.</sub>
    that zip (Blender 4.2 and newer).
 3. Enable **CoatLink** in the add-on list, then press **Detect** in its menu.
 
-### 3D-Coat - double-click `install.cmd`
+### 3D-Coat - double-click one file
 
-Unzip the release and double-click it.  It finds both folders on its own, writes the menu
-entries with **your** paths, clears out anything an older layout left behind, and is harmless
-to run twice.  No admin rights are needed: with 3D-Coat under `C:\Program Files` the button
-icons need one elevated run, and the installer says so when it skips them.
+Download **`CoatLink-Setup.cmd`** and double-click it.  It fetches the installer from the latest
+release, runs it with the Python 3D-Coat itself ships, and keeps the window open so you can read
+what it did.  Nothing to unzip, no console, no path to edit - and it is 40 lines you can read
+first.
 
-Rather not unzip anything?  Download **`CoatLink-Setup.py`** and paste one line into 3D-Coat's
-Python console:
+Already have the release unzipped?  `install.cmd` does the same thing from the files in front of
+it.  It finds both folders on its own, writes the menu entries with **your** paths, clears out
+anything an older layout left behind, and is harmless to run twice.  No admin rights are needed:
+with 3D-Coat under `C:\Program Files` the button icons need one elevated run, and the installer
+says so when it skips them.
+
+Already in the **Scripts > Show Python console**?  Paste this one line - it needs no download
+either (the console is on 3D-Coat's own Python):
 
 ```python
-exec(open(r"C:\Downloads\CoatLink-Setup.py", encoding="utf-8").read())
+import urllib.request; exec(urllib.request.urlopen("https://github.com/VictoryLuode/Blender-CoatLink/releases/latest/download/CoatLink-Setup.py").read().decode())
 ```
 
 With git-bash, MSYS or WSL, `./install.sh` does the 3D-Coat half too.  PowerShell does both
@@ -54,9 +60,9 @@ just downloaded and read:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-**All four doors run the same installer** (`coat_side/CoatLinkInstall.py`), so they cannot
-drift apart - a test installs with each into a throwaway tree and compares the results file
-by file.
+**Every door runs the same installer** (`coat_side/CoatLinkInstall.py`): the `.cmd` and the
+console line only fetch it.  A test installs with each door into a throwaway tree and compares
+the results file by file, so they cannot drift apart.
 
 Then **restart 3D-Coat** and look for **Scripts > CoatLink**.  Three tool buttons also appear
 at the end of the Sculpt and Paint tool lists.  To take it all back out:

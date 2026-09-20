@@ -220,6 +220,19 @@ def main():
     state.unlink()
     check("a missing launcher record is not an error", checkout.uninstall(a_scripts, a_coat) is not None)
 
+    # ---- the one-click downloader stays a thin, honest wrapper ----------------
+    downloader = Path(checkout.HERE).parent / "CoatLink-Setup.cmd"
+    check("the one-click downloader is in the repository", downloader.is_file(), downloader)
+    if downloader.is_file():
+        text = downloader.read_text(encoding="utf-8", errors="replace")
+        check("it points at the latest release asset by URL",
+              "releases/latest/download/CoatLink-Setup.py" in text)
+        check("it ships no absolute path of anyone's machine",
+              "C:\\Users" not in text and "/Users/" not in text, [l for l in text.splitlines()
+                                                                    if "Users" in l][:2])
+        check("it installs nothing by itself: it runs the shared installer",
+              "CoatLink-Setup.py" in text and "coat_side/CoatLinkInstall.py" in text)
+
     # ---- the command line works, and says what it did ------------------------
     c_scripts, c_coat = fresh(tmp / "c")
     buffer = io.StringIO()

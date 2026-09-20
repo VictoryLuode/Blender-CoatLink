@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.17.0
+
+**One version number.**  From this release the Blender add-on, the 3D-Coat scripts and the
+release itself carry the same version.  Before, a release was `v1.16.37` while Blender's add-on
+list said `1.10.29` and the panel said `1.4.5` - so "which build are you running?" had three
+answers.  They move together from here.
+
+**Installing the 3D-Coat half is now one download and one double-click.**
+`CoatLink-Setup.cmd` fetches the single-file installer from the latest release, runs it with the
+Python 3D-Coat ships, and keeps the window open so the result can be read - no unzip, no console,
+no path to edit.  It is 40 lines and installs nothing itself: it runs the same
+`coat_side/CoatLinkInstall.py` every other door runs, and a test asserts it stays a thin wrapper
+that ships no absolute path.  (Verified by running it for real: it downloaded, installed and
+reported `ok`.)  For anyone who prefers the console, the README now carries a one-line URL paste
+as well - **Scripts > Show Python console**, paste, done.
+
+The rest of the behaviour is identical to `v1.16.37`; the only other difference in the code is
+the version strings.  The entries below are the history of how the line got here: the audit round that
+fixed modifier ownership, the `Modifiers` switch, hidden-branch conversion and the
+after-import diagnostics; `To voxels` pressing 3D-Coat's own S/V badge and accepting its
+dialog; remesh-on-send with voxel size and adaptivity; the panel's queue line and mode
+summary; one installer behind four doors; and the documentation split with real screenshots.
+
+Tests: Blender 196/196 plus every regression script and both installer smoke tests;
+3D-Coat 160/160 plus tools, installer, tree report, API stub check, idle redraw and probe dry
+run.  No live round trip has been run on this build.
+
+
 ## v1.16.37
 
 3D-Coat side 1.4.5 (Blender side unchanged at 1.10.29).
