@@ -30,14 +30,19 @@ the same sections in the same order.</sub>
 
 Download **`CoatLink-Setup.cmd`** and double-click it.  It fetches the installer from the latest
 release, runs it with the Python 3D-Coat itself ships, and keeps the window open so you can read
-what it did.  Nothing to unzip, no console, no path to edit - and it is 40 lines you can read
-first.
+what it did.  Nothing to unzip, no console, no path to edit.  If 3D-Coat sits under
+`C:\Program Files` the button icons need administrator rights, so it asks Windows for elevation
+once and runs the installer again: that single prompt is the whole privilege story, and without it
+everything except the icons still installs.  The file is short enough to read before you run it.
 
 Already have the release unzipped?  `install.cmd` does the same thing from the files in front of
 it.  It finds both folders on its own, writes the menu entries with **your** paths, clears out
-anything an older layout left behind, and is harmless to run twice.  No admin rights are needed:
-with 3D-Coat under `C:\Program Files` the button icons need one elevated run, and the installer
-says so when it skips them.
+anything an older layout left behind, and is harmless to run twice.
+
+Both folders are worked out on the spot, wherever 3D-Coat is: the program folder comes from the
+uninstall entries Windows keeps, and its data folder follows **your** Documents folder - which is
+where it is *not* once Documents is redirected to OneDrive.  3D-Coat from a folder of your own, on
+any drive, works too.
 
 Already in the **Scripts > Show Python console**?  Paste this one line - it needs no download
 either (the console is on 3D-Coat's own Python):

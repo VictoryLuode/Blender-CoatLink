@@ -32,6 +32,7 @@ paths, and the only place that knows the right one is the machine installing it.
 import argparse
 import json
 import os
+import string
 import sys
 from pathlib import Path
 
@@ -89,14 +90,185 @@ def windows_path(path):
 
 
 def user_prefs():
-    """3D-Coat's user folder (``Documents/3DCoat/UserPrefs``).
+    """3D-Coat's user folder (``<Documents>/3DCoat/UserPrefs``).
 
     ``COATLINK_PREFS`` overrides it, which is how the tests point somewhere safe.
     """
     override = os.environ.get("COATLINK_PREFS")
     if override:
         return Path(override)
-    return Path(os.path.expanduser("~")) / "Documents" / "3DCoat" / "UserPrefs"
+    return documents_dir() / "3DCoat" / "UserPrefs"
+
+
+def _registry_value(hive, subkey, name):
+    """One registry value, or None - on any Windows, in any locale."""
+    if os.name != "nt":
+        return None
+    try:
+        import winreg
+    except ImportError:
+        return None
+    try:
+        with winreg.OpenKey(hive, subkey) as key:
+            value = winreg.QueryValueEx(key, name)[0]
+    except OSError:
+        return None
+    return None if value is None else str(value)
+
+
+def _registry_subkeys(hive, subkey):
+    """The names of the entries under one registry key, or []."""
+    if os.name != "nt":
+        return []
+    try:
+        import winreg
+    except ImportError:
+        return []
+    try:
+        with winreg.OpenKey(hive, subkey) as key:
+            return [winreg.EnumKey(key, index) for index in range(winreg.QueryInfoKey(key)[0])]
+    except OSError:
+        return []
+
+
+def shell_documents():
+    """Windows' own idea of Documents, or None.
+
+    Worth asking, because ``~/Documents`` is only a guess: redirect Documents to
+    OneDrive and 3D-Coat keeps its data - and its bundled Python - somewhere else
+    entirely.
+    """
+    if os.name != "nt":
+        return None
+    try:
+        import winreg
+    except ImportError:
+        return None
+    for subkey in (r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders",
+                   r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders"):
+        raw = _registry_value(winreg.HKEY_CURRENT_USER, subkey, "Personal")
+        if raw:
+            return Path(os.path.expandvars(raw))
+    return None
+
+
+def documents_dir():
+    """Where 3D-Coat keeps its data.
+
+    What Windows says first, then ``~/Documents``, then the OneDrive spellings of
+    both - but a candidate that actually contains a ``3DCoat`` folder wins over
+    the order, so a redirected machine is followed rather than missed.
+    """
+    home = Path(os.path.expanduser("~"))
+    candidates = []
+    shell = shell_documents()
+    if shell:
+        candidates.append(shell)
+    candidates.append(home / "Documents")
+    for var in ("OneDrive", "OneDriveCommercial", "OneDriveConsumer"):
+        base = os.environ.get(var)
+        if base:
+            candidates += [Path(base) / "Documents", Path(base)]
+    for candidate in candidates:
+        if (candidate / "3DCoat").is_dir():
+            return candidate
+    return candidates[0]
+
+
+def _folder_from_registry_value(value):
+    """The folder a registry path value points at, or None.
+
+    ``InstallLocation`` is already a folder; ``DisplayIcon`` is usually
+    ``"C:\\Program Files\\3DCoat-2025\\display.ico"`` (sometimes with ``,0``) and
+    ``UninstallString`` is the uninstaller - the parent folder is what the icons
+    need, and the caller drops anything that does not turn out to be an install.
+    """
+    if not value:
+        return None
+    text = str(value).strip()
+    if text.startswith('"'):
+        text = text[1:].split('"')[0]
+    else:
+        text = text.split(",")[0].strip()
+    path = Path(os.path.expandvars(text))
+    return path.parent if path.suffix else path
+
+
+def registry_program_dirs():
+    """3D-Coat folders Windows knows about, wherever they were installed.
+
+    A folder 3D-Coat's installer creates is often not under ``Program Files`` at
+    all, and the uninstall entries are the only place that says where it went.
+    """
+    if os.name != "nt":
+        return []
+    try:
+        import winreg
+    except ImportError:
+        return []
+    hives = (winreg.HKEY_LOCAL_MACHINE,
+             winreg.HKEY_LOCAL_MACHINE,
+             winreg.HKEY_CURRENT_USER)
+    subkeys = (r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+               r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+               r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")
+    found = []
+    for hive, subkey in zip(hives, subkeys):
+        for entry in _registry_subkeys(hive, subkey):
+            lowered = entry.lower()
+            if "3dcoat" not in lowered and "3d-coat" not in lowered:
+                continue
+            for name in ("InstallLocation", "DisplayIcon", "UninstallString"):
+                folder = _folder_from_registry_value(
+                    _registry_value(hive, "%s\\%s" % (subkey, entry), name))
+                if folder is not None:
+                    found.append(folder)
+    return found
+
+
+def environment_program_roots():
+    """The Program Files folders as this system spells them.
+
+    Reading the environment covers installs on a drive or in a folder that
+    ``C:\\Program Files`` does not describe.
+    """
+    roots = []
+    for var in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"):
+        value = os.environ.get(var)
+        if value:
+            roots.append(Path(value))
+    return roots
+
+
+def drive_program_roots():
+    """``3DCoat*`` under Program Files on every drive, in both path spellings.
+
+    Both on purpose: this installer normally runs on 3D-Coat's own Python (a
+    Windows program, where ``/d/...`` is not a path) but an MSYS Python sees only
+    the POSIX form.  A drive letter that does not exist costs one failed
+    ``is_dir``.
+    """
+    roots = []
+    for prefix in ("%s:/", "/%s/"):
+        for letter in string.ascii_lowercase:
+            root = Path(prefix % letter)
+            if not root.is_dir():
+                continue
+            for folder in ("Program Files", "Program Files (x86)"):
+                roots += sorted(root.glob("%s/3DCoat*" % folder))
+                roots += sorted(root.glob("%s/3D-Coat*" % folder))
+    return roots
+
+
+def user_program_roots():
+    """Per-user 3D-Coat installs - a per-user install lands in AppData."""
+    home = Path(os.path.expanduser("~"))
+    roots = []
+    for pattern in ("AppData/Local/Programs/3DCoat*",
+                    "AppData/Local/Programs/3D-Coat*",
+                    "AppData/Local/3DCoat*"):
+        roots += sorted(home.glob(pattern))
+    return roots
 
 
 def program_dir():
@@ -104,8 +276,10 @@ def program_dir():
 
     Inside 3D-Coat the ``coat`` module is loaded from
     ``<install>/UserPrefs/PythonAPI``, which names the folder exactly; outside it
-    the usual install locations are searched.  Icons are a nicety: a missing one
-    costs a default icon on a tool button, never a broken button.
+    the machine is asked: the uninstall entries first (they know about any install
+    location), then the Program Files folders this system spells, then every
+    drive, then per-user installs.  Icons are a nicety: a missing one costs a
+    default icon on a tool button, never a broken button.
     """
     for name in ("coat", "CMD"):
         module = sys.modules.get(name)
@@ -117,20 +291,10 @@ def program_dir():
     override = os.environ.get("COATLINK_COAT_DIR")
     if override:
         return Path(override)
-    home = Path(os.path.expanduser("~"))
-    candidates = []
-    # Both spellings on purpose: this installer normally runs on 3D-Coat's own
-    # Python (a Windows program, where "/d/..." is not a path) but an MSYS Python
-    # sees only the POSIX form.
-    for prefix in ("%s:/", "/%s/"):
-        for letter in ("c", "d", "e", "f", "g", "h"):
-            root = Path(prefix % letter)
-            if not root.is_dir():
-                continue
-            for folder in ("Program Files", "Program Files (x86)"):
-                candidates += sorted(root.glob("%s/3DCoat*" % folder))
-    candidates += sorted(home.glob("AppData/Local/Programs/3DCoat*"))
-    candidates += sorted(home.glob("AppData/Local/3DCoat*"))
+    candidates = list(registry_program_dirs())
+    candidates += environment_program_roots()
+    candidates += drive_program_roots()
+    candidates += user_program_roots()
     found = [candidate for candidate in candidates if (candidate / "data").is_dir()]
     if not found:
         return None

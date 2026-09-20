@@ -33,8 +33,12 @@ run coat_side/tests/test_idle_draw.py
 run coat_side/tests/test_panel_probe.py
 run coat_side/tests/test_tree_report.py
 run coat_side/tests/test_coatlink_install.py
+run coat_side/tests/test_coat_install_location.py
 run coat_side/tests/test_scoped_send.py
 run coat_side/tests/test_import_unparent.py
+echo "──────────────── door python detection ────────────────"
+bash coat_side/tests/test_door_python.sh || failed=1
+echo
 echo "──────────────── install smoke test ────────────────"
 bash coat_side/tests/test_install.sh || failed=1
 echo

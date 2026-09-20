@@ -270,18 +270,76 @@ def coat_state():
 
 
 def find_coat_executable():
-    roots = [
-        os.environ.get("ProgramFiles"),
-        os.environ.get("ProgramW6432"),
-        r"C:\Program Files",
-        r"D:\Program Files",
-        r"C:\Program Files (x86)",
-        r"D:\Program Files (x86)",
-    ]
+    """Where 3D-Coat's executable is, on any machine.
+
+    The uninstall entries come first because they know about an install that is
+    not under Program Files at all (a folder of your own, another drive), then
+    the Program Files folders this system spells, then every drive.
+    """
+    roots = list(registered_install_dirs())
+    for name in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"):
+        value = os.environ.get(name)
+        if value:
+            roots.append(value)
+    for letter in "abcdefghijklmnopqrstuvwxyz":
+        for folder in ("Program Files", "Program Files (x86)"):
+            roots.append("%s:\\%s" % (letter, folder))
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        roots.append(os.path.join(local, "Programs"))
+        roots.append(local)
     found = []
-    for root in dict.fromkeys(filter(None, roots)):
+    for root in dict.fromkeys(roots):
+        if not root or not os.path.isdir(root):
+            continue
         found += glob.glob(os.path.join(root, "3DCoat*", _COAT_EXE))
+        found += glob.glob(os.path.join(root, "3D-Coat*", _COAT_EXE))
     return sorted(found)[-1] if found else ""
+
+
+def registered_install_dirs():
+    """3D-Coat folders Windows records, wherever they were installed."""
+    if platform.system() != "Windows":
+        return []
+    try:
+        import winreg
+    except ImportError:
+        return []
+    keys = ((winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+            (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"))
+    found = []
+    for hive, subkey in keys:
+        try:
+            with winreg.OpenKey(hive, subkey) as key:
+                names = [winreg.EnumKey(key, index) for index in range(winreg.QueryInfoKey(key)[0])]
+        except OSError:
+            continue
+        for name in names:
+            entry = os.path.join(subkey, name)
+            values = {}
+            for value_name in ("DisplayName", "InstallLocation", "DisplayIcon", "UninstallString"):
+                try:
+                    with winreg.OpenKey(hive, entry) as key:
+                        values[value_name] = str(winreg.QueryValueEx(key, value_name)[0])
+                except OSError:
+                    continue
+            label = ("%s %s" % (name, values.get("DisplayName", ""))).lower()
+            if "3d-coat" not in label and "3dcoat" not in label:
+                continue
+            for value_name in ("InstallLocation", "DisplayIcon", "UninstallString"):
+                text = values.get(value_name, "").strip()
+                if not text:
+                    continue
+                if text.startswith('"'):
+                    text = text[1:].split('"')[0]
+                else:
+                    text = text.split(",")[0].strip()
+                text = os.path.expandvars(text)
+                folder = text if os.path.isdir(text) else os.path.dirname(text)
+                if folder:
+                    found.append(folder)
+    return found
 
 
 def is_coat_running():

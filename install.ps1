@@ -62,32 +62,99 @@ function Get-BlenderAddons {
     return $null
 }
 
+function Get-DocumentsDir {
+    # Windows' own Documents folder.  %USERPROFILE%\Documents is only a guess, and
+    # a machine that redirects Documents to OneDrive keeps 3D-Coat's data - and its
+    # bundled Python - there instead.
+    if ($env:COATLINK_DOCS) { return $env:COATLINK_DOCS }
+    $candidates = @()
+    $shell = [Environment]::GetFolderPath('MyDocuments')
+    if ($shell) { $candidates += $shell }
+    if ($env:USERPROFILE) { $candidates += (Join-Path $env:USERPROFILE 'Documents') }
+    foreach ($var in 'OneDrive', 'OneDriveCommercial', 'OneDriveConsumer') {
+        $base = [Environment]::GetEnvironmentVariable($var)
+        if ($base) { $candidates += (Join-Path $base 'Documents'); $candidates += $base }
+    }
+    foreach ($path in $candidates) {
+        if (Test-Path (Join-Path $path '3DCoat')) { return $path }
+    }
+    return $candidates[0]
+}
+
+function Get-CoatRegistryDirs {
+    # Where the uninstall entries say 3D-Coat is, so an install outside Program
+    # Files (a folder of your own, another drive) is still found.
+    $found = @()
+    $keys = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
+            'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
+    foreach ($key in $keys) {
+        if (-not (Test-Path $key)) { continue }
+        foreach ($entry in @(Get-ChildItem $key -ErrorAction SilentlyContinue)) {
+            $props = Get-ItemProperty $entry.PSPath -ErrorAction SilentlyContinue
+            $label = "$($entry.PSChildName) $($props.DisplayName)"
+            if ($label -notmatch '3d-?coat') { continue }
+            foreach ($value in @($props.InstallLocation, $props.DisplayIcon, $props.UninstallString)) {
+                if (-not $value) { continue }
+                $text = "$value".Trim()
+                if ($text.StartsWith('"')) { $text = $text.Substring(1).Split('"')[0] }
+                else { $text = $text.Split(',')[0].Trim() }
+                $text = [Environment]::ExpandEnvironmentVariables($text)
+                $item = Get-Item -LiteralPath $text -ErrorAction SilentlyContinue
+                if ($item -and $item.PSIsContainer) { $found += $item.FullName }
+                elseif ($item) { $found += $item.DirectoryName }
+            }
+        }
+    }
+    return $found
+}
+
+function Get-DriveProgramRoots {
+    # Program Files on every drive this machine has, so nothing is hardcoded to C:.
+    $roots = @()
+    foreach ($drive in @(Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue)) {
+        foreach ($folder in 'Program Files', 'Program Files (x86)') {
+            $roots += (Join-Path $drive.Root $folder)
+        }
+    }
+    return $roots
+}
+
 function Get-CoatScripts {
     if ($CoatScripts) { return $CoatScripts }
     if ($env:COAT_SCRIPTS_DIR) { return $env:COAT_SCRIPTS_DIR }
-    return (Join-Path $env:USERPROFILE 'Documents\3DCoat\UserPrefs\Scripts')
+    return (Join-Path (Get-DocumentsDir) '3DCoat\UserPrefs\Scripts')
 }
 
 function Get-CoatDir {
     if ($CoatDir) { return $CoatDir }
     if ($env:COAT_DIR) { return $env:COAT_DIR }
-    return Find-Newest @(
-        'C:\Program Files\3DCoat*',
-        'D:\Program Files\3DCoat*',
-        'E:\Program Files\3DCoat*',
-        'F:\Program Files\3DCoat*',
-        'G:\Program Files\3DCoat*',
-        'H:\Program Files\3DCoat*',
-        'C:\Program Files (x86)\3DCoat*',
-        (Join-Path $env:LOCALAPPDATA 'Programs\3DCoat*'),
-        (Join-Path $env:LOCALAPPDATA '3DCoat*')
-    )
+    $patterns = @(Get-CoatRegistryDirs)
+    foreach ($root in @($env:ProgramFiles, ${env:ProgramW6432}, ${env:ProgramFiles(x86)})) {
+        if ($root) { $patterns += (Join-Path $root '3DCoat*'); $patterns += (Join-Path $root '3D-Coat*') }
+    }
+    foreach ($root in @(Get-DriveProgramRoots)) {
+        $patterns += (Join-Path $root '3DCoat*'); $patterns += (Join-Path $root '3D-Coat*')
+    }
+    if ($env:LOCALAPPDATA) {
+        $patterns += (Join-Path $env:LOCALAPPDATA 'Programs\3DCoat*')
+        $patterns += (Join-Path $env:LOCALAPPDATA '3DCoat*')
+    }
+    return Find-Newest @($patterns)
 }
 
 function Get-CoatPython {
     # 3D-Coat ships its own Python folder: using it means nothing has to be installed
     if ($env:COATLINK_PYTHON -and (Test-Path $env:COATLINK_PYTHON)) { return $env:COATLINK_PYTHON }
-    $bundled = Find-Newest @( (Join-Path $env:USERPROFILE 'Documents\3DCoat\python-*\python.exe') )
+    $patterns = @()
+    foreach ($dir in @((Get-DocumentsDir), (Join-Path $env:USERPROFILE 'Documents'))) {
+        if ($dir) { $patterns += (Join-Path $dir '3DCoat\python-*\python.exe') }
+    }
+    foreach ($var in 'OneDrive', 'OneDriveCommercial', 'OneDriveConsumer') {
+        $base = [Environment]::GetEnvironmentVariable($var)
+        if ($base) { $patterns += (Join-Path $base 'Documents\3DCoat\python-*\python.exe') }
+    }
+    $bundled = Find-Newest @($patterns)
     if ($bundled) { return $bundled }
     foreach ($name in 'python', 'py', 'python3') {
         $found = Get-Command $name -ErrorAction SilentlyContinue

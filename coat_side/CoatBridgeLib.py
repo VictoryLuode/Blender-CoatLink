@@ -45,7 +45,7 @@ except ImportError:  # the command module is optional at import time
 APP_FOLDER = "BlenderBridge"
 MODEL_NAME = "bridge"
 PANEL_CAPTION = "CoatLink"
-VERSION = "1.17.0"
+VERSION = "1.17.1"
 #: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
 #: there is nothing to choose - Blender reads the returned file by extension.
 #: The model 3D-Coat hands back.  OBJ both ways on purpose: the axis rule then

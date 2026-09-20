@@ -23,12 +23,14 @@ automatic detection needs help.
 
 ## The five destinations
 
-`<ver>` is your Blender version folder.
+`<ver>` is your Blender version folder, and `<Documents>` is Windows' own Documents folder - not
+always `%USERPROFILE%\Documents`: redirect Documents to OneDrive and 3D-Coat (data, and the Python
+it ships) moves with it.
 
 | What | From | To |
 | --- | --- | --- |
 | Blender add-on | `coat_bridge\` (8 `.py` files) | `%APPDATA%\Blender Foundation\Blender\<ver>\scripts\addons\coat_bridge\` |
-| 3D-Coat scripts | `coat_side\CoatBridge*.py` (6 files: the library, the receipts helper, the scoped-export helper and the three entries) | `%USERPROFILE%\Documents\3DCoat\UserPrefs\Scripts\CoatBridge\` |
+| 3D-Coat scripts | `coat_side\CoatBridge*.py` (6 files: the library, the receipts helper, the scoped-export helper and the three entries) | `<Documents>\3DCoat\UserPrefs\Scripts\CoatBridge\` |
 | Tool buttons | `coat_side\tools\CoatBridgeTools.xml.in` | `…\Scripts\ExtraMenuItems\CoatBridgeTools.xml`, with every `__SCRIPT_DIR__` replaced by the `CoatBridge` folder above, forward slashes (`C:/Users/…/CoatBridge`) |
 | Scripts menu entry | the block below | `…\Scripts\ExtraMenuItems\CoatBridge.xml` |
 | Button icons (optional) | `coat_side\icon\*.png` (4 files) | `<3D-Coat program folder>\data\Textures\icons64\` |
@@ -60,6 +62,21 @@ When detection is not enough:
   for one half
 * bash: the same three in that order, or `BLENDER_ADDON_DIR`, `COAT_SCRIPTS_DIR`, `COAT_DIR`
 * Python: `--scripts`, `--coat`, `--uninstall`
+
+### When the folders are somewhere else
+
+Nothing is hardcoded.  The program folder comes from the uninstall entries Windows keeps (so an
+install in a folder of your own, on any drive, is found), the Program Files folders this system
+actually spells are read from the environment, every drive is looked at, and per-user `AppData`
+installs are covered.  The user folder follows Windows' own Documents folder.
+
+For what is left, four environment variables - and the `.cmd` doors read them too, so a
+double-click needs no arguments:
+
+* `COATLINK_DOCS` - the Documents folder, when Windows' answer is not where 3D-Coat's data is
+* `COATLINK_PYTHON` - the Python to run the installer with, when 3D-Coat's own is not found
+* `COATLINK_COAT_DIR` (or `COAT_DIR`) - the 3D-Coat program folder, for the button icons
+* `COATLINK_PREFS` - the user folder outright, e.g. `D:\3DCoat-User\3DCoat\UserPrefs`
 
 ## Uninstalling
 

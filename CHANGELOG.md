@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.17.1
+
+* **The installer finds 3D-Coat wherever it is, and 3D-Coat does not have to be in
+  `C:\Program Files`.**  The program folder is read from the uninstall entries Windows keeps (so
+  an install in a folder of your own, on any drive, is found), then the Program Files folders this
+  system actually spells - taken from the environment instead of assuming `C:` and `D:` - then
+  every drive it has, then the per-user `AppData` locations as before.  A folder that is not an
+  install (no `data\`) is never mistaken for one.
+* **The user folder and the Python 3D-Coat ships follow Windows' own Documents folder**, instead
+  of assuming `%USERPROFILE%\Documents` - which is where they are *not* once Documents is
+  redirected to OneDrive, a setup where every door used to say "No Python found" next to a working
+  install.  `COATLINK_DOCS`, `COATLINK_PYTHON` and `COATLINK_COAT_DIR` name any of them outright
+  when even that is not enough; both `.cmd` doors and `install.ps1` carry the same detection, and
+  a test runs the real door against a redirected Documents folder and checks which Python it
+  picked from its own output.
+* **The one-click installer now gets the button icons too.**  `CoatLink-Setup.cmd` runs the
+  installer, and if the result says the icon folder could not be written (3D-Coat under
+  `C:\Program Files`), it asks Windows for elevation once and runs the installer again - so a
+  single double-click is a complete install: scripts, menu entries and icons.  Without that it
+  was scripts and menu entries first, then "run it again as administrator" by hand.
+  `COATLINK_NO_ELEVATE=1` skips the retry when you would rather not see a UAC prompt.
+
+Blender 1.17.1, 3D-Coat side 1.17.1.
+
+
 ## v1.17.0
 
 **One version number.**  From this release the Blender add-on, the 3D-Coat scripts and the

@@ -16,10 +16,17 @@ title CoatLink setup
 set "HERE=%~dp0"
 set "PY="
 
-if exist "%COATLINK_PYTHON%" set "PY=%COATLINK_PYTHON%"
+rem COATLINK_PYTHON=... points at a Python when the search below cannot find one
+if defined COATLINK_PYTHON if exist "%COATLINK_PYTHON%" set "PY=%COATLINK_PYTHON%"
 
-rem 3D-Coat ships its own Python folder; using it means nothing has to be installed
-for /d %%D in ("%USERPROFILE%\Documents\3DCoat\python-*") do if exist "%%~fD\python.exe" set "PY=%%~fD\python.exe"
+rem 3D-Coat ships its own Python - in its Documents folder, and that is not always
+rem %USERPROFILE%\Documents: redirect Documents to OneDrive and it lives there.
+rem COATLINK_DOCS=... skips the search below and names that folder outright.
+if not defined COATLINK_DOCS for /f "tokens=2,*" %%A in ('reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" /v Personal 2^>nul') do set "COATLINK_DOCS=%%B"
+if defined COATLINK_DOCS call set "COATLINK_DOCS=%COATLINK_DOCS%"
+for %%R in ("%COATLINK_DOCS%" "%OneDrive%\Documents" "%OneDriveCommercial%\Documents" "%OneDriveConsumer%\Documents" "%USERPROFILE%\Documents") do (
+    if not defined PY for /d %%D in ("%%~fR\3DCoat\python-*") do if exist "%%~fD\python.exe" set "PY=%%~fD\python.exe"
+)
 
 if not defined PY (where py >nul 2>nul && set "PY=py")
 if not defined PY (where python >nul 2>nul && set "PY=python")

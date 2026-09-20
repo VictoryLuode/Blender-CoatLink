@@ -4,25 +4,41 @@ rem  CoatLink - the 3D-Coat half, in one double-click.
 rem
 rem  It downloads CoatLink-Setup.py from the latest release, runs it with
 rem  the Python that 3D-Coat itself ships, and keeps the window open so you
-rem  can read what it did.  Nothing is installed except CoatLink's own files
-rem  (see coat_side/CoatLinkInstall.py - the same installer every other door
-rem  runs).
+rem  can read what it did.  If 3D-Coat lives under "C:\Program Files" the
+rem  button icons need administrator rights, so the installer is run once
+rem  more with elevation - that is the only reason this file ever asks.
 rem
-rem  Read it before running it, if you like: this is the whole file.
+rem  It installs nothing by itself: coat_side/CoatLinkInstall.py does the
+rem  work, the same installer every other door runs.  Read it first, if you
+rem  like: this is the whole file.
+rem
+rem  Set COATLINK_NO_ELEVATE=1 to skip the elevation retry.
 rem =====================================================================
 
 setlocal
 set "URL=https://github.com/VictoryLuode/Blender-CoatLink/releases/latest/download/CoatLink-Setup.py"
 set "GET=%TEMP%\CoatLink-Setup.py"
+set "OUT=%TEMP%\CoatLink-install.log"
 
 rem ---- the Python 3D-Coat ships (nothing to install) -------------------
 set "PY="
-for /d %%D in ("%USERPROFILE%\Documents\3DCoat\python-*") do set "PY=%%D\python.exe"
+
+rem 3D-Coat's own Python lives in its Documents folder, and that is not always
+rem %USERPROFILE%\Documents: redirect Documents to OneDrive and it lives there.
+rem COATLINK_PYTHON=... overrides the search entirely, and COATLINK_DOCS=... names
+rem the Documents folder outright when Windows' answer is not where it lives.
+if defined COATLINK_PYTHON if exist "%COATLINK_PYTHON%" set "PY=%COATLINK_PYTHON%"
+if not defined COATLINK_DOCS for /f "tokens=2,*" %%A in ('reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" /v Personal 2^>nul') do set "COATLINK_DOCS=%%B"
+if defined COATLINK_DOCS call set "COATLINK_DOCS=%COATLINK_DOCS%"
+for %%R in ("%COATLINK_DOCS%" "%OneDrive%\Documents" "%OneDriveCommercial%\Documents" "%OneDriveConsumer%\Documents" "%USERPROFILE%\Documents") do (
+    if not defined PY for /d %%D in ("%%~fR\3DCoat\python-*") do if exist "%%~fD\python.exe" set "PY=%%~fD\python.exe"
+)
 if not defined PY for %%P in (py.exe) do if not defined PY set "PY=%%~$PATH:P"
 if not defined PY for %%P in (python.exe) do if not defined PY set "PY=%%~$PATH:P"
 if not defined PY (
     echo.
-    echo No Python found.  Start 3D-Coat once - it ships one - and run this again.
+    echo No Python found.  Start 3D-Coat once - it ships one - and run this again,
+    echo or set COATLINK_PYTHON to a python.exe and run this again.
     goto :done
 )
 
@@ -46,11 +62,25 @@ if errorlevel 1 (
     goto :done
 )
 
-rem ---- run it ----------------------------------------------------------
+rem ---- run it (the output is kept, so the icon question can be answered) ----
 echo Running the CoatLink installer with:
 echo   %PY%
 echo.
-"%PY%" "%GET%"
+"%PY%" "%GET%" > "%OUT%" 2>&1
+type "%OUT%"
+echo.
+
+rem ---- the 3D-Coat icon folder is inside Program Files, so it needs admin --
+if defined COATLINK_NO_ELEVATE goto :installed
+findstr /c:"Permission denied" "%OUT%" >nul 2>nul
+if errorlevel 1 goto :installed
+echo The button icons need administrator rights for the 3D-Coat program folder.
+echo Asking Windows for elevation once - approve the prompt to get the icons.
+echo (The buttons work without them; they just use the default tool icons.)
+echo.
+powershell -NoProfile -Command "Start-Process -FilePath '%PY%' -ArgumentList '%GET%' -Verb RunAs -Wait"
+
+:installed
 echo.
 echo Restart 3D-Coat, then look for Scripts ^> CoatLink.
 
