@@ -44,11 +44,16 @@ def main():
 
     prefs = bpy.context.preferences.addons["coat_bridge"].preferences
     prefs.exchange_folder = exchange
-    prefs.mode = "ppp"
+    # the mode under question, and no remesh: a remeshed export would change the
+    # vertex counts and hide whether the import itself was right
+    prefs.mode = "vox"
+    prefs.remesh = False
     prefs.auto_pull = False  # this script drives the pulls itself
     prefs.skip_dialogs = True
     prefs.apply_modifiers = False
 
+    from coat_bridge import __init__ as addon
+    step("add-on version", ".".join(str(part) for part in addon.bl_info["version"]))
     step("coat running at start", applink.is_coat_running())
 
     # drop stale signals this bridge owns, so the wait below only sees the new one
@@ -75,6 +80,11 @@ def main():
     job = applink.import_txt(exchange)
     step("sent", os.path.basename(out_path))
     step("import.txt written", os.path.isfile(job))
+    # the exact job file 3D-Coat is about to read: without it a failed trip cannot be
+    # diagnosed afterwards
+    if os.path.isfile(job):
+        with open(job, "r", encoding="utf-8", errors="replace") as handle:
+            step("import.txt content", " ; ".join(handle.read().split()))
 
     deadline = time.time() + 120
     while time.time() < deadline and os.path.isfile(job):

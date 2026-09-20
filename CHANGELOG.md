@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.16.37
+
+3D-Coat side 1.4.5 (Blender side unchanged at 1.10.29).
+
+* **Uninstalling now forgets the launcher entries it registered.**  Those entries only
+  live for one 3D-Coat session, but the record saying they were registered stays in
+  `Documents/3DCoat/CoatBridge.json` - so uninstalling and installing again made the
+  next run believe the entries were already there and skip inserting them.  The Windows
+  menu entry is the one that is only ever added at run time, so a reinstall came back
+  without it.  Uninstalling clears that record and keeps the user's own settings in the
+  same file; a missing or unreadable file is not an error.
+* **The panel can say how much of the tree is still in surface mode.**  `Refresh info`
+  now also reports `N of M visible objects in surface mode - press To voxels`, so after
+  an import it is obvious whether there is anything left to convert, without clicking the
+  objects one by one.  Drawn as its own bounded row; still nothing is read from the host
+  or the disk during a redraw.
+* **The live round-trip script was brought up to date**: it sends in `vox` mode with
+  remesh off (a remeshed export would hide whether the import itself was right), records
+  the add-on version and the exact `import.txt` it wrote - the evidence that was missing
+  from every previous live attempt - and refuses to start when 3D-Coat is not running.
+  It still has to be run with both applications open; nothing here was verified against a
+  live round trip.
+
+Tests: 3D-Coat 160/160, including the new launcher-record checks (cleared, settings kept,
+corrupt file tolerated, missing file tolerated) and the mode-summary checks (counted over
+visible leaves only, cleared after conversion, silent on an empty tree), plus tools,
+installer, tree report, API stub check, idle redraw and probe dry run.
+
 ## v1.16.36
 
 Blender 1.10.29, 3D-Coat side 1.4.4.  A bug-fix and feedback round: nothing here changes

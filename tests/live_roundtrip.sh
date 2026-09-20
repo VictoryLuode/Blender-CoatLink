@@ -27,7 +27,13 @@ echo "exchange: $EXCHANGE"
 echo "timeout : ${TIMEOUT}s"
 echo
 
-"$BLENDER" --background --factory-startup --python "$WIN_REPO\\tests\\live_roundtrip.py" -- \
+# Fail fast: 3D-Coat has to be running and in front, or the job just sits there.
+if ! tasklist 2>/dev/null | grep -qi "3dcoatgl64.exe"; then
+    echo "3D-Coat is not running - start it, then run this again" >&2
+    exit 2
+fi
+
+"$BLENDER" --background --factory-startup --python "$WIN_REPO\\tests\\live_roundtrip.py" -- \\
     --exchange "$EXCHANGE" --timeout "$TIMEOUT" --report "$WIN_WORK\\report.json"
 
 echo

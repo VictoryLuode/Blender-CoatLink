@@ -30,6 +30,7 @@ paths, and the only place that knows the right one is the machine installing it.
 """
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -254,7 +255,47 @@ def uninstall(scripts_dir, program=None, report=None):
                     report.skipped.append((name, str(exc)))
                 else:
                     report.removed.append(path)
+    forget_launchers(scripts_dir, report)
     return report
+
+
+def launcher_state_path(scripts_dir):
+    """Where 3D-Coat's copy of our registered menu/tool entries lives.
+
+    ``…/Documents/3DCoat/CoatBridge.json`` - next to ``UserPrefs``, holding both the
+    user's panel settings and the list of launcher entries we added at run time.
+    """
+    return Path(scripts_dir).parent.parent / "CoatBridge.json"
+
+
+def forget_launchers(scripts_dir, report):
+    """Drop the record of the launcher entries we registered.
+
+    Those entries only live for one 3D-Coat session, but the file that says they were
+    registered is kept: leaving it behind makes the next install believe the entries
+    are already there and skip inserting them - so uninstalling and installing again
+    would come back without the Windows-menu entry.  The user's own settings in the
+    same file are kept, and a missing or unreadable file is not an error.
+    """
+    path = launcher_state_path(scripts_dir)
+    if not path.is_file():
+        return
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(data, dict) or not (data.get("menus") or data.get("tools")):
+        return
+    data["menus"] = []
+    data["tools"] = []
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError as exc:
+        report.skipped.append((path.name, str(exc)))
+        return
+    report.line("cleared the launcher record in %s (your settings are kept)" % path.name)
 
 
 def describe(report):

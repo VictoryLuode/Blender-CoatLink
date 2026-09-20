@@ -13,6 +13,7 @@ Checks, on plain Python with no 3D-Coat present:
 
 import importlib.util
 import io
+import json
 import os
 import shutil
 import sys
@@ -68,8 +69,10 @@ def comparable(root):
 
 
 def fresh(tmp):
-    scripts = Path(tmp) / "Scripts"
-    coat = Path(tmp) / "3DCoat"
+    # the real nesting: <user>/Documents/3DCoat/UserPrefs/Scripts, because the
+    # launcher record we keep lives one level above UserPrefs
+    scripts = Path(tmp) / "Documents" / "3DCoat" / "UserPrefs" / "Scripts"
+    coat = Path(tmp) / "Program" / "3DCoat"
     (coat / "data" / "Textures" / "icons64").mkdir(parents=True)
     scripts.mkdir(parents=True)
     return scripts, coat
@@ -188,6 +191,34 @@ def main():
     check("the icons are gone too",
           not any((a_coat / "data" / "Textures" / "icons64" / n).exists()
                   for n in checkout.ICON_FILES))
+
+    # ---- uninstalling must also forget what we registered at run time ---------
+    # The menu/tool entries live for one 3D-Coat session, but the record that says
+    # they were registered is kept in the state file: leaving it behind makes the
+    # next install skip inserting them, so a reinstall would come back without the
+    # Windows-menu entry.
+    state = checkout.launcher_state_path(a_scripts)
+    check("the launcher record sits next to UserPrefs",
+          state == a_scripts.parent.parent / "CoatBridge.json", state)
+    state.write_text(json.dumps({"format": "FBX", "reduction": 40,
+                                 "menus": ["Scripts", "Windows"], "tools": ["Voxels"]}),
+                     encoding="utf-8")
+    checkout.uninstall(a_scripts, a_coat)
+    after = json.loads(state.read_text(encoding="utf-8"))
+    check("the launcher record is cleared", after.get("menus") == [] and after.get("tools") == [],
+          after)
+    check("the user's own settings in that file survive",
+          after.get("reduction") == 40 and after.get("format") == "FBX", after)
+    state.write_text(json.dumps({"menus": ["Windows"], "tools": []}), encoding="utf-8")
+    announced = checkout.uninstall(a_scripts, a_coat)
+    check("clearing the record is reported",
+          any("launcher record" in note for note in announced.notes), announced.notes)
+    state.write_text("not json at all", encoding="utf-8")
+    broken = checkout.uninstall(a_scripts, a_coat)
+    check("a corrupt launcher record does not stop an uninstall",
+          broken is not None and state.read_text(encoding="utf-8") == "not json at all")
+    state.unlink()
+    check("a missing launcher record is not an error", checkout.uninstall(a_scripts, a_coat) is not None)
 
     # ---- the command line works, and says what it did ------------------------
     c_scripts, c_coat = fresh(tmp / "c")

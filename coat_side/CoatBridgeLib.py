@@ -45,7 +45,7 @@ except ImportError:  # the command module is optional at import time
 APP_FOLDER = "BlenderBridge"
 MODEL_NAME = "bridge"
 PANEL_CAPTION = "CoatLink"
-VERSION = "1.4.4"
+VERSION = "1.4.5"
 #: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
 #: there is nothing to choose - Blender reads the returned file by extension.
 #: The model 3D-Coat hands back.  OBJ both ways on purpose: the axis rule then
@@ -711,6 +711,8 @@ class CoatBridgePanel(object):
         self.SizeLabel = "Size: -"
         #: queue state, recomputed only by explicit actions (disk I/O)
         self.QueueLabel = ""
+        #: how much of the tree is still surface, recomputed by RefreshStats only
+        self.ModeLabel = ""
         self._saved_controls = (self.ReductionPercent, self.Textures, self.SendScope)
         self.refresh_detail()
 
@@ -738,6 +740,7 @@ class CoatBridgePanel(object):
         items.append("RefreshStats")
         items.extend(panel_text_rows(
             getattr(self, "StatsLabel", "Statistics paused; click Refresh info"), 2))
+        items.extend(panel_text_rows(self.ModeLabel, 1))
         items.append("##Reduction % = removed; estimate only, export not verified")
         items.append("Textures,[#from 3D-Coat|#textures on|#textures off]")
         items.append("---")
@@ -915,6 +918,7 @@ class CoatBridgePanel(object):
     def RefreshStats(self):
         """Explicit user action only: never inspect live mesh during redraw."""
         self.SizeLabel = size_line()
+        self.ModeLabel = self.mode_summary()
         try:
             volume = coat.Scene.current().Volume()
             count = int(volume.getPolycount())
@@ -922,6 +926,33 @@ class CoatBridgePanel(object):
                 count, self.volume_mode(volume))
         except Exception as exc:
             self.StatsLabel = "Statistics unavailable: %s" % exc
+
+    def mode_summary(self):
+        """How many of the visible tree objects are still surfaces.
+
+        The number the user asked for: after an import it is not obvious how much of
+        the scene is in surface mode, and that is exactly what decides whether `To
+        voxels` still has work to do.  Explicit action only - it walks the tree, which
+        must never happen during a redraw.
+        """
+        try:
+            targets, _hidden = self._visible_voxel_targets()
+        except Exception:
+            return ""
+        surface = 0
+        counted = 0
+        for element in targets:
+            try:
+                voxel = bool(element.Volume().isVoxelized())
+            except Exception:
+                continue
+            counted += 1
+            if not voxel:
+                surface += 1
+        if not counted:
+            return ""
+        text = "%d of %d visible objects in surface mode" % (surface, counted)
+        return text + " - press To voxels" if surface else text
 
     def refresh_detail(self):
         root = primary_root()

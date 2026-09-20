@@ -459,7 +459,28 @@ def main():
     finally:
         coat.ui.cmd = real_cmd
 
-    # ---- menu registration (the panel entry already ran it) ----'''
+    # ---- the panel can say how much of the tree is still in surface mode ----
+    coat.root.children.clear()
+    packaging = node("bridge", _FakeVolume(True), coat.root)
+    node("SurfaceA", _FakeVolume(False), packaging)      # inside the import group
+    node("SurfaceB", _FakeVolume(False), coat.root)
+    node("VoxelC", _FakeVolume(True), coat.root)
+    node("HiddenD", _FakeVolume(False), coat.root, visible=False)
+    panel.RefreshStats()
+    check("Refresh info reports how much of the tree is still surface",
+          panel.ModeLabel == "2 of 3 visible objects in surface mode - press To voxels",
+          panel.ModeLabel)
+    check("the mode summary is drawn for the user",
+          any(item.startswith("##") and "surface mode" in item for item in panel.ui()),
+          panel.ui()[-9:])
+    panel.VoxelizeVisible()
+    check("and it reads clear once they are voxel volumes",
+          panel.ModeLabel == "0 of 3 visible objects in surface mode", panel.ModeLabel)
+    coat.root.children.clear()
+    panel.RefreshStats()
+    check("an empty tree claims nothing about modes", panel.ModeLabel == "", panel.ModeLabel)
+
+    # ---- menu registration (the panel entry already ran it) ----
     bridge.save_state({"menus": [], "tools": []})   # forget the entry's registration
     coat.menu_inserted = False      # and that 3D-Coat reports the menu missing again
     coat.inserted = []
