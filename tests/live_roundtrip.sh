@@ -20,7 +20,7 @@ fi
 WIN_REPO="$(cygpath -w "$REPO")"
 WORK="$(mktemp -d "${LOCALAPPDATA:-/tmp}/coat_bridge_live.XXXXXX")"
 WIN_WORK="$(cygpath -w "$WORK")"
-EXCHANGE="$(cygpath -w "$HOME/Documents/AppLinks/3D-Coat/Exchange")"
+EXCHANGE="$(cygpath -w "$HOME/Documents/3DCoat/Exchange")"
 
 echo "blender : $BLENDER"
 echo "exchange: $EXCHANGE"

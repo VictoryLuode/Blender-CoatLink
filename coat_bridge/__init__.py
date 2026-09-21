@@ -40,7 +40,7 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
 
     exchange_folder: StringProperty(
         name="Exchange folder",
-        description="Folder 3D-Coat watches for incoming models (Documents/AppLinks/3D-Coat/Exchange)",
+        description="Folder 3D-Coat watches for incoming models (Documents/3DCoat/Exchange)",
         subtype="DIR_PATH",
     )
     mode: EnumProperty(

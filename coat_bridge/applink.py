@@ -16,13 +16,18 @@
 
 3D-Coat registers more than one root (it logs both on startup):
 
-    Documents/AppLinks/3D-Coat/Exchange   reads job files here
-    Documents/3DCoat/Exchange             writes its exports here
+    Documents/3DCoat/Exchange             the one both halves write through
+    Documents/AppLinks/3D-Coat/Exchange   the official AppLink root, still watched
 
 Measured on 3D-Coat 2026: the job file is only polled in the ROOT (a copy inside
 the app folder is ignored), and an export made with File > Export To > <App>
 lands in <app folder> of 3D-Coat's own root.  So: write the job to the primary
 root, look for the return in every root's app folder.
+
+Both halves have to agree on the primary, or a trip leaves half its files in each
+folder: 3D-Coat's script side (coat_side/CoatBridgeLib.py) lists
+Documents/3DCoat/Exchange first, so this side does too - a return then overwrites
+the very file the send wrote, instead of a second stale copy nobody refreshes.
 
 Reference: "3D-Coat AppLinks specifications" (applinks.rst), shipped with
 3D-Coat in UserPrefs/PythonAPI/docs/source/.
@@ -72,11 +77,16 @@ def _documents_bases():
 
 
 def _candidate_exchange_folders():
-    """Exchange roots in preference order (the one jobs are read from first)."""
+    """Exchange roots in preference order (the one jobs are read from first).
+
+    3DCoat/Exchange leads so that this side's primary matches the 3D-Coat script
+    side's - see the module docstring.  AppLinks/3D-Coat/Exchange stays as the
+    second candidate: still watched for returns, never written to.
+    """
     roots = []
     for base in _documents_bases():
-        roots.append(os.path.join(base, "AppLinks", "3D-Coat", "Exchange"))
         roots.append(os.path.join(base, "3DCoat", "Exchange"))
+        roots.append(os.path.join(base, "AppLinks", "3D-Coat", "Exchange"))
     return [os.path.normpath(root) for root in dict.fromkeys(roots)]
 
 
