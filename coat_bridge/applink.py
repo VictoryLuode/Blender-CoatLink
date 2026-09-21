@@ -16,18 +16,20 @@
 
 3D-Coat registers more than one root (it logs both on startup):
 
-    Documents/3DCoat/Exchange             the one both halves write through
-    Documents/AppLinks/3D-Coat/Exchange   the official AppLink root, still watched
+    Documents/AppLinks/3D-Coat/Exchange   the shared one: jobs in, returns out
+    Documents/3DCoat/Exchange             its own root, watched but not written to
 
-Measured on 3D-Coat 2026: the job file is only polled in the ROOT (a copy inside
-the app folder is ignored), and an export made with File > Export To > <App>
-lands in <app folder> of 3D-Coat's own root.  So: write the job to the primary
-root, look for the return in every root's app folder.
+Measured on 3D-Coat 2025/2026: the job file is only polled in the ROOT (a copy
+inside the app folder is ignored), and an export made with File > Export To >
+<App> lands in <app folder> of 3D-Coat's own root.  So: write the job to the
+primary root, look for the return in every root's app folder.
 
-Both halves have to agree on the primary, or a trip leaves half its files in each
-folder: 3D-Coat's script side (coat_side/CoatBridgeLib.py) lists
-Documents/3DCoat/Exchange first, so this side does too - a return then overwrites
-the very file the send wrote, instead of a second stale copy nobody refreshes.
+Measured again, live: 3D-Coat's engine picks the job file up from the AppLinks
+root only - a job written into Documents/3DCoat/Exchange sat there untouched for
+two minutes.  The AppLinks root is therefore the primary for the whole bridge:
+this add-on writes its job there and the 3D-Coat script
+(coat_side/CoatBridgeLib.py) writes its returns there too, so a return lands on
+the very file the send wrote and there is one file to look at.
 
 Reference: "3D-Coat AppLinks specifications" (applinks.rst), shipped with
 3D-Coat in UserPrefs/PythonAPI/docs/source/.
@@ -79,14 +81,15 @@ def _documents_bases():
 def _candidate_exchange_folders():
     """Exchange roots in preference order (the one jobs are read from first).
 
-    3DCoat/Exchange leads so that this side's primary matches the 3D-Coat script
-    side's - see the module docstring.  AppLinks/3D-Coat/Exchange stays as the
-    second candidate: still watched for returns, never written to.
+    AppLinks/3D-Coat/Exchange leads because that is the only root 3D-Coat's
+    engine polls for the job file - measured live, a job left in
+    3DCoat/Exchange was never picked up.  The 3D-Coat script side leads with it
+    too, so a return lands on the very bridge.obj the send wrote.
     """
     roots = []
     for base in _documents_bases():
-        roots.append(os.path.join(base, "3DCoat", "Exchange"))
         roots.append(os.path.join(base, "AppLinks", "3D-Coat", "Exchange"))
+        roots.append(os.path.join(base, "3DCoat", "Exchange"))
     return [os.path.normpath(root) for root in dict.fromkeys(roots)]
 
 

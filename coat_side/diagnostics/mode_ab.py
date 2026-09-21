@@ -23,7 +23,7 @@ import sys
 import time
 
 DOCUMENTS = os.path.join(os.path.expanduser("~"), "Documents")
-ROOT = os.path.join(DOCUMENTS, "3DCoat", "Exchange")
+ROOT = os.path.join(DOCUMENTS, "AppLinks", "3D-Coat", "Exchange")
 REPORT = os.path.join(DOCUMENTS, "3DCoat", "CoatLink-TreeReport.txt")
 LOG = os.path.join(DOCUMENTS, "3DCoat", "Log.txt")
 HERE = os.path.dirname(os.path.abspath(__file__))

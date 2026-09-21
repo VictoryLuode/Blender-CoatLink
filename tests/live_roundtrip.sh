@@ -20,7 +20,7 @@ fi
 WIN_REPO="$(cygpath -w "$REPO")"
 WORK="$(mktemp -d "${LOCALAPPDATA:-/tmp}/coat_bridge_live.XXXXXX")"
 WIN_WORK="$(cygpath -w "$WORK")"
-EXCHANGE="$(cygpath -w "$HOME/Documents/3DCoat/Exchange")"
+EXCHANGE="$(cygpath -w "$HOME/Documents/AppLinks/3D-Coat/Exchange")"
 
 echo "blender : $BLENDER"
 echo "exchange: $EXCHANGE"
@@ -33,7 +33,7 @@ if ! tasklist 2>/dev/null | grep -qi "3dcoatgl64.exe"; then
     exit 2
 fi
 
-"$BLENDER" --background --factory-startup --python "$WIN_REPO\\tests\\live_roundtrip.py" -- \\
+"$BLENDER" --background --factory-startup --python "$WIN_REPO\\tests\\live_roundtrip.py" -- \
     --exchange "$EXCHANGE" --timeout "$TIMEOUT" --report "$WIN_WORK\\report.json"
 
 echo

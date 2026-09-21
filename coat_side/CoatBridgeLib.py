@@ -114,15 +114,18 @@ def documents_bases():
 def candidate_roots():
     roots = []
     for base in documents_bases():
-        # 3D-Coat's own root: it writes its AppLink exports here
-        roots.append(os.path.join(base, "3DCoat", "Exchange"))
-        # the documented AppLink root: Blender writes its job file here
+        # the shared root: 3D-Coat's engine polls its job file here, so both
+        # sides read and write here and a return lands on the file the send
+        # wrote.  Measured live: the engine never picks a job up from the
+        # other root, so this one has to lead.
         roots.append(os.path.join(base, "AppLinks", "3D-Coat", "Exchange"))
+        # 3D-Coat's own root: watched for anything an older session left behind
+        roots.append(os.path.join(base, "3DCoat", "Exchange"))
     return [os.path.normpath(root) for root in roots]
 
 
 def exchange_roots():
-    """Existing roots, 3D-Coat's own first."""
+    """Existing roots, the shared one first."""
     return [root for root in candidate_roots() if os.path.isdir(root)]
 
 

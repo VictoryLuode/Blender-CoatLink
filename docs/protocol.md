@@ -3,7 +3,7 @@
 ## The file layout
 
 ```
-Documents/3DCoat/Exchange/               <- the job file goes here (3D-Coat polls the root)
+Documents/AppLinks/3D-Coat/Exchange/     <- the job file goes here (3D-Coat polls the root)
     import.txt                               what to load, where to return, how to open it
     BlenderBridge/                           <- our folder; everything else lives in here
         run.txt                                 empty marker: makes the folder appear in File > Export To
@@ -12,15 +12,17 @@ Documents/3DCoat/Exchange/               <- the job file goes here (3D-Coat poll
         pull-history.json                       what we already imported, so a restart does not re-import it
     CoatLink_AfterImport.py                  run by 3D-Coat after the import: unparents the objects
 
-Documents/AppLinks/3D-Coat/Exchange/     <- the official AppLink root: watched, never written to
+Documents/3DCoat/Exchange/               <- 3D-Coat's own root: watched, never written to
     BlenderBridge/                           a return from an older session can still be sitting here
 ```
 
-Both halves put `Documents/3DCoat/Exchange` first (the Blender add-on in
-`applink._candidate_exchange_folders`, the 3D-Coat script in `CoatBridgeLib.exchange_roots`).  That
-is deliberate: with one shared primary, a return lands on the same `bridge.obj` the send wrote, so
-there is one file to look at.  When the two sides disagreed, a trip left half its files in each
-folder and the untouched half looked like "3D-Coat never exported".
+Both halves put `Documents/AppLinks/3D-Coat/Exchange` first (the Blender add-on in
+`applink._candidate_exchange_folders`, the 3D-Coat script in `CoatBridgeLib.candidate_roots`), and that
+is measured, not preferred: 3D-Coat's engine picks a job file up **only** from that root - a job left
+in `Documents/3DCoat/Exchange` sat untouched for two minutes.  With one shared primary a return lands
+on the same `bridge.obj` the send wrote, so there is one file to look at.  When the two sides
+disagreed, a trip left half its files in each folder and the untouched half looked like "3D-Coat never
+exported".
 
 The add-on writes `import.txt` at the root, `bridge.obj`, `CoatLink_AfterImport.py` (the script
 `import.txt` points at) and an empty `run.txt`; the two markers are state.  That is the whole

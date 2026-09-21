@@ -83,25 +83,30 @@ def main():
     # ---- exchange discovery ----
     roots = bridge.exchange_roots()
     check("both exchange roots are found",
-          [os.path.normcase(r) for r in roots] == [os.path.normcase(own_root), os.path.normcase(job_root)],
+          [os.path.normcase(r) for r in roots] == [os.path.normcase(job_root), os.path.normcase(own_root)],
           roots)
-    check("3D-Coat's own root is primary", os.path.normcase(bridge.primary_root()) == os.path.normcase(own_root))
+    # the shared root leads: 3D-Coat's engine only polls the job file there
+    check("the shared root is primary", os.path.normcase(bridge.primary_root()) == os.path.normcase(job_root))
 
     folder = bridge.ensure_folder(own_root)
     check("the BlenderBridge folder is created", os.path.isdir(folder), folder)
     check("run.txt marker exists and is empty",
           os.path.isfile(os.path.join(folder, "run.txt")) and os.path.getsize(os.path.join(folder, "run.txt")) == 0)
 
+    # the primary root needs its folder too: the queue readout and the pull below
+    # both look there first
+    bridge.ensure_folder(bridge.primary_root())
+
     # ---- Blender's queue file ----
     queued_model = os.path.join(folder, "bridge.obj")
     with open(queued_model, "w", encoding="utf-8") as handle:
         handle.write("# fake model\n")
-    with open(bridge.import_txt(job_root), "w", encoding="utf-8", newline="\n") as handle:
+    with open(bridge.import_txt(own_root), "w", encoding="utf-8", newline="\n") as handle:
         handle.write(os.path.abspath(queued_model).replace("\\", "/") + "\n" + "x/y.obj\n[ppp]\n")
-    check("the queue file is parsed", os.path.normcase(bridge.read_import_model(job_root)) == os.path.normcase(queued_model),
-          bridge.read_import_model(job_root))
+    check("the queue file is parsed", os.path.normcase(bridge.read_import_model(own_root)) == os.path.normcase(queued_model),
+          bridge.read_import_model(own_root))
     check("an empty queue file yields nothing",
-          bridge.read_import_model(os.path.join(job_root, "nope.txt")) == "")
+          bridge.read_import_model(os.path.join(own_root, "nope.txt")) == "")
 
     # ---- pull ----
     panel = bridge.CoatBridgePanel()
@@ -158,7 +163,7 @@ def main():
     check("pull imports the queued model", coat.scene_imports == [queued_model], coat.scene_imports)
     check("pull reports what it took", "Pulled" in panel.status, panel.status)
     check("the queue file is consumed so 3D-Coat does not import it twice",
-          not os.path.isfile(bridge.import_txt(job_root)))
+          not os.path.isfile(bridge.import_txt(own_root)))
 
     panel.PullFromBlender()
     check("pull with an empty queue imports the sent model instead",
@@ -194,18 +199,18 @@ def main():
 
     coat.applink_present = True
     coat.applink_export = applink_export
-    coat.ui.cmd.return_value = lambda *a, **k: applink_export(own_root) or True
+    coat.ui.cmd.return_value = lambda *a, **k: applink_export(bridge.primary_root()) or True
     panel.SendToBlender()
     check("send uses the AppLink target when it exists", "AppLink" in panel.status, panel.status)
     check("send leaves 3D-Coat's own signal in place",
-          os.path.isfile(bridge.signal_path(own_root))
-          and bool(open(bridge.signal_path(own_root)).read().strip()))
+          os.path.isfile(bridge.signal_path(bridge.primary_root()))
+          and bool(open(bridge.signal_path(bridge.primary_root())).read().strip()))
     check("send tells 3D-Coat which file to use",
           any(args and "bridge.obj" in str(args[0]) for args in coat.ui.setFileForFileDialog.calls),
           coat.ui.setFileForFileDialog.calls)
 
     # ---- send, direct export fallback ----
-    os.remove(bridge.signal_path(own_root))
+    os.remove(bridge.signal_path(bridge.primary_root()))
     coat.applink_present = False
 
     def direct_export(path):
@@ -215,7 +220,7 @@ def main():
     coat.direct_export = direct_export
     panel.SendToBlender()
     check("send falls back to the direct export", bool(cmd.calls) and cmd.calls[-1].endswith("bridge.obj"), cmd.calls[-1:])
-    check("send writes the signal Blender watches", os.path.isfile(bridge.signal_path(own_root)))
+    check("send writes the signal Blender watches", os.path.isfile(bridge.signal_path(bridge.primary_root())))
     check("send reports the file", "Sent to Blender" in panel.status and "bridge.obj" in panel.status, panel.status)
 
     # ---- there is exactly one export format ----

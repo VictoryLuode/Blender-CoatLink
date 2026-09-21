@@ -5,8 +5,9 @@
 
 Sends a cube named BridgeTestCube into the real exchange folder, waits for
 3D-Coat to consume the job file, then waits for the return signal (you press
-File > Bring object back in 3D-Coat) and pulls it, reporting whether the object
-was updated in place.
+File > Export To > BlenderBridge in 3D-Coat - NOT the official "Bring object
+back", which writes a signal for the official add-on's own folder) and pulls
+it, reporting whether the object was updated in place.
 
 Nothing is written outside the exchange folder.
 """
@@ -52,7 +53,7 @@ def main():
     prefs.skip_dialogs = True
     prefs.apply_modifiers = False
 
-    from coat_bridge import __init__ as addon
+    import coat_bridge as addon
     step("add-on version", ".".join(str(part) for part in addon.bl_info["version"]))
     step("coat running at start", applink.is_coat_running())
 
@@ -77,6 +78,7 @@ def main():
     step("cube ready", "%s, %d verts, %d uv layer(s)" % (cube.name, before, len(cube.data.uv_layers)))
 
     out_path = bridge.send(bpy.context)
+    sent_at = time.time()       # a signal older than this is a leftover, not a return
     job = applink.import_txt(exchange)
     step("sent", os.path.basename(out_path))
     step("import.txt written", os.path.isfile(job))
@@ -94,13 +96,17 @@ def main():
     if not consumed:
         step("hint", "job file still there: 3D-Coat did not pick it up within 120s")
 
-    step("waiting for the return", "up to %d s - press File > Bring object back in 3D-Coat" % timeout)
+    step("waiting for the return", "up to %d s - in 3D-Coat press File > Export To > BlenderBridge" % timeout)
     step("exchange roots", " | ".join(roots))
     deadline = time.time() + timeout
     signal = ""
     while time.time() < deadline:
         for candidate in applink.signal_files(roots):
-            if os.path.isfile(candidate):
+            # Only a signal written after our send counts.  The exchange roots
+            # keep stale ones - the official add-on's export.txt outlives the
+            # add-on itself - and accepting one of those reports a return that
+            # never happened.
+            if os.path.isfile(candidate) and os.path.getmtime(candidate) >= sent_at:
                 signal = candidate
                 break
         if signal:

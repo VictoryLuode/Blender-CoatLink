@@ -66,9 +66,9 @@ def main():
     coat.dialog_log.clear()
     status = lib.run_action("CoatBridge_Send")
     check("send exports the selected node",
-          os.path.isfile(lib.model_path(own_root, lib.EXPORT_FORMAT)),
-          lib.model_path(own_root, lib.EXPORT_FORMAT))
-    check("send writes the signal Blender watches", os.path.isfile(lib.signal_path(own_root)))
+          os.path.isfile(lib.model_path(job_root, lib.EXPORT_FORMAT)),
+          lib.model_path(job_root, lib.EXPORT_FORMAT))
+    check("send writes the signal Blender watches", os.path.isfile(lib.signal_path(job_root)))
     check("send reports the result", "selected node" in status, status)
     check("send opens no dialog", coat.dialog_log == [], coat.dialog_log)
 
