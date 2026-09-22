@@ -11,7 +11,14 @@ import bpy
 import addon_utils
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 addon_utils.enable('coat_bridge', default_set=True, persistent=False)
-from coat_bridge import bridge, applink
+from coat_bridge import bridge, applink, receipts as receipts_module
+
+original_acknowledge = receipts_module.acknowledge
+
+
+def broken_receipt(*args, **kwargs):
+    """A folder that cannot hold the receipt: read-only, or held by a sync client."""
+    raise PermissionError('this folder cannot be written')
 with tempfile.TemporaryDirectory(prefix='bridge_history_') as tmp:
     root = pathlib.Path(tmp)
     folder = root / 'BlenderBridge'
@@ -71,6 +78,21 @@ with tempfile.TemporaryDirectory(prefix='bridge_history_') as tmp:
     bridge.pull(bpy.context)
     assert len(calls) == 4, calls
     print('PASS a damaged record falls back to importing normally')
+
+    # The receipt is a note to 3D-Coat, nothing more.  A folder that cannot hold it
+    # must not make the same model look new again: the watcher ticks every two
+    # seconds, and the pull would import the same file on every tick.
+    model.write_text(model.read_text() + '# the receipt will fail for this one\n')
+    signal.write_text(str(model) + '\n')
+    receipts_module.acknowledge = broken_receipt
+    bridge.pull(bpy.context)
+    assert len(calls) == 5, 'the changed model was not imported: %r' % (calls,)
+    signal.write_text(str(model) + '\n')
+    bridge.pull(bpy.context)
+    assert len(calls) == 5, 'a receipt that cannot be written reimports the model: %r' % (calls,)
+    receipts_module.acknowledge = original_acknowledge
+    print('PASS a receipt that cannot be written does not import the model twice')
+
     bridge._import_and_link = original
 addon_utils.disable('coat_bridge', default_set=True)
 print('PULL HISTORY REGRESSION PASSED')

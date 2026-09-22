@@ -444,6 +444,11 @@ def main():
           bridge.after_import_seen())
     bridge.STATE["last_send"] = time.time() - 1
 
+    # A fresh stamp, taken here: the log line has to be dated after that send, and
+    # both only carry whole seconds - reusing the stamp from the block above made
+    # this check depend on how long those lines happened to take (it flaked by a
+    # second on a slower run).
+    stamp = time.strftime("%Y-%m-%d %H:%M:%S")
     with open(fake_log, "w", encoding="utf-8", newline="\n") as handle:
         handle.write("%s | 3dcoat | after-import ran: 0 moved, 0 to voxels, 0 already "
                      "voxel, 0 failed\n" % stamp)

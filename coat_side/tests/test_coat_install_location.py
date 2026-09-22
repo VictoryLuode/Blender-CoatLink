@@ -61,7 +61,7 @@ print("---- Documents: the shell's answer, then what really holds 3DCoat ----")
 with tempfile.TemporaryDirectory() as tmp:
     tmp = Path(tmp)
     redirected = tmp / "OneDrive" / "Documents"
-    (redirected / "3DCoat").mkdir(parents=True)
+    (redirected / "3DCoat" / "UserPrefs").mkdir(parents=True)
     original = stubbed(install, "shell_documents", lambda: redirected)
     try:
         check("redirected Documents wins when 3DCoat lives there",
@@ -73,7 +73,7 @@ with tempfile.TemporaryDirectory() as tmp:
         stubbed(install, "shell_documents", original)
 
     plain = tmp / "plain"
-    (plain / "3DCoat").mkdir(parents=True)
+    (plain / "3DCoat" / "UserPrefs").mkdir(parents=True)
     original = stubbed(install, "shell_documents", lambda: plain)
     try:
         check("a Documents folder with 3DCoat is used as it comes",
@@ -81,13 +81,41 @@ with tempfile.TemporaryDirectory() as tmp:
     finally:
         stubbed(install, "shell_documents", original)
 
+    # the bridge writes its own log into a bare 3DCoat folder, and taking that for
+    # 3D-Coat's data would send the next upgrade to a folder 3D-Coat never reads
+    decoy = tmp / "decoy"
+    (decoy / "3DCoat").mkdir(parents=True)
+    (decoy / "3DCoat" / "CoatBridge.log").write_text("", encoding="utf-8")
+    check("a bare 3DCoat folder (only our own log) is not 3D-Coat data",
+          install.coat_data_dirs(decoy) == [], install.coat_data_dirs(decoy))
+
+    real = tmp / "real"
+    (real / "3DCoat2026" / "UserPrefs").mkdir(parents=True)
+    check("a versioned data folder is recognised",
+          [folder.name for folder in install.coat_data_dirs(real)] == ["3DCoat2026"],
+          install.coat_data_dirs(real))
+
+    both = tmp / "both"
+    (both / "3DCoat2025" / "UserPrefs").mkdir(parents=True)
+    (both / "3DCoat2026" / "UserPrefs").mkdir(parents=True)
+    original = stubbed(install, "shell_documents", lambda: both)
+    try:
+        check("the newest versioned data folder wins",
+              install.coat_data_dir().name == "3DCoat2026", install.coat_data_dir())
+        check("user_prefs follows the newest one",
+              str(install.user_prefs()).replace("\\", "/").endswith("/3DCoat2026/UserPrefs"),
+              install.user_prefs())
+    finally:
+        stubbed(install, "shell_documents", original)
+
     original = stubbed(install, "shell_documents", lambda: tmp / "nowhere")
     try:
         found = install.documents_dir()
         check("with nothing to go on, a folder that has 3DCoat is still preferred",
-              (found / "3DCoat").is_dir() or not any(
-                  (candidate / "3DCoat").is_dir() for candidate in
-                  [tmp / "OneDrive" / "Documents", Path(os.path.expanduser("~")) / "Documents"]),
+              install.coat_data_dirs(found) or not any(
+                  install.coat_data_dirs(candidate) for candidate in
+                  [tmp / "OneDrive" / "Documents", tmp / "real", tmp / "both",
+                   Path(os.path.expanduser("~")) / "Documents"]),
               found)
     finally:
         stubbed(install, "shell_documents", original)

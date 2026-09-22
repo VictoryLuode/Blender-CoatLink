@@ -15,7 +15,7 @@ rem
 rem  Set COATLINK_NO_ELEVATE=1 to skip the elevation retry.
 rem =====================================================================
 
-setlocal
+setlocal enabledelayedexpansion
 set "URL=https://github.com/VictoryLuode/Blender-CoatLink/releases/latest/download/CoatLink-Setup.py"
 set "GET=%TEMP%\CoatLink-Setup.py"
 set "OUT=%TEMP%\CoatLink-install.log"
@@ -31,10 +31,31 @@ if defined COATLINK_PYTHON if exist "%COATLINK_PYTHON%" set "PY=%COATLINK_PYTHON
 if not defined COATLINK_DOCS for /f "tokens=2,*" %%A in ('reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" /v Personal 2^>nul') do set "COATLINK_DOCS=%%B"
 if defined COATLINK_DOCS call set "COATLINK_DOCS=%COATLINK_DOCS%"
 for %%R in ("%COATLINK_DOCS%" "%OneDrive%\Documents" "%OneDriveCommercial%\Documents" "%OneDriveConsumer%\Documents" "%USERPROFILE%\Documents") do (
-    if not defined PY for /d %%D in ("%%~fR\3DCoat\python-*") do if exist "%%~fD\python.exe" set "PY=%%~fD\python.exe"
+    rem two passes: the folders named after a recent version (3DCoat2025, 3DCoat2026)
+    rem first, then any 3DCoat folder.  for /d takes one wildcard level at a time.
+    if not defined PY for /d %%A in ("%%~fR\3DCoat20*") do (
+        if not defined PY for /d %%D in ("%%~A\python-*") do if exist "%%~D\python.exe" set "PY=%%~D\python.exe"
+    )
+    if not defined PY for /d %%A in ("%%~fR\3DCoat*") do (
+        if not defined PY for /d %%D in ("%%~A\python-*") do if exist "%%~D\python.exe" set "PY=%%~D\python.exe"
+    )
 )
-if not defined PY for %%P in (py.exe) do if not defined PY set "PY=%%~$PATH:P"
-if not defined PY for %%P in (python.exe) do if not defined PY set "PY=%%~$PATH:P"
+rem A python.exe on PATH can be the Windows Store stub: it opens the Store and
+rem runs nothing, so the download would look like it did nothing at all.  Only
+rem what is left has to actually run.
+if not defined PY for %%P in (python.exe py.exe python3.exe) do (
+    if not defined PY (
+        set "CAND=%%~$PATH:P"
+        if defined CAND (
+            set "CHECK=!CAND:WindowsApps=!"
+            if not "!CHECK!"=="!CAND!" set "CAND="
+        )
+        if defined CAND (
+            "!CAND!" -c "import sys" >nul 2>nul
+            if not errorlevel 1 set "PY=!CAND!"
+        )
+    )
+)
 if not defined PY (
     echo.
     echo No Python found.  Start 3D-Coat once - it ships one - and run this again,

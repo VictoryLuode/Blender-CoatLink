@@ -35,12 +35,61 @@ VOXELIZE = False
 LOG_NAME = "CoatBridge.log"
 
 
+def documents_folder():
+    """Windows' own answer for the Documents folder, then the plain guess.
+
+    Documents can be redirected (OneDrive, another drive), and 3D-Coat follows the
+    real one - so this does too, instead of assuming ``~/Documents``.
+    """
+    override = os.environ.get("COATLINK_DOCS")
+    if override:
+        return override
+    try:
+        import ctypes
+
+        buffer = ctypes.create_unicode_buffer(1024)
+        # CSIDL_PERSONAL = 5
+        if ctypes.windll.shell32.SHGetFolderPathW(None, 5, None, 0, buffer) == 0 and buffer.value:
+            return buffer.value
+    except Exception:
+        pass
+    return os.path.join(os.path.expanduser("~"), "Documents")
+
+
+def shared_log_path():
+    """The log the 3D-Coat side and the Blender side both write to.
+
+    The folder is the one 3D-Coat is actually using.  It is named after the version
+    on recent builds (``3DCoat2025``, ``3DCoat2026``) and carried a hyphen in the
+    4.x line, so it is looked up rather than assumed; the folder 3D-Coat has
+    already written to wins, because that is the one in use.
+    """
+    base = documents_folder()
+    try:
+        names = os.listdir(base)
+    except OSError:
+        names = []
+    candidates = []
+    for name in names:
+        low = name.lower()
+        if not (low.startswith("3dcoat") or low.startswith("3d-coat")):
+            continue
+        folder = os.path.join(base, name)
+        if os.path.isdir(folder):
+            candidates.append(folder)
+    candidates.sort(key=lambda folder: (
+        os.path.isfile(os.path.join(folder, "CoatBridge.json")),
+        os.path.basename(folder).lower()), reverse=True)
+    folder = candidates[0] if candidates else os.path.join(base, "3DCoat")
+    return os.path.join(folder, LOG_NAME)
+
+
 def note(message):
     """Append one line to the shared log.  Never raises."""
     try:
-        folder = os.path.join(os.path.expanduser("~"), "Documents", "3DCoat")
-        os.makedirs(folder, exist_ok=True)
-        with open(os.path.join(folder, LOG_NAME), "a", encoding="utf-8", newline="\n") as handle:
+        path = shared_log_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8", newline="\n") as handle:
             handle.write("%s | 3dcoat | %s\n" % (
                 datetime.now().isoformat(sep=" ", timespec="microseconds"), message))
     except Exception:

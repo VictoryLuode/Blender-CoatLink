@@ -382,6 +382,12 @@ def send(context):
             for modifier, viewport, render in suspended:
                 modifier.show_viewport = viewport
                 modifier.show_render = render
+    replaced = applink.foreign_job(primary)
+    if replaced:
+        # one job file is shared with the official Blender AppLink, so a job of
+        # theirs is replaced by ours here - say so, or it looks like a job that
+        # vanished for no reason
+        _log("replaced another AppLink's queued job: %s" % replaced)
     applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
 
     STATE["target"] = {"object": active.name, "file": out_path, "diagonal": _diagonal(objects[0])}
@@ -511,10 +517,17 @@ def _pull_once(context, force):
             receipt_version = receipts.fingerprint(path)
             imported = _import_and_link(context, path)
             if imported:
-                receipts.acknowledge(path, "blender", receipt_version, imported)
-            if imported:
+                # Recorded before the receipt is written, on purpose: the receipt is
+                # a note to 3D-Coat, and a folder that cannot hold it (a read-only
+                # or synced folder) must not make the same model look new again -
+                # it would be imported on every watcher tick.
                 versions[key] = version
                 dirty[0] = True
+                try:
+                    receipts.acknowledge(path, "blender", receipt_version, imported)
+                except Exception as exc:
+                    messages.append("could not write the receipt: %s" % exc)
+                    _log("receipt failed for %s: %s" % (os.path.basename(path), exc))
                 if len(versions) > 128:
                     del versions[next(iter(versions))]
                 if len(STATE["seen"]) > 256:

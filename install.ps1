@@ -147,18 +147,22 @@ function Get-CoatPython {
     # 3D-Coat ships its own Python folder: using it means nothing has to be installed
     if ($env:COATLINK_PYTHON -and (Test-Path $env:COATLINK_PYTHON)) { return $env:COATLINK_PYTHON }
     $patterns = @()
+    # the folder is named after the version on recent builds (3DCoat2025, 3DCoat2026)
     foreach ($dir in @((Get-DocumentsDir), (Join-Path $env:USERPROFILE 'Documents'))) {
-        if ($dir) { $patterns += (Join-Path $dir '3DCoat\python-*\python.exe') }
+        if ($dir) { $patterns += (Join-Path $dir '3DCoat*\python-*\python.exe') }
     }
     foreach ($var in 'OneDrive', 'OneDriveCommercial', 'OneDriveConsumer') {
         $base = [Environment]::GetEnvironmentVariable($var)
-        if ($base) { $patterns += (Join-Path $base 'Documents\3DCoat\python-*\python.exe') }
+        if ($base) { $patterns += (Join-Path $base 'Documents\3DCoat*\python-*\python.exe') }
     }
     $bundled = Find-Newest @($patterns)
     if ($bundled) { return $bundled }
+    # A python on PATH may be the Windows Store stub, which opens the Store and
+    # runs nothing - that is not an interpreter, and picking it would make the
+    # installer look like it did nothing at all.
     foreach ($name in 'python', 'py', 'python3') {
         $found = Get-Command $name -ErrorAction SilentlyContinue
-        if ($found) { return $found.Source }
+        if ($found -and $found.Source -and $found.Source -notlike '*\WindowsApps\*') { return $found.Source }
     }
     return $null
 }

@@ -68,7 +68,17 @@ When detection is not enough:
 Nothing is hardcoded.  The program folder comes from the uninstall entries Windows keeps (so an
 install in a folder of your own, on any drive, is found), the Program Files folders this system
 actually spells are read from the environment, every drive is looked at, and per-user `AppData`
-installs are covered.  The user folder follows Windows' own Documents folder.
+installs are covered.  The user folder follows Windows' own Documents folder, and the folder
+name under it is matched rather than assumed - 3D-Coat names it after the version on recent
+builds (`3DCoat2025`, `3DCoat2026`) and carried a hyphen in the 4.x line (`3D-CoatV48`).  The
+same matching is used for the Python 3D-Coat ships, so a versioned data folder does not hide
+it.  Only folders that really hold 3D-Coat data count (`UserPrefs` or `Scripts` inside), which
+is what keeps a Documents folder that merely contains a `3DCoat` folder - one this bridge
+wrote its own log into - from being mistaken for 3D-Coat's.
+
+A `python.exe` on `PATH` may be the Windows Store stub, which opens the Store and runs
+nothing; the doors refuse that path and any candidate that cannot actually run, instead of
+quietly doing nothing.
 
 For what is left, four environment variables - and the `.cmd` doors read them too, so a
 double-click needs no arguments:

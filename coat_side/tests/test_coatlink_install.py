@@ -18,6 +18,7 @@ import os
 import shutil
 import sys
 import tempfile
+import xml.etree.ElementTree as etree
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -125,6 +126,25 @@ def main():
     check("both rooms get all three buttons",
           tools_xml.count("<inRoom>Voxels</inRoom>") == 3
           and tools_xml.count("<inRoom>Paint</inRoom>") == 3)
+
+    # ---- a folder with & in its name must not void the menu files -------------
+    # & is legal in a Windows user name, and one unescaped & makes 3D-Coat read
+    # none of the file: the menu never appears, and nothing says why.
+    amp_root = Path(tempfile.mkdtemp(prefix="coatlink_amp."))
+    amp_scripts = amp_root / "Am&Co" / "Scripts"
+    amp_scripts.mkdir(parents=True)
+    standalone.install(amp_scripts, a_coat, payload=same)
+    amp_xml = (amp_scripts / "ExtraMenuItems" / "CoatBridge.xml").read_text(encoding="utf-8")
+    check("an & in the path is escaped on the way into the XML",
+          "Am&amp;Co" in amp_xml and "Am&Co" not in amp_xml.replace("Am&amp;Co", ""),
+          amp_xml[:200])
+    try:
+        amp_command = next(etree.fromstring(amp_xml).iter("Command")).text
+    except Exception as exc:                    # a file 3D-Coat cannot read at all
+        amp_command = "unparsable: %s" % exc
+    check("and it still parses back to the real folder",
+          "/Am&Co/Scripts/CoatBridge/CoatBridge_Setup.py" in amp_command, amp_command)
+    shutil.rmtree(amp_root, ignore_errors=True)
 
     # ---- icons land beside 3D-Coat's own --------------------------------------
     for name in checkout.ICON_FILES:

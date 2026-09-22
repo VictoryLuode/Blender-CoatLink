@@ -93,11 +93,48 @@ def user_prefs():
     """3D-Coat's user folder (``<Documents>/3DCoat/UserPrefs``).
 
     ``COATLINK_PREFS`` overrides it, which is how the tests point somewhere safe.
+    The folder under Documents is the one 3D-Coat is really using - it is named
+    after the version on recent builds (``3DCoat2025``, ``3DCoat2026``) - so it is
+    looked up rather than assumed.
     """
     override = os.environ.get("COATLINK_PREFS")
     if override:
         return Path(override)
+    data = coat_data_dir()
+    if data is not None:
+        return data / "UserPrefs"
     return documents_dir() / "3DCoat" / "UserPrefs"
+
+
+def coat_data_dirs(base):
+    """3D-Coat's user data folders directly below one Documents folder.
+
+    The folder is named after the version on recent builds (``3DCoat2025``,
+    ``3DCoat2026``) and carried a hyphen in the 4.x line (``3D-CoatV48``), so the
+    name is matched, never assumed.  Only folders that really hold 3D-Coat's data
+    count - see ``documents_dir``.
+    """
+    found = []
+    try:
+        names = os.listdir(base)
+    except OSError:
+        return found
+    for name in names:
+        lower = name.lower()
+        if not (lower.startswith("3dcoat") or lower.startswith("3d-coat")):
+            continue
+        folder = Path(base) / name
+        if (folder / "UserPrefs").is_dir() or (folder / "Scripts").is_dir():
+            found.append(folder)
+    return found
+
+
+def coat_data_dir():
+    """The 3D-Coat user data folder, or None when there is none yet."""
+    folders = coat_data_dirs(documents_dir())
+    if not folders:
+        return None
+    return sorted(folders, key=lambda path: path.name.lower())[-1]
 
 
 def _registry_value(hive, subkey, name):
@@ -156,8 +193,13 @@ def documents_dir():
     """Where 3D-Coat keeps its data.
 
     What Windows says first, then ``~/Documents``, then the OneDrive spellings of
-    both - but a candidate that actually contains a ``3DCoat`` folder wins over
-    the order, so a redirected machine is followed rather than missed.
+    both - but a candidate that really holds 3D-Coat's user data wins over that
+    order, so a redirected machine is followed rather than missed.
+
+    Only a folder that looks like 3D-Coat's own counts (it has ``UserPrefs`` or
+    ``Scripts`` inside).  A bare ``3DCoat`` folder is something else: the bridge
+    writes its own log into one, and letting that hoist a candidate to the front
+    would send the next upgrade to a folder 3D-Coat never reads.
     """
     home = Path(os.path.expanduser("~"))
     candidates = []
@@ -170,7 +212,7 @@ def documents_dir():
         if base:
             candidates += [Path(base) / "Documents", Path(base)]
     for candidate in candidates:
-        if (candidate / "3DCoat").is_dir():
+        if coat_data_dirs(candidate):
             return candidate
     return candidates[0]
 
@@ -331,15 +373,38 @@ class Report(object):
 
 
 def _write(path, data, report, verify=True):
-    """Write bytes, then read them back: a silent half-copy is not an install."""
+    """Write bytes, then read them back: a silent half-copy is not an install.
+
+    A folder that cannot be written (a read-only Scripts folder, a sync client
+    holding the file) is reported as skipped with the reason, so the run ends with
+    "Permission denied: <file>" instead of a traceback nobody can act on.
+    """
     if isinstance(data, str):
         data = data.encode("utf-8")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(data)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    except OSError as exc:
+        report.skipped.append((path.name, str(exc)))
+        report.verified = False
+        return False
     if verify and path.read_bytes() != data:
         report.verified = False
         report.line("MISMATCH after writing %s" % path)
     report.written.append(path)
+    return True
+
+
+def xml_escape(text):
+    """Make a path safe to put inside an XML file.
+
+    ``&`` is legal in a Windows user name and in a folder name, and a single
+    unescaped ``&`` makes the whole menu file unreadable to 3D-Coat - which then
+    shows no menu at all, with nothing written to the log to say why.
+    """
+    return (str(text).replace("&", "&amp;")
+                     .replace("<", "&lt;")
+                     .replace(">", "&gt;"))
 
 
 def install(scripts_dir, program=None, payload=None, report=None):
@@ -368,8 +433,10 @@ def install(scripts_dir, program=None, payload=None, report=None):
     script_dir = windows_path(app_dir)
     menu_dir = scripts_dir / "ExtraMenuItems"
     menu_dir.mkdir(parents=True, exist_ok=True)
-    _write(menu_dir / "CoatBridge.xml", MENU_XML.format(script_dir=script_dir), report)
-    tools = payload["tools_xml"].replace(PLACEHOLDER, script_dir)
+    # escaped on the way in: one & in a folder name would void the whole file
+    xml_dir = xml_escape(script_dir)
+    _write(menu_dir / "CoatBridge.xml", MENU_XML.format(script_dir=xml_dir), report)
+    tools = payload["tools_xml"].replace(PLACEHOLDER, xml_dir)
     if PLACEHOLDER in tools:
         report.line("the tools template still holds %s" % PLACEHOLDER)
         report.verified = False

@@ -2,6 +2,9 @@ hotfix-backups/
 __pycache__/
 *.pyc
 
+# git-bash / MSYS leaves these behind while the shell tests run
+.msys*
+
 # release archives built by package.sh
 dist/
 

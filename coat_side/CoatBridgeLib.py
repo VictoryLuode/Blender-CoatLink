@@ -105,10 +105,93 @@ _LAST_OPEN = [0.0]
 # exchange folders (same discovery rules as the Blender add-on)
 # --------------------------------------------------------------------------
 
+def script_user_data():
+    """The 3D-Coat user data folder this script itself lives in, or "".
+
+    The installer puts these scripts in ``<user data>/UserPrefs/Scripts/CoatBridge``,
+    so the folder is *known* rather than guessed: walking up from ``__file__`` finds
+    ``UserPrefs`` (2021 and later) or ``Scripts`` (the 4.x layout).  That matters
+    because ``~/Documents`` and 3D-Coat's own folders are not the same place once
+    Documents is redirected (OneDrive) or ``COAT_FILES_PATH`` is set - and guessing
+    wrong there is what makes the panel say "no exchange folder found" on a machine
+    where everything is installed correctly.  The folder name also carries the
+    version on some builds (``3DCoat2025``), which a hard-coded ``3DCoat`` misses.
+    """
+    folder = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(8):
+        name = os.path.basename(folder).lower()
+        if name == "userprefs":  # 2021 and later
+            return os.path.dirname(folder)
+        if name == "scripts":    # 4.x: <user data>/Scripts/...
+            return os.path.dirname(folder)
+        parent = os.path.dirname(folder)
+        if parent == folder:     # reached the drive root
+            break
+        folder = parent
+    return ""
+
+
+def windows_documents():
+    """Windows' own answer for the Documents folder, or "" (non-Windows, failure).
+
+    The same call the Blender half makes, so both halves agree on a redirected
+    machine instead of one asking Windows and the other assuming ``~/Documents``.
+    ``COATLINK_DOCS`` names the folder outright - the same override the installer's
+    doors honour, and what the test suite uses to stand in for another machine.
+    """
+    override = os.environ.get("COATLINK_DOCS")
+    if override:
+        return override
+    if os.name != "nt":
+        return ""
+    try:
+        import ctypes
+
+        buffer = ctypes.create_unicode_buffer(1024)
+        # CSIDL_PERSONAL = 5
+        if ctypes.windll.shell32.SHGetFolderPathW(None, 5, None, 0, buffer) == 0:
+            return buffer.value
+    except Exception:
+        return ""
+    return ""
+
+
 def documents_bases():
-    home = os.path.expanduser("~")
-    bases = [os.path.join(home, "Documents")]
-    return [os.path.normpath(base) for base in bases]
+    """Candidate Documents folders, the one this script lives in first."""
+    bases = []
+    data = script_user_data()
+    if data:
+        bases.append(os.path.dirname(data))
+    shell = windows_documents()
+    if shell:
+        bases.append(shell)
+    bases.append(os.path.join(os.path.expanduser("~"), "Documents"))
+    seen = set()
+    unique = []
+    for base in bases:
+        base = os.path.normpath(base)
+        key = os.path.normcase(base)
+        if base and key not in seen:
+            seen.add(key)
+            unique.append(base)
+    return unique
+
+
+def user_data_dir():
+    """3D-Coat's user data folder (``…/Documents/3DCoat`` and friends).
+
+    What the script found by looking at itself comes first; ``~/Documents/3DCoat``
+    is only the guess to fall back on when that failed (the script was started from
+    somewhere else, or copied out of its folder).
+    """
+    data = script_user_data()
+    if data:
+        return data
+    for base in documents_bases():
+        for name in os.listdir(base) if os.path.isdir(base) else []:
+            if name.lower() in ("3dcoat", "3d-coatv48", "3d-coatv49"):
+                return os.path.join(base, name)
+    return os.path.join(documents_bases()[0], "3DCoat")
 
 
 def candidate_roots():
@@ -119,8 +202,8 @@ def candidate_roots():
         # wrote.  Measured live: the engine never picks a job up from the
         # other root, so this one has to lead.
         roots.append(os.path.join(base, "AppLinks", "3D-Coat", "Exchange"))
-        # 3D-Coat's own root: watched for anything an older session left behind
-        roots.append(os.path.join(base, "3DCoat", "Exchange"))
+    # 3D-Coat's own root: watched for anything an older session left behind
+    roots.append(os.path.join(user_data_dir(), "Exchange"))
     return [os.path.normpath(root) for root in roots]
 
 
@@ -160,8 +243,25 @@ def ensure_folder(root):
     return folder
 
 
+def is_our_model(root, path):
+    """Does this model sit inside our own folder under ``root``?
+
+    The job file is the one file both AppLinks share, so a job has to be claimed by
+    what it points at rather than by the file it arrived in.
+    """
+    folder = os.path.normcase(os.path.normpath(os.path.dirname(os.path.abspath(path))))
+    return folder == os.path.normcase(os.path.normpath(app_folder(root)))
+
+
 def read_import_model(root):
-    """The model Blender queued in <root>/import.txt, if it is still there."""
+    """The model Blender queued in <root>/import.txt, if it is ours and still there.
+
+    Only a job naming a model inside our own ``BlenderBridge`` folder counts.  The
+    official Blender AppLink writes its jobs into the very same ``import.txt``
+    (measured in its own source: first line the model, third line ``[3B]``), so a
+    path that is not ours belongs to that add-on - importing it here, and deleting
+    the file afterwards the way ``consume_import`` does, would steal its job.
+    """
     path = import_txt(root)
     if not os.path.isfile(path):
         return ""
@@ -172,7 +272,11 @@ def read_import_model(root):
         return ""
     if not first or first.startswith("["):
         return ""
-    return os.path.normpath(first)
+    model = os.path.normpath(first)
+    if not is_our_model(root, model):
+        log("import.txt names a model outside BlenderBridge - left for its own AppLink: %s" % model)
+        return ""
+    return model
 
 
 def consume_import(root, model):
@@ -218,7 +322,7 @@ def sent_models(root):
 def log_path():
     """A small append-only log next to the 3D-Coat user data, so a silent
     failure inside 3D-Coat can be diagnosed from outside."""
-    return os.path.join(documents_bases()[0], "3DCoat", "CoatBridge.log")
+    return os.path.join(user_data_dir(), "CoatBridge.log")
 
 
 def log_text(limit=200):
@@ -250,8 +354,7 @@ def log(message):
 
 
 def state_path():
-    base = documents_bases()[0]
-    return os.path.join(base, "3DCoat", STATE_FILE)
+    return os.path.join(user_data_dir(), STATE_FILE)
 
 
 def load_state():
@@ -623,6 +726,24 @@ def add_translations():
             pass
 
 
+def ensure_launcher():
+    """Make sure the panel keeps a menu entry even when the XML files do not work.
+
+    The ``ExtraMenuItems`` XML is how the entry normally appears, but a menu file
+    3D-Coat cannot parse (one ``&`` in a path is enough) leaves no entry at all -
+    and no XML provides the ``Windows`` menu entry.  Both calls keep their own
+    record in the state file, so calling this on every open adds nothing twice.
+    """
+    try:
+        added = register_menu_item() + register_room_tools()
+    except Exception as exc:
+        log("could not register the launcher: %s" % exc)
+        return []
+    if added:
+        log("registered at run time: %s" % ", ".join(added))
+    return added
+
+
 def run_action(tool_id):
     """Run one bridge action headless and report the outcome with 3D-Coat's own
     floating message - no window, no dialog."""
@@ -633,6 +754,8 @@ def run_action(tool_id):
     if action is None:
         return "unknown action: %s" % tool_id
     log("tool %s -> %s" % (tool_id, label))
+    if tool_id == "CoatBridge_Setup":
+        ensure_launcher()         # the panel's own entry, XML or no XML
     coat_settings_info()          # also logs 3D-Coat's scale/units/axis
     try:
         action()
@@ -1327,9 +1450,3 @@ def show_panel(force=False):
         .show()
     _on_press(1)
     return panel
-
-
-def main():
-    register_menu_item()
-    register_room_tools()
-    show_panel()

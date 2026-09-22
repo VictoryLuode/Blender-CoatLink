@@ -318,6 +318,9 @@ def build_environment(tmp):
         return tmp if path == "~" else real_expanduser(path)
 
     os.path.expanduser = fake_expanduser
+    # Windows' own answer for Documents cannot be faked - it is a registry call -
+    # so the override every door and both halves honour stands in for it.
+    os.environ["COATLINK_DOCS"] = os.path.join(tmp, "Documents")
 
     coat = FakeCoat()
     coat.mat4 = FakeMat4()

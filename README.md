@@ -111,14 +111,22 @@ One exchange folder, one file layout, one vocabulary:
 ```
 
 Nothing else is written, and only files inside a `BlenderBridge` folder are ever touched -
-which is what lets 3D-Coat's official AppLink stay enabled.  Measurements, the two exchange
-roots and the differences from the official AppLink: [docs/protocol.md](docs/protocol.md).
+with one exception: the job file `import.txt`.  3D-Coat polls that file only at the exchange
+root, and the official Blender AppLink queues its jobs in the very same file (its own source
+writes the model path first).  The two add-ons can therefore stay enabled side by side, but
+not send at the same instant: whichever writes last owns the queue.  CoatLink says so in the
+log when it replaces a job that was not its own, and it never imports or deletes a job
+pointing outside its own folder.  Measurements, the two exchange roots and the differences
+from the official AppLink: [docs/protocol.md](docs/protocol.md).
 
 ## Requirements
 
-Blender 4.2+ (developed on 5.2 LTS) · 3D-Coat 4.8.15+ (tested against 2025/2026) · Windows
-for the installers and the test scripts; the Blender add-on itself is OS-independent and
-3D-Coat ships the Python its half needs.
+Blender 4.2+ (developed on 5.2 LTS) · 3D-Coat **2025.12 or newer** (tested against 2025 and
+2026) · **Windows** - the installers, the exchange layout and both test suites assume it.
+The `[pythonfile]` step the return trip relies on was added in 3D-Coat 2025.12, so older
+builds are not supported; 3D-Coat 2026 keeps its own Python and user data in versioned
+folders and both halves look those up rather than assuming a name.  3D-Coat ships the Python
+its half needs, so nothing else has to be installed.
 
 ## Known limitations
 
@@ -156,7 +164,7 @@ script and exchange folders, and the 3D-Coat tests run against a stand-in `coat`
 themselves; `BLENDER=`, `COAT_PYTHON=` and `COAT_DIR=` override.
 
 Current counts: Blender main suite **196/196** plus every regression script and both installer
-smoke tests; 3D-Coat logic **160/160**, tools **29/29**, tree report **12/12**, installer
+smoke tests; 3D-Coat logic **162/162**, tools **29/29**, tree report **12/12**, installer
 checks, API stub check, idle-redraw check and probe dry run.
 
 ## License

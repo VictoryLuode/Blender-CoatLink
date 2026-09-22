@@ -49,9 +49,22 @@ APP_FOLDER = "BlenderBridge"
 _MODEL_NAME = "bridge"
 _COAT_EXE = "3DCoatGL64.exe"
 
+#: 3D-Coat names its user data folder after the version on recent builds
+#: (3DCoat2025, 3DCoat2026) and carried a hyphen in the 4.x line (3D-CoatV48),
+#: so the name is matched rather than assumed.
+_COAT_DATA_PREFIXES = ("3dcoat", "3d-coat")
+
 
 def _windows_documents():
-    """The real Documents folder, which may be relocated (spec, Application 3)."""
+    """The real Documents folder, which may be relocated (spec, Application 3).
+
+    ``COATLINK_DOCS`` names it outright - the override the installer's doors and
+    the 3D-Coat half honour too, and how the test suite stands in for another
+    machine.
+    """
+    override = os.environ.get("COATLINK_DOCS")
+    if override:
+        return override
     try:
         import ctypes.wintypes as wintypes
 
@@ -78,18 +91,60 @@ def _documents_bases():
     return [os.path.normpath(base) for base in dict.fromkeys(bases)]
 
 
+def _looks_like_coat_data(path):
+    """A 3D-Coat user data folder, not merely a folder carrying the name.
+
+    The real folders hold ``UserPrefs`` (2021+) or ``Exchange``/``data``; a folder
+    we have written our own state file into counts too, because that is the one a
+    running 3D-Coat handed the settings to.
+    """
+    for name in ("UserPrefs", "Exchange", "data"):
+        if os.path.isdir(os.path.join(path, name)):
+            return True
+    return os.path.isfile(os.path.join(path, "CoatBridge.json"))
+
+
+def coat_data_dirs():
+    """3D-Coat's user data folders, the one in use first.
+
+    A folder 3D-Coat has already written to (it holds ``CoatBridge.json``) is the
+    one in use; after that the newest name wins, because a machine can hold
+    3DCoat2025 and 3DCoat2026 side by side.
+    """
+    found = []
+    for base in _documents_bases():
+        try:
+            names = os.listdir(base)
+        except OSError:
+            continue
+        for name in names:
+            if not name.lower().startswith(_COAT_DATA_PREFIXES):
+                continue
+            path = os.path.join(base, name)
+            if os.path.isdir(path) and _looks_like_coat_data(path):
+                found.append(path)
+    found.sort(key=lambda path: (os.path.isfile(os.path.join(path, "CoatBridge.json")),
+                                 os.path.basename(path).lower()),
+               reverse=True)
+    return found
+
+
 def _candidate_exchange_folders():
     """Exchange roots in preference order (the one jobs are read from first).
 
     AppLinks/3D-Coat/Exchange leads because that is the only root 3D-Coat's
     engine polls for the job file - measured live, a job left in
     3DCoat/Exchange was never picked up.  The 3D-Coat script side leads with it
-    too, so a return lands on the very bridge.obj the send wrote.
+    too, so a return lands on the very bridge.obj the send wrote.  Every user
+    data folder 3D-Coat actually has follows, so a renamed one (``3DCoat2025`` /
+    ``3DCoat2026``) is not missed.
     """
     roots = []
     for base in _documents_bases():
         roots.append(os.path.join(base, "AppLinks", "3D-Coat", "Exchange"))
-        roots.append(os.path.join(base, "3DCoat", "Exchange"))
+    for folder in coat_data_dirs():
+        roots.append(os.path.join(folder, "Exchange"))
+    roots.append(os.path.join(_documents_bases()[0], "3DCoat", "Exchange"))
     return [os.path.normpath(root) for root in dict.fromkeys(roots)]
 
 
@@ -159,9 +214,38 @@ def import_txt(root):
     return os.path.join(root, "import.txt")
 
 
+def foreign_job(root):
+    """The model named by a job file in ``root`` that is *not* ours, or "".
+
+    The official Blender AppLink queues its jobs in this very same ``import.txt``
+    (its own source writes the model path first).  Writing ours on top of one is
+    unavoidable - only one job file exists - but doing it quietly would look like
+    a job that simply vanished, so the caller says so in the log.
+    """
+    try:
+        with open(import_txt(root), "r", encoding="utf-8", errors="replace") as handle:
+            first = handle.readline().strip().strip('"')
+    except OSError:
+        return ""
+    if not first or first.startswith("["):
+        return ""
+    path = os.path.normpath(first)
+    folder = os.path.normcase(os.path.normpath(os.path.dirname(path)))
+    if folder == os.path.normcase(os.path.normpath(app_folder(root))):
+        return ""
+    return path
+
+
 def shared_log_path():
     """The log both sides of the bridge write to (the 3D-Coat user folder), so a
-    scale mismatch or a silent failure can be diagnosed in one place."""
+    scale mismatch or a silent failure can be diagnosed in one place.
+
+    The same folder the 3D-Coat half picks for itself, so the two never end up
+    writing one log each on a machine whose Documents folder moved.
+    """
+    folders = coat_data_dirs()
+    if folders:
+        return os.path.join(folders[0], "CoatBridge.log")
     return os.path.join(_documents_bases()[0], "3DCoat", "CoatBridge.log")
 
 
@@ -267,8 +351,8 @@ def coat_state():
     learns 3D-Coat's settings without asking the user: the 3D-Coat side refreshes
     it on every action.
     """
-    for base in _documents_bases():
-        path = os.path.join(base, "3DCoat", "CoatBridge.json")
+    for folder in coat_data_dirs():
+        path = os.path.join(folder, "CoatBridge.json")
         if not os.path.isfile(path):
             continue
         try:

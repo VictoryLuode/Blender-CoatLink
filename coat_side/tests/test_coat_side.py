@@ -519,6 +519,17 @@ def main():
           bridge.register_menu_item() == ["Windows"] and coat.inserted == [("Windows", "CoatBridge", "")],
           coat.inserted)
 
+    # the runtime fallback: a menu file 3D-Coat cannot parse (one & in a path is
+    # enough) leaves no entry at all, and no XML provides the Windows one.  The
+    # panel asks for both whenever it is opened.
+    coat.inserted = []
+    coat.menu_inserted = False
+    write_state({"format": "FBX"})
+    added = bridge.ensure_launcher()
+    check("ensure_launcher puts the entries back when the XML is not read",
+          "Scripts" in added and "Windows" in added and len(coat.inserted) == 2, added)
+    check("ensure_launcher is idempotent", bridge.ensure_launcher() == [])
+
     # ---- room tool button ----
     write_state({"format": "FBX"})  # fresh: nothing recorded yet
     added = bridge.register_room_tools()

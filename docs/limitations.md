@@ -53,8 +53,21 @@ so.  The short version is on the [README](../README.md).
   while troubleshooting, but foreground-only polling is not established for every build.  The
   Send hint checks whether the process runs, not which window is active.
 * **Windows-oriented installers.**  Both installers and the test scripts assume Windows paths
-  (`cygpath`, `%APPDATA%`).  The Blender add-on itself is OS-independent; the 3D-Coat half is
-  plain Python and only its installer is Windows-specific.
+  (`cygpath`, `%APPDATA%`), and this release is Windows only: the exchange layout and both
+  test suites assume it too, so nothing here claims another platform works.  The code that
+  looks like it might (`xdg-open`, `~/AppLinks/…`) is untested and not supported.
+* **The job file `import.txt` is shared with 3D-Coat's official Blender AppLink.**  Only one
+  such file exists at the exchange root and 3D-Coat polls it there, so the official add-on
+  queues its jobs in the same file (its own source writes the model path first).  Both can be
+  enabled at once, but not send at the same instant: the last writer owns the queue.  CoatLink
+  logs it when it replaces a job that was not its own, and it never imports or deletes a job
+  that points outside its own `BlenderBridge` folder - earlier releases did, which could take
+  the official add-on's queued model with it.
+* **3D-Coat 2025.12 or newer.**  The `[pythonfile …]` line that unparents an imported model is
+  documented for 2025.12 and later (and `[scriptfile]` stopped working in that release), so
+  older builds do not get the unparenting step and may not import at all.  Nothing here has
+  been run against 4.8.x/2024, whose user data folders are named differently again
+  (`3D-CoatV48`, with the `Scripts` folder directly under it).
 * **Button icons need an elevated run** when 3D-Coat lives under `C:\Program Files`; they are
   skipped and reported otherwise, and the buttons use their default icons.
 * **No `.3dcpack` is shipped, and that is measured, not assumed.**  A pack is a zip whose
