@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The 3D-Coat extension entry point, under a fake 3D-Coat.
 
-3D-Coat loads ``CoatLink.py`` as a *module* and keeps the ``cExtension`` instance
-alive, so the test does the same: stub ``cPy.cCore``, load the copy from a
-``Scripts/cExtensions/CoatLink`` tree, instantiate it and call ``onStartup``.  What
+3D-Coat loads ``CoatLink.py`` as a *module* and keeps the ``cExtension`` instance the
+module created alive, so the test does the same: stub ``cPy.cCore``, load the copy from
+a ``Scripts/cExtensions/CoatLink`` tree, ask the module for the instance it registered
+and call ``onStartup``.  What
 that has to achieve is checked here - the two XML files land in 3D-Coat's folder
 with the extension's own paths in them, and the leftovers of an older install are
 moved out of the way rather than deleted.
@@ -98,7 +99,16 @@ def main():
 
     module, target = load_half(tmp, "Documents", "3DCoat", "UserPrefs", "Scripts",
                                "cExtensions", "CoatLink")
-    module.CoatLinkExtension().onStartup()
+    # The registration is a side effect of loading the file - 3D-Coat imports the
+    # module and looks for the instance it created.  Asking the module for it (rather
+    # than instantiating the class here) is what makes this test able to fail: the
+    # first version of this file defined the class and never created it, and this test
+    # could not see it.
+    instance = getattr(module, "_extension", None)
+    check("loading the module registers the extension",
+          isinstance(instance, module.CoatLinkExtension),
+          "no module-level instance: 3D-Coat would import the file and nothing would run")
+    (instance or module.CoatLinkExtension()).onStartup()
 
     menu = os.path.join(extra, "CoatLink.xml")
     check("the extension writes the menu file", os.path.isfile(menu))
@@ -129,7 +139,7 @@ def main():
     for name in ("CoatLink", "CoatLinkLib", "CoatLinkMenu"):
         sys.modules.pop(name, None)          # load the second copy, not the first
     module2, target2 = load_half(tmp2, "Documents", "3DCoat", "UserPrefs", "Scripts", "CoatLink")
-    module2.CoatLinkExtension().onStartup()
+    module2._extension.onStartup()
     check("the copy itself stays where it was put", os.path.isdir(target2))
     check("and it writes the menu file for its own folder",
           os.path.isfile(os.path.join(scripts2, "ExtraMenuItems", "CoatLink.xml")))

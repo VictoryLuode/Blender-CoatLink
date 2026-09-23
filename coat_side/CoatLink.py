@@ -32,9 +32,28 @@ EXTENSION_NAME = "CoatLink"
 
 
 def _log(message, exc=False):
+    """Log without ever letting logging break the extension.
+
+    The shared log is reached through ``CoatLinkLib``.  When that import is itself
+    what is broken, the reason has to land somewhere readable - outside 3D-Coat
+    there is no console to look at - so the fallback is a plain file beside this
+    one, written with nothing but the standard library.
+    """
     try:
         import CoatLinkLib
         CoatLinkLib.log(message, exc=exc)
+        return
+    except Exception:
+        pass
+    try:
+        import datetime
+        import traceback
+        with open(os.path.join(_HERE, "CoatLink-extension.log"), "a",
+                  encoding="utf-8") as handle:
+            handle.write("%s | %s | %s\n" % (
+                datetime.datetime.now().strftime("%H:%M:%S"), EXTENSION_NAME, message))
+            if exc:
+                traceback.print_exc(file=handle)
     except Exception:
         pass
 
@@ -63,3 +82,12 @@ class CoatLinkExtension(cPy.cCore.cExtension):
 
     def onExit(self):
         _log("%s exiting" % EXTENSION_NAME)
+
+
+# Instantiating the class is what registers the extension: 3D-Coat imports this file
+# as a module and looks for the instance the module created - the same side effect
+# 3D-Coat's own MouseTest tutorial documents, and what CoatMenu does.  Without this
+# line the file imports perfectly and *nothing ever happens*: no log line, no menu
+# file, no cleanup.  The test instantiates the class by hand, so only the host could
+# catch it - which is why the test now checks for this instance by name.
+_extension = CoatLinkExtension()
