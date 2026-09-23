@@ -91,7 +91,7 @@ VOXEL_TOGGLE_POLLS = 3
 STATE_FILE = "CoatLink.json"
 RUN_MARKER = "run.txt"
 MENU_ID = "CoatLink"
-MENU_PATHS = ("Scripts", "Windows")  # launcher lives with the other script/window entries
+MENU_PATHS = ("Scripts",)  # one entry point, as everywhere else in this project
 TOOL_ROOMS = ("Voxels", "Paint")      # rooms whose tool panel gets the CoatLink buttons
 #: one tool button per room per action, in this order; the file names double as the
 #: button ids and as the scripts the XML points at

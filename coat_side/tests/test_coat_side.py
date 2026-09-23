@@ -503,8 +503,10 @@ def main():
     check("the first run writes the menu file", bridge.register_menu_item() == ["CoatLink.xml"],
           bridge.register_menu_item())
     text = read(menu_xml)
-    check("the file carries the Scripts and the Windows entry",
-          text.count("<ExtraMenuItem>") == 2 and "<MenuPath>Windows</MenuPath>" in text, text)
+    check("the file carries one entry, in the Scripts menu",
+          text.count("<ExtraMenuItem>") == 1 and "<MenuPath>Scripts</MenuPath>" in text
+          and "Windows" not in text,
+          text)
     check("its command points at this copy's own setup script",
           "script:%s/CoatLink_Setup.py" % where in text, text)
     check("writing it again changes nothing", bridge.register_menu_item() == [])

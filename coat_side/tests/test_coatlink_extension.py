@@ -131,6 +131,39 @@ def main():
     check("starting again writes nothing (the files are already current)",
           CoatLinkMenu.ensure()["written"] == [])
 
+    # ---- an upgrade must not kill the entry the user is looking at ----
+    # 3D-Coat built this session's menu from the OLD file, which names the hand
+    # install; moving that folder aside now would leave a dead entry (a real
+    # "The script not found" report).  The folder stays this start, the file is
+    # rewritten, and the move happens on the next start.
+    tmp3 = tempfile.mkdtemp(prefix="coatlink_ext_test3.")
+    build_environment(tmp3)
+    scripts3 = os.path.join(tmp3, "Documents", "3DCoat", "UserPrefs", "Scripts")
+    extra3 = os.path.join(scripts3, "ExtraMenuItems")
+    os.makedirs(extra3)
+    for name in ("CoatLink", "CoatLinkLib", "CoatLinkMenu"):
+        sys.modules.pop(name, None)
+    classic3 = os.path.join(scripts3, "CoatLink")
+    os.makedirs(classic3)
+    touch(os.path.join(classic3, "CoatLinkLib.py"), "hand install\n")
+    touch(os.path.join(extra3, "CoatLink.xml"),
+          "<ClassArray.ExtraMenuItem><ExtraMenuItem>\n"
+          "<Command>script:%s/CoatLink_Setup.py</Command>\n"
+          "</ExtraMenuItem></ClassArray.ExtraMenuItem>\n" % classic3.replace("\\", "/"))
+    module3, target3 = load_half(tmp3, "Documents", "3DCoat", "UserPrefs", "Scripts",
+                                "cExtensions", "CoatLink")
+    first = module3._extension
+    first.onStartup()
+    check("a folder a menu file still names is not moved aside yet",
+          os.path.isdir(classic3), "the entry 3D-Coat shows would point at nothing")
+    check("and that menu file is rewritten to the extension's copy",
+          "script:%s/CoatLink_Setup.py" % target3.replace("\\", "/")
+          in read(os.path.join(extra3, "CoatLink.xml")))
+    first.onStartup()          # the next start: nothing names the old folder now
+    check("the next start moves it aside",
+          not os.path.isdir(classic3)
+          and os.path.isfile(os.path.join(classic3 + ".removed", "CoatLinkLib.py")))
+
     # ---- a hand install must not move itself aside ----
     tmp2 = tempfile.mkdtemp(prefix="coatlink_ext_test2.")
     build_environment(tmp2)

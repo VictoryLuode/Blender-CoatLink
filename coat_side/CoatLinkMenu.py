@@ -149,6 +149,37 @@ CLASSIC_FOLDER = "CoatLink"
 PRERENAME_FOLDER = "CoatBridge"
 
 
+def _menu_files_name(folder):
+    """True when a menu file on disk still points into ``folder``.
+
+    3D-Coat builds its menus from these files at *startup* and does not read them
+    again in that session.  So a folder that a menu file still names must not be
+    moved aside yet: the entry the user is looking at would point at nothing until
+    the next start.  Rewriting the file first and moving on the *following* start
+    keeps every session's entry working.
+    """
+    where = extra_menu_dir()
+    if not where or not folder:
+        return False
+    wanted = windows_path(folder).lower() + "/"
+    try:
+        names = os.listdir(where)
+    except OSError:
+        return False
+    for name in names:
+        if not name.lower().endswith(".xml"):
+            continue
+        try:
+            with open(os.path.join(where, name), "r", encoding="utf-8",
+                      errors="replace") as handle:
+                text = handle.read().lower()
+        except OSError:
+            continue
+        if wanted in text:
+            return True
+    return False
+
+
 def _remove(path, report):
     try:
         os.remove(path)
@@ -157,12 +188,16 @@ def _remove(path, report):
         pass
 
 
-def clean_old_installs():
+def clean_old_installs(defer_classic=False):
     """Take the leftovers of older builds out of 3D-Coat's way.
 
     Only 3D-Coat's own user folder is touched, and only things this project wrote:
     a file that would now point at nothing is deleted, and a whole scripts folder is
     *moved aside*, never deleted - a hand install may still have notes in it.
+
+    ``defer_classic`` leaves the hand-install folder alone for this start: a menu
+    file still names it, so the entry built from that file still works, and the move
+    happens on the next start once that file points at us instead.
     """
     report = []
     scripts = script_dir()
@@ -183,8 +218,13 @@ def clean_old_installs():
         if os.path.isfile(path):
             _remove(path, report)
     for name in (PRERENAME_FOLDER, CLASSIC_FOLDER):
-        if name == CLASSIC_FOLDER and not is_extension_copy():
-            continue          # a hand install is allowed to live there
+        if name == CLASSIC_FOLDER:
+            if not is_extension_copy():
+                continue      # a hand install is allowed to live there
+            if defer_classic:
+                report.append("left %s in place for now: a menu file still names it"
+                              % name)
+                continue
         path = os.path.join(scripts, name)
         if not os.path.isdir(path):
             continue
@@ -215,7 +255,10 @@ def ensure():
     except Exception:
         pass
     try:
-        report = clean_old_installs()
+        # Asked *before* the XML is rewritten: what matters is whether the file
+        # 3D-Coat has just read for its menu still names the hand-install folder.
+        classic = os.path.join(script_dir(), CLASSIC_FOLDER)
+        report = clean_old_installs(defer_classic=_menu_files_name(classic))
         written = write_menu_xml() + write_tools_xml()
     except Exception as exc:
         log("registering the launcher failed: %s" % exc)
