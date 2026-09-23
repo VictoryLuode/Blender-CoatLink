@@ -68,6 +68,19 @@ def main():
     check("add-on enables", "FINISHED" in enabled, enabled)
     from coat_bridge import applink, bridge, transfer, watcher
 
+    # The version lives in two places: the CHANGELOG heading (what package.sh names the
+    # download after) and bl_info (what Blender shows).  Bumping one and not the other
+    # ships a file whose name is a lie, so they are compared here.  The 3D-Coat half
+    # carries no version of its own on purpose.
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    changelog = read(os.path.join(repo_root, "CHANGELOG.md"))
+    heading = next((line.strip()[len("## v"):] for line in changelog.splitlines()
+                    if line.strip().startswith("## v")), "")
+    import coat_bridge
+    stamped = ".".join(str(part) for part in coat_bridge.bl_info["version"])
+    check("the CHANGELOG heading and the add-on version agree", heading == stamped,
+          (heading, stamped))
+
     # Keep the suite hermetic: 3D-Coat's real roots are replaced by two temp ones.
     applink._candidate_exchange_folders = lambda: [os.path.normpath(EXCHANGE), os.path.normpath(OTHER_ROOT)]
 
