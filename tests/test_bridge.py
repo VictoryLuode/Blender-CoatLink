@@ -113,15 +113,23 @@ def main():
         check("button hooked into the top bar",
               coat_ui.HOOK_INSTALLED and callable(coat_ui.topbar_drawer))
 
-        # the bar itself: the settings menu, then Send and Pull drawn to its right
+        # the bar itself: one button, drawn as an operator so it is filled like the
+        # buttons beside it (a popover gets the flat header widget instead)
         entries = []
+
+        class _Props(object):
+            """What row.operator() hands back: name/keep_open are set on the result."""
+            name = None
+            keep_open = None
 
         class _Row(object):
             def popover(self, **kwargs):
                 entries.append(("popover", kwargs.get("panel"), kwargs.get("text"), kwargs.get("icon")))
 
             def operator(self, idname, **kwargs):
-                entries.append(("operator", idname, kwargs.get("text"), kwargs.get("icon")))
+                props = _Props()
+                entries.append(("operator", idname, kwargs.get("text"), kwargs.get("icon"), props))
+                return props
 
             def prop(self, owner, name, **kwargs):
                 entries.append(("prop", name, kwargs.get("text"), kwargs.get("toggle")))
@@ -138,8 +146,12 @@ def main():
                                     "preferences": bpy.context.preferences})()
 
         coat_ui.topbar_drawer(_Self(), _context("RIGHT"))
-        check("the top bar draws the settings menu", entries[:1] ==
-              [("popover", coat_ui.POPOVER_ID, "CoatLink", "COLLAPSEMENU")], entries)
+        check("the top bar draws the settings menu as a filled button, not a flat popover",
+              len(entries) == 1 and entries[0][:4] == ("operator", "wm.call_panel", "CoatLink", "COLLAPSEMENU"),
+              entries)
+        check("and it opens the panel, staying up while it is used",
+              entries[0][4].name == coat_ui.POPOVER_ID and entries[0][4].keep_open is True,
+              (entries[0][4].name, entries[0][4].keep_open))
         check("the bar holds nothing else: everything is inside that menu",
               len(entries) == 1, entries)
         check("the bar adds nothing on the left side", (coat_ui.topbar_drawer(_Self(), _context("LEFT")),

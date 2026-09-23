@@ -240,12 +240,19 @@ CLASSES = (
 
 
 def topbar_drawer(self, context):
-    """Draw the top-bar entry: the settings menu, then the two actions that get
-    used all the time right next to it, so a round trip is one click."""
+    """Draw the top-bar entry: one button, drawn the way the buttons next to it are.
+
+    `row.popover(...)` would paint it with the flat header widget - an outline with no
+    fill - so it reads as a different kind of control next to Blender's own buttons.
+    An operator gets the normal, filled button, and `wm.call_panel` opens the very same
+    panel; `keep_open` keeps it up while you use it, like a popover does.
+    """
     if context.region.alignment != "RIGHT":
         return
     row = self.layout.row(align=True)
-    row.popover(panel=POPOVER_ID, text="CoatLink", icon="COLLAPSEMENU")
+    button = row.operator("wm.call_panel", text="CoatLink", icon="COLLAPSEMENU")
+    button.name = POPOVER_ID
+    button.keep_open = True
 
 
 def _header_hook():
