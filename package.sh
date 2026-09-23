@@ -4,14 +4,17 @@
 #   ./package.sh [version] [ref]      version defaults to the newest CHANGELOG
 #                                     heading, ref defaults to HEAD
 #
-#   dist/CoatLink.zip                    the Blender add-on on its own:
+#   dist/CoatLink-<version>.zip          the Blender add-on on its own:
 #                                        Edit > Preferences > Add-ons > Install from Disk
 #   dist/CoatLink-<version>.3dcpack      the 3D-Coat half, in 3D-Coat's own package
 #                                        format: Scripts > Install Extension
-#   dist/Blender-CoatLink-<version>.zip  the whole project - sources, both
+#   dist/CoatLink-<version>-full.zip     the whole project - sources, both
 #                                        installers, tests - ready to unzip anywhere
 #
-# Both are built from the committed tree (git archive), not from the working
+# The product name and the version are in every file name, so a folder holding two
+# releases cannot be mixed up.
+#
+# All of them are built from the committed tree (git archive), not from the working
 # copy, so what people download is exactly what the repository holds.
 
 set -euo pipefail
@@ -26,10 +29,11 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-FULL="dist/Blender-CoatLink-$VERSION.zip"
+ADDON="dist/CoatLink-$VERSION.zip"
+FULL="dist/CoatLink-$VERSION-full.zip"
 PACK="dist/CoatLink-$VERSION.3dcpack"
 mkdir -p dist
-rm -f dist/CoatLink.zip "$FULL" "$PACK"
+rm -f "$ADDON" "$FULL" "$PACK"
 
 # `git archive` asks the checkout configuration what line endings to write, and on a
 # machine whose git defaults to CRLF that produced archives with CRLF while the
@@ -37,8 +41,8 @@ rm -f dist/CoatLink.zip "$FULL" "$PACK"
 # pinned here, which is what makes the archives equal the committed bytes.
 ARCHIVE=(git -c core.autocrlf=false -c core.eol=lf archive --format=zip)
 
-"${ARCHIVE[@]}" --prefix="coatlink/" "$REF:coatlink" -o dist/CoatLink.zip
-"${ARCHIVE[@]}" --prefix="Blender-CoatLink-$VERSION/" "$REF" -o "$FULL"
+"${ARCHIVE[@]}" --prefix="coatlink/" "$REF:coatlink" -o "$ADDON"
+"${ARCHIVE[@]}" --prefix="CoatLink-$VERSION/" "$REF" -o "$FULL"
 
 # the 3D-Coat half as a .3dcpack - 3D-Coat's own package format, installed from its
 # Scripts > Install Extension menu.  Staged from the committed sources like the
@@ -59,8 +63,8 @@ else
 fi
 
 echo
-for archive in dist/CoatLink.zip "$FULL" "$PACK"; do
+for archive in "$ADDON" "$FULL" "$PACK"; do
     [ -f "$archive" ] && printf '%-44s %s\n' "$archive" "$(du -h "$archive" | cut -f1)"
 done
 echo
-unzip -l dist/CoatLink.zip | tail -3
+unzip -l "$ADDON" | tail -3

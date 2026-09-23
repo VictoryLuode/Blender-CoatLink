@@ -21,16 +21,17 @@ the same sections in the same order.</sub>
 
 ### Blender - no commands at all
 
-1. Download **`CoatLink.zip`** from the [latest release](../../releases/latest).
+1. Download **`CoatLink-<version>.zip`** from the [latest release](../../releases/latest).
 2. In Blender: **Edit > Preferences > Add-ons > ▾ (top right) > Install from Disk…** and pick
    that zip (Blender 4.2 and newer).
 3. Enable **CoatLink** in the add-on list, then press **Detect** in its menu.
 
 *Upgrading from an older build?*  Everything used to be called `CoatBridge` / `coat_bridge`:
 the add-on's folder, the 3D-Coat scripts folder, the exchange folder, the log, and the tool
-and menu ids.  Both installers clean up after themselves — `install.sh` / `install.ps1` move
-the old `coat_bridge` add-on folder out of Blender's way, and the 3D-Coat installer moves
-`Scripts\CoatBridge` to `CoatBridge.removed` and deletes the old menu files — so the only
+and menu ids.  Both sides clean up after themselves — `install.sh` / `install.ps1` move
+the old `coat_bridge` add-on folder out of Blender's way, and the 3D-Coat installer (or the
+extension itself, the next time 3D-Coat starts) moves `Scripts\CoatBridge` to
+`CoatBridge.removed` and deletes the old menu files — so the only
 thing left to do is enable **CoatLink** once and press **Detect**.  Links between your
 objects and the models they came from survive; the add-on's own settings go back to their
 defaults.

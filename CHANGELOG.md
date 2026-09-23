@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.18.0
+
+* **The 3D-Coat half is installed by 3D-Coat itself now, from a `.3dcpack`.**  Download
+  `CoatLink-1.18.0.3dcpack` and use **Scripts > Install Extension** inside 3D-Coat: nothing to
+  unzip, no console, no path to edit, no script Windows has to be persuaded to run, and no
+  elevation prompt - nothing is written outside 3D-Coat's own user folder.  Then tick
+  **CoatLink** once under **Windows > Panels > Extensions** and restart; 3D-Coat loads an
+  extension by the name listed in its own `startup.txt`, and a package can only replace that
+  file, never add a line to it.  On its first start the extension writes its own menu entry and
+  tool buttons with the paths of the machine it is running on - which is why they cannot travel
+  inside a package - and moves an install of an older build to one side (`Scripts\CoatLink`
+  becomes `Scripts\CoatLink.removed`, and the pre-rename `CoatBridge` files go the same way)
+  instead of deleting anything of yours.  `install.cmd`, `./install.sh` and `.\install.ps1` still
+  work and put the half in exactly the same place, so no door can drift away from the others.
+  The stand-alone `CoatLink-Setup.cmd` / `CoatLink-Setup.py` door is retired with it: the package
+  is the install that needs no script at all.
+* **The button icons are gone, by choice.**  An icon has to be written into 3D-Coat's program
+  folder, which needs administrator rights; the three tool buttons take 3D-Coat's default icon
+  instead.
+* **One name everywhere: CoatLink.**  The previous build was `CoatBridge` on the 3D-Coat side and
+  `coat_bridge` in Blender.  Scripts, tool buttons, the menu entry, the exchange folder, the log
+  and the state file all carry the one name now, and both installers clean the old names away as
+  they go.  Both halves still stay out of the official 3D-Coat AppLink's way: they share the
+  exchange folder's root and nothing else.
+* **The Blender top-bar button is drawn like the buttons next to it**, rather than as a flat
+  popover, so it no longer reads as a different kind of control.
+* **Every download carries the version in its name**: `CoatLink-1.18.0.zip` (the Blender
+  add-on), `CoatLink-1.18.0.3dcpack` (the 3D-Coat extension) and `CoatLink-1.18.0-full.zip` (the
+  whole project: sources, both installers and the tests).
+
+Blender 1.18.0, 3D-Coat side 1.18.0.
+
 ## v1.17.1
 
 * **The installer finds 3D-Coat wherever it is, and 3D-Coat does not have to be in
