@@ -47,7 +47,9 @@ PYTHON="$(command -v python3 || command -v python || true)"
 if [ -z "$PYTHON" ]; then
     echo "note: no python found, skipped $PACK" >&2
 else
-    STAGE="$(mktemp -d)"
+    # staged inside dist/, not /tmp: git is a native Windows program and cannot write
+    # to an MSYS path like /tmp/...
+    STAGE="$(mktemp -d "dist/.stage.XXXXXX")"
     trap 'rm -rf "$STAGE"' EXIT
     # git archive writes a zip here; unpack it with unzip, not tar
     "${ARCHIVE[@]}" "$REF:coat_side" -o "$STAGE/coat_side.zip" || exit 1
