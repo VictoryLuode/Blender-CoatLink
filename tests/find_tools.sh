@@ -47,8 +47,8 @@ find_blender() {
     done
 
     # a build folder of its own, wherever the documents tree currently lives:
-    # that tree gets reorganised from time to time (D:/home/Documents -> H:/Documents
-    # here), so walk the drives instead of assuming one layout
+    # that tree gets reorganised from time to time, so walk the drives instead of
+    # assuming one layout
     all+=( "$HOME"/BlenderBuilds/*/*/blender.exe )
     all+=( "$HOME"/Documents/Blender/BlenderBuilds/*/*/blender.exe )
     for drive in /c /d /e /f /g /h; do

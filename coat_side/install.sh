@@ -39,8 +39,8 @@ ARGS=( --scripts "$SCRIPTS" )
 [ -n "$COAT" ] && ARGS+=( --coat "$COAT" )
 # anything past the two paths is passed straight through (--uninstall, --quiet)
 
-# the installer is a Windows program's Python: it cannot resolve an MSYS path
-# like /h/Dev/..., so hand it the mixed form (H:/Dev/...)
+# the installer is a Windows program's Python: it cannot resolve an MSYS-style
+# path, so hand it the mixed form (drive letter, forward slashes)
 INSTALLER="$REPO/coat_side/CoatLinkInstall.py"
 if command -v cygpath >/dev/null 2>&1; then
     INSTALLER="$(cygpath -m "$INSTALLER")"
