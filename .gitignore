@@ -14,3 +14,5 @@ CLAUDE.md
 .cursorrules
 .cursor/
 docs/handoffs/
+# 本机 agent 工作区（计划、论坛帖草稿等），同样不进公开仓库
+.scratch/
