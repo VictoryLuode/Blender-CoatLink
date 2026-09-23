@@ -4,7 +4,7 @@
 #   ./package.sh [version] [ref]      version defaults to the newest CHANGELOG
 #                                     heading, ref defaults to HEAD
 #
-#   dist/coat_bridge.zip                 the Blender add-on on its own:
+#   dist/CoatLink.zip                    the Blender add-on on its own:
 #                                        Edit > Preferences > Add-ons > Install from Disk
 #   dist/Blender-CoatLink-<version>.zip  the whole project - sources, both
 #                                        installers, tests - ready to unzip anywhere
@@ -26,7 +26,7 @@ fi
 
 FULL="dist/Blender-CoatLink-$VERSION.zip"
 mkdir -p dist
-rm -f dist/coat_bridge.zip "$FULL"
+rm -f dist/CoatLink.zip "$FULL"
 
 # `git archive` asks the checkout configuration what line endings to write, and on a
 # machine whose git defaults to CRLF that produced archives with CRLF while the
@@ -34,7 +34,7 @@ rm -f dist/coat_bridge.zip "$FULL"
 # pinned here, which is what makes the archives equal the committed bytes.
 ARCHIVE=(git -c core.autocrlf=false -c core.eol=lf archive --format=zip)
 
-"${ARCHIVE[@]}" --prefix="coat_bridge/" "$REF:coat_bridge" -o dist/coat_bridge.zip
+"${ARCHIVE[@]}" --prefix="coat_bridge/" "$REF:coat_bridge" -o dist/CoatLink.zip
 "${ARCHIVE[@]}" --prefix="Blender-CoatLink-$VERSION/" "$REF" -o "$FULL"
 
 # the 3D-Coat half as one file: paste it into 3D-Coat's Python console, or run it
@@ -47,8 +47,8 @@ else
 fi
 
 echo
-for archive in dist/coat_bridge.zip "$FULL" dist/CoatLink-Setup.py; do
+for archive in dist/CoatLink.zip "$FULL" dist/CoatLink-Setup.py; do
     [ -f "$archive" ] && printf '%-44s %s\n' "$archive" "$(du -h "$archive" | cut -f1)"
 done
 echo
-unzip -l dist/coat_bridge.zip | tail -3
+unzip -l dist/CoatLink.zip | tail -3

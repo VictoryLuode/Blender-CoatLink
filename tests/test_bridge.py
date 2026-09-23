@@ -81,6 +81,16 @@ def main():
     check("the CHANGELOG heading and the add-on version agree", heading == stamped,
           (heading, stamped))
 
+    # Every download is named after CoatLink - the two setup doors, the project archive
+    # (Blender-CoatLink-<version>.zip) and the add-on archive (CoatLink.zip) - because a
+    # second name for the same thing is how a download link goes stale.  The folder
+    # inside stays `coat_bridge`: it is the add-on's module name, which existing installs
+    # and their preferences are keyed on.
+    packaging = read(os.path.join(repo_root, "package.sh"))
+    check("the add-on archive is named after CoatLink",
+          "dist/CoatLink.zip" in packaging and "coat_bridge.zip" not in packaging,
+          [line.strip() for line in packaging.splitlines() if ".zip" in line][:3])
+
     # Keep the suite hermetic: 3D-Coat's real roots are replaced by two temp ones.
     applink._candidate_exchange_folders = lambda: [os.path.normpath(EXCHANGE), os.path.normpath(OTHER_ROOT)]
 

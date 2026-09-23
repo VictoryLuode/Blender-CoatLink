@@ -21,7 +21,7 @@ the same sections in the same order.</sub>
 
 ### Blender - no commands at all
 
-1. Download **`coat_bridge.zip`** from the [latest release](../../releases/latest).
+1. Download **`CoatLink.zip`** from the [latest release](../../releases/latest).
 2. In Blender: **Edit > Preferences > Add-ons > ▾ (top right) > Install from Disk…** and pick
    that zip (Blender 4.2 and newer).
 3. Enable **CoatLink** in the add-on list, then press **Detect** in its menu.
@@ -163,7 +163,7 @@ script and exchange folders, and the 3D-Coat tests run against a stand-in `coat`
 3D-Coat's own Python.  The scripts pick the newest Blender build and 3D-Coat's bundled Python
 themselves; `BLENDER=`, `COAT_PYTHON=` and `COAT_DIR=` override.
 
-Current counts: Blender main suite **213/213** plus every regression script and both installer
+Current counts: Blender main suite **214/214** plus every regression script and both installer
 smoke tests; 3D-Coat logic **166/166**, tools **29/29**, tree report **12/12**, installer
 checks, API stub check, idle-redraw check and probe dry run.
 
