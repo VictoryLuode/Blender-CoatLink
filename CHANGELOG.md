@@ -1,9 +1,9 @@
 # Changelog
 
-## v1.18.1
+## v1.18.0
 
 * **The 3D-Coat half is installed by 3D-Coat itself now, from a `.3dcpack`.**  Download
-  `CoatLink-1.18.1.3dcpack` and use **Scripts > Install Extension** inside 3D-Coat: nothing to
+  `CoatLink-1.18.0.3dcpack` and use **Scripts > Install Extension** inside 3D-Coat: nothing to
   unzip, no console, no path to edit, no script Windows has to be persuaded to run, and no
   elevation prompt - nothing is written outside 3D-Coat's own user folder.  Then tick
   **CoatLink** once under **Windows > Panels > Extensions** and restart; 3D-Coat loads an
@@ -27,7 +27,7 @@
 * **The Blender top-bar button is drawn like the buttons next to it**, rather than as a flat
   popover, so it no longer reads as a different kind of control.
 * **Every download carries the version in its name, and there are two of them**:
-  `CoatLink-1.18.1.zip` for Blender and `CoatLink-1.18.1.3dcpack` for 3D-Coat.  The old
+  `CoatLink-1.18.0.zip` for Blender and `CoatLink-1.18.0.3dcpack` for 3D-Coat.  The old
   archive of the whole project is gone - GitHub attaches its own source archives to a release,
   and anyone who wants the checkout can clone it.
 * **Upgrading is a one-restart affair, and the menu entry keeps working until it is
@@ -36,7 +36,7 @@
   moves an older hand install aside on the *following* start - the entry you can click
   always points at something that is there.
 
-Blender 1.18.1, 3D-Coat side 1.18.1.
+Blender 1.18.0, 3D-Coat side 1.18.0.
 
 ## v1.17.1
 
