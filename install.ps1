@@ -175,10 +175,19 @@ if (-not $CoatOnly) {
         Write-Host '  .\install.ps1 -BlenderAddons "$env:APPDATA\Blender Foundation\Blender\<version>\scripts\addons"'
         exit 1
     }
-    $target = Join-Path $addons 'coat_bridge'
+    # An earlier build installed itself as `coat_bridge`.  Leaving that folder in the
+    # add-ons search path would show two CoatLinks in Blender's list, so it is moved one
+    # level out (out of Blender's reach, still on disk) - never deleted.
+    $legacy = Join-Path $addons 'coat_bridge'
+    if (Test-Path $legacy) {
+        $aside = Join-Path (Split-Path $addons -Parent) ('coat_bridge.removed-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+        Move-Item -Path $legacy -Destination $aside
+        Write-Host "add-on : moved the older coat_bridge build aside -> $aside"
+    }
+    $target = Join-Path $addons 'coatlink'
     if (Test-Path $target) { Remove-Item -Recurse -Force $target }
     New-Item -ItemType Directory -Force -Path $target | Out-Null
-    Copy-Item -Path (Join-Path $Repo 'coat_bridge\*') -Destination $target -Recurse -Force
+    Copy-Item -Path (Join-Path $Repo 'coatlink\*') -Destination $target -Recurse -Force
     Get-ChildItem -Path $target -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue |
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "add-on : $target"

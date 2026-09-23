@@ -51,10 +51,18 @@ if [ "$mode" != "coat" ]; then
         exit 1
     fi
     mkdir -p "$addons"
-    rm -rf "$addons/coat_bridge"
-    cp -r "$REPO/coat_bridge" "$addons/coat_bridge"
-    find "$addons/coat_bridge" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-    echo "add-on : $addons/coat_bridge"
+    # An earlier build installed itself as `coat_bridge`.  Leaving that folder in the
+    # add-ons search path would show two CoatLinks in Blender's list, so it is moved one
+    # level out (out of Blender's reach, still on disk) - never deleted.
+    if [ -d "$addons/coat_bridge" ]; then
+        legacy="$(dirname "$addons")/coat_bridge.removed-$(date +%Y%m%d-%H%M%S)"
+        mv "$addons/coat_bridge" "$legacy"
+        echo "add-on : moved the older coat_bridge build aside -> $legacy"
+    fi
+    rm -rf "$addons/coatlink"
+    cp -r "$REPO/coatlink" "$addons/coatlink"
+    find "$addons/coatlink" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+    echo "add-on : $addons/coatlink"
     echo "         enable it in Edit > Preferences > Add-ons, then press Detect"
 fi
 

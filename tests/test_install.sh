@@ -40,10 +40,10 @@ grep -q "Traceback\|No such file\|not found" "$TMP/install.log" \
     || check "the installer reported no problem" yes
 
 for name in __init__.py applink.py bridge.py receipts.py transfer.py ui.py watcher.py; do
-    [ -f "$ADDONS/coat_bridge/$name" ] && check "installed coat_bridge/$name" yes \
-        || check "installed coat_bridge/$name" no
+    [ -f "$ADDONS/coatlink/$name" ] && check "installed coatlink/$name" yes \
+        || check "installed coatlink/$name" no
 done
-[ -z "$(find "$ADDONS/coat_bridge" -name __pycache__ -print -quit)" ] \
+[ -z "$(find "$ADDONS/coatlink" -name __pycache__ -print -quit)" ] \
     && check "no byte-code cache in the installed add-on" yes \
     || check "no byte-code cache in the installed add-on" no
 
@@ -56,9 +56,9 @@ done
 # the real proof: Blender boots with that script folder and enables the add-on
 out="$(BLENDER_USER_SCRIPTS="$(cygpath -w "$TMP/blender/5.2/scripts")" \
     "$BLENDER_BIN" --background --factory-startup --python-exit-code 1 \
-    --python-expr "import bpy; bpy.ops.preferences.addon_enable(module='coat_bridge'); a = bpy.context.preferences.addons.get('coat_bridge'); print('ADDON-ENABLED', a.module if a else 'MISSING')" 2>&1)"
+    --python-expr "import bpy; bpy.ops.preferences.addon_enable(module='coatlink'); a = bpy.context.preferences.addons.get('coatlink'); print('ADDON-ENABLED', a.module if a else 'MISSING')" 2>&1)"
 case "$out" in
-    *"ADDON-ENABLED coat_bridge"*) check "Blender enables the installed copy" yes ;;
+    *"ADDON-ENABLED coatlink"*) check "Blender enables the installed copy" yes ;;
     *)                             check "Blender enables the installed copy" no "$(printf '%s' "$out" | tail -6)" ;;
 esac
 
@@ -70,9 +70,30 @@ bash "$REPO/install.sh" --coat-only "$SCRIPTS" "$COAT" > /dev/null 2>&1
     && check "--coat-only leaves the Blender side alone" yes \
     || check "--coat-only leaves the Blender side alone" no
 
+# an older build called itself `coat_bridge`: installing over it must move that folder out
+# of Blender's search path (kept on disk, not deleted) instead of leaving two CoatLinks
+mkdir -p "$ADDONS/coat_bridge"
+echo "old build" > "$ADDONS/coat_bridge/OLD-BUILD.txt"
+bash "$REPO/install.sh" "$ADDONS" "$SCRIPTS" "$COAT" > "$TMP/upgrade.log" 2>&1
+[ -f "$ADDONS/coatlink/__init__.py" ] \
+    && check "installing over an older build still lands the add-on" yes \
+    || check "installing over an older build still lands the add-on" no
+[ -d "$ADDONS/coat_bridge" ] \
+    && check "the older coat_bridge folder leaves Blender's search path" no \
+    || check "the older coat_bridge folder leaves Blender's search path" yes
+moved="$(find "$(dirname "$ADDONS")" -maxdepth 1 -name 'coat_bridge.removed-*' -type d -print -quit)"
+if [ -n "$moved" ] && [ -f "$moved/OLD-BUILD.txt" ]; then
+    check "the older build is kept beside the add-ons folder, not deleted" yes
+else
+    check "the older build is kept beside the add-ons folder, not deleted" no "moved=$moved"
+fi
+grep -q "moved the older coat_bridge build aside" "$TMP/upgrade.log" \
+    && check "the installer says where the older build went" yes \
+    || check "the installer says where the older build went" no
+
 # idempotent
 bash "$REPO/install.sh" "$ADDONS" "$SCRIPTS" "$COAT" > /dev/null 2>&1
-[ -f "$ADDONS/coat_bridge/__init__.py" ] && check "a second install is harmless" yes \
+[ -f "$ADDONS/coatlink/__init__.py" ] && check "a second install is harmless" yes \
     || check "a second install is harmless" no
 
 if [ "$failed" -eq 0 ]; then

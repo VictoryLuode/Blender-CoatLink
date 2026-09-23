@@ -64,9 +64,9 @@ def main():
     os.makedirs(EXCHANGE, exist_ok=True)
     os.makedirs(OTHER_ROOT, exist_ok=True)
 
-    enabled = bpy.ops.preferences.addon_enable(module="coat_bridge")
+    enabled = bpy.ops.preferences.addon_enable(module="coatlink")
     check("add-on enables", "FINISHED" in enabled, enabled)
-    from coat_bridge import applink, bridge, transfer, watcher
+    from coatlink import applink, bridge, transfer, watcher
 
     # The version lives in two places: the CHANGELOG heading (what package.sh names the
     # download after) and bl_info (what Blender shows).  Bumping one and not the other
@@ -76,25 +76,25 @@ def main():
     changelog = read(os.path.join(repo_root, "CHANGELOG.md"))
     heading = next((line.strip()[len("## v"):] for line in changelog.splitlines()
                     if line.strip().startswith("## v")), "")
-    import coat_bridge
-    stamped = ".".join(str(part) for part in coat_bridge.bl_info["version"])
+    import coatlink
+    stamped = ".".join(str(part) for part in coatlink.bl_info["version"])
     check("the CHANGELOG heading and the add-on version agree", heading == stamped,
           (heading, stamped))
 
     # Every download is named after CoatLink - the two setup doors, the project archive
     # (Blender-CoatLink-<version>.zip) and the add-on archive (CoatLink.zip) - because a
     # second name for the same thing is how a download link goes stale.  The folder
-    # inside stays `coat_bridge`: it is the add-on's module name, which existing installs
+    # inside stays `coatlink`: it is the add-on's module name, which existing installs
     # and their preferences are keyed on.
     packaging = read(os.path.join(repo_root, "package.sh"))
     check("the add-on archive is named after CoatLink",
-          "dist/CoatLink.zip" in packaging and "coat_bridge.zip" not in packaging,
+          "dist/CoatLink.zip" in packaging and "coatlink.zip" not in packaging,
           [line.strip() for line in packaging.splitlines() if ".zip" in line][:3])
 
     # Keep the suite hermetic: 3D-Coat's real roots are replaced by two temp ones.
     applink._candidate_exchange_folders = lambda: [os.path.normpath(EXCHANGE), os.path.normpath(OTHER_ROOT)]
 
-    prefs = bpy.context.preferences.addons["coat_bridge"].preferences
+    prefs = bpy.context.preferences.addons["coatlink"].preferences
     check("preferences reachable", prefs is not None)
     check("a send remeshes out of the box", prefs.remesh is True, prefs.remesh)
     check("with the voxel size left to the add-on", prefs.remesh_voxel == 0.0,
@@ -109,7 +109,7 @@ def main():
     if hook is None:
         print("note  top bar hook not available in this session - skipped")
     else:
-        from coat_bridge import ui as coat_ui
+        from coatlink import ui as coat_ui
         check("button hooked into the top bar",
               coat_ui.HOOK_INSTALLED and callable(coat_ui.topbar_drawer))
 
@@ -294,10 +294,10 @@ def main():
           result == {"FINISHED"}
           and "Job file:" in copy_context.window_manager.clipboard
           and "CoatLink" in copy_context.window_manager.clipboard)
-    check("per-object link property registered", hasattr(bpy.types.Object, "coat_bridge_file"))
+    check("per-object link property registered", hasattr(bpy.types.Object, "coatlink_file"))
     check("timer registered", bpy.app.timers.is_registered(watcher.poll))
     check("defaults to a voxel sculpt object", prefs.mode == "vox")
-    from coat_bridge import MODE_ITEMS
+    from coatlink import MODE_ITEMS
     check("and the voxel entry is the first one in the menu",
           MODE_ITEMS[0][0] == "vox", [item[0] for item in MODE_ITEMS][:3])
     check("there is no format option any more", not hasattr(prefs, "fmt"))
@@ -733,7 +733,7 @@ def main():
     check("object keeps its material",
           bool(cube.material_slots) and cube.material_slots[0].material is material,
           cube.material_slots[0].material if cube.material_slots else "no slots")
-    check("link recorded on the object", cube.get("coat_bridge_file") == back_path, cube.get("coat_bridge_file"))
+    check("link recorded on the object", cube.get("coatlink_file") == back_path, cube.get("coatlink_file"))
     check("no stray imported object", mesh_count() == 1, mesh_count())
     check("returned file kept for the next round trip", os.path.isfile(back_path))
     check("second pull has nothing to do", bridge.pull(bpy.context) == [])
@@ -1150,7 +1150,7 @@ def main():
 
     # ---- linking, unlinking, error paths, status ----
     check("unlink clears the link", _unlink_clears(cube))
-    cube["coat_bridge_file"] = back_path
+    cube["coatlink_file"] = back_path
 
     prefs.exchange_folder = os.path.join(EXCHANGE, "does_not_exist")
     try:
@@ -1165,15 +1165,43 @@ def main():
           any(line.startswith("Job file:") for line in bridge.detail_lines(bpy.context)),
           bridge.detail_lines(bpy.context))
 
+    # ---- links written by an earlier build keep working ----
+    # Until the module was renamed to `coatlink`, these keys were `coat_bridge_*`.  A
+    # scene saved back then must still look linked: otherwise the next returned model is
+    # imported as a *new* object instead of replacing the one it came from.  Reads accept
+    # both keys, writes use the new ones, unlink clears both.
+    legacy = bpy.data.objects.new("legacy", None)
+    bpy.context.scene.collection.objects.link(legacy)
+    legacy["coat_bridge_file"] = back_path
+    legacy["coat_bridge_source_name"] = "Cube"
+    check("a link written by an earlier build is still readable",
+          bridge.link_path(legacy) == back_path, bridge.link_path(legacy))
+    check("and so is its export alias",
+          bridge.source_alias(legacy) == "Cube", bridge.source_alias(legacy))
+    check("the details count it as linked",
+          any("legacy" in line for line in bridge.detail_lines(bpy.context)),
+          bridge.detail_lines(bpy.context))
+    bridge.adopt_link(legacy)
+    check("touching it moves the link onto the new keys",
+          legacy.get("coatlink_file") == back_path
+          and legacy.get("coatlink_source_name") == "Cube", dict(legacy.items()))
+    check("unlink clears an old-build link too", _unlink_clears(legacy))
+    bpy.data.objects.remove(legacy)
+
 
 def _unlink_clears(cube):
-    cube["coat_bridge_file"] = "something"
+    from coatlink import bridge  # main()'s import is local to main()
+    cube["coatlink_file"] = "something"
+    cube["coat_bridge_file"] = "something from the older build"
     for obj in bpy.context.selected_objects:
         obj.select_set(False)
     cube.select_set(True)
     bpy.context.view_layer.objects.active = cube
     bpy.ops.coatbridge.unlink()
-    return not cube.get("coat_bridge_file")
+    left = [key for key in (bridge.LINK_KEY, bridge.LEGACY_LINK_KEY,
+                            bridge.SOURCE_KEY, bridge.LEGACY_SOURCE_KEY)
+            if key in cube.keys()]
+    return not bridge.link_path(cube) and not left
 
 
 try:

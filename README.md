@@ -26,6 +26,13 @@ the same sections in the same order.</sub>
    that zip (Blender 4.2 and newer).
 3. Enable **CoatLink** in the add-on list, then press **Detect** in its menu.
 
+*Upgrading from a build older than the module rename?*  Those installed themselves as
+`coat_bridge`.  Delete that folder from your add-ons directory once — or re-run
+`install.sh` / `install.ps1`, which moves it out of Blender's way for you — then enable
+**CoatLink**.  Links between your objects and the models they came from survive the rename;
+the add-on's own settings (import mode, remesh, exchange folder) go back to their defaults,
+so press **Detect** once after upgrading.
+
 ### 3D-Coat - double-click one file
 
 Download **`CoatLink-Setup.cmd`** and double-click it.  It fetches the installer from the latest
@@ -163,7 +170,7 @@ script and exchange folders, and the 3D-Coat tests run against a stand-in `coat`
 3D-Coat's own Python.  The scripts pick the newest Blender build and 3D-Coat's bundled Python
 themselves; `BLENDER=`, `COAT_PYTHON=` and `COAT_DIR=` override.
 
-Current counts: Blender main suite **214/214** plus every regression script and both installer
+Current counts: Blender main suite **219/219** plus every regression script and both installer
 smoke tests; 3D-Coat logic **166/166**, tools **29/29**, tree report **12/12**, installer
 checks, API stub check, idle-redraw check and probe dry run.
 

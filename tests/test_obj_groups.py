@@ -4,8 +4,8 @@ import tempfile
 import bpy
 import addon_utils
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-addon_utils.enable('coat_bridge', default_set=True, persistent=False)
-from coat_bridge import bridge, applink
+addon_utils.enable('coatlink', default_set=True, persistent=False)
+from coatlink import bridge, applink
 with tempfile.TemporaryDirectory(prefix='bridge_groups_') as tmp:
     applink._documents_bases = lambda: [tmp]
     path = pathlib.Path(tmp) / 'bridge.obj'
@@ -18,5 +18,5 @@ with tempfile.TemporaryDirectory(prefix='bridge_groups_') as tmp:
     assert len(meshes) == 2, names
     assert sorted(len(o.data.polygons) for o in meshes) == [1, 1]
     print('PASS distinct OBJ groups imported as separate objects:', names)
-addon_utils.disable('coat_bridge', default_set=True)
+addon_utils.disable('coatlink', default_set=True)
 print('OBJ GROUP REGRESSION PASSED')

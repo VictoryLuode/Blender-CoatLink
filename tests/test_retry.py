@@ -4,10 +4,10 @@ import sys
 import tempfile
 import bpy
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-import coat_bridge
+import coatlink
 import addon_utils
-addon_utils.enable('coat_bridge', default_set=True, persistent=False)
-from coat_bridge import bridge, applink
+addon_utils.enable('coatlink', default_set=True, persistent=False)
+from coatlink import bridge, applink
 with tempfile.TemporaryDirectory(prefix='bridge_retry_') as tmp:
     root = pathlib.Path(tmp)
     folder = root / 'BlenderBridge'
@@ -44,5 +44,5 @@ with tempfile.TemporaryDirectory(prefix='bridge_retry_') as tmp:
     assert any('Pulled' in msg for msg in result), result
     assert not signal.exists()
     print('PASS transient import failure retries successfully without new export')
-addon_utils.disable('coat_bridge', default_set=True)
+addon_utils.disable('coatlink', default_set=True)
 print('RETRY REGRESSION PASSED')

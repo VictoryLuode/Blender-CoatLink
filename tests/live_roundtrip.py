@@ -40,10 +40,10 @@ def main():
         print("[live] %-34s %s" % (name + ":", value))
         sys.stdout.flush()
 
-    bpy.ops.preferences.addon_enable(module="coat_bridge")
-    from coat_bridge import applink, bridge
+    bpy.ops.preferences.addon_enable(module="coatlink")
+    from coatlink import applink, bridge
 
-    prefs = bpy.context.preferences.addons["coat_bridge"].preferences
+    prefs = bpy.context.preferences.addons["coatlink"].preferences
     prefs.exchange_folder = exchange
     # the mode under question, and no remesh: a remeshed export would change the
     # vertex counts and hide whether the import itself was right
@@ -53,7 +53,7 @@ def main():
     prefs.skip_dialogs = True
     prefs.apply_modifiers = False
 
-    import coat_bridge as addon
+    import coatlink as addon
     step("add-on version", ".".join(str(part) for part in addon.bl_info["version"]))
     step("coat running at start", applink.is_coat_running())
 
@@ -125,7 +125,7 @@ def main():
         step("vertices before -> after", "%d -> %d" % (before, after))
         step("object name kept", cube.name)
         step("material kept", cube.material_slots[0].material.name if cube.material_slots else "none")
-        step("link recorded", cube.get("coat_bridge_file", ""))
+        step("link recorded", cube.get("coatlink_file", ""))
         step("scene mesh count", len([o for o in bpy.data.objects if o.type == "MESH"]))
         step("returned file", [os.path.basename(p) for p in applink.read_export_paths(signal)] if os.path.isfile(signal) else "consumed")
 

@@ -6,7 +6,7 @@ Turret would arrive as `bridge > Hull, Turret` while Blender shows them side by
 side.  Two paths exist and both are checked here:
 
   * the AppLink import (Blender writes import.txt; 3D-Coat imports on its own) runs
-    the script the job file carries - coat_bridge/after_import.py
+    the script the job file carries - coatlink/after_import.py
   * our own Pull button imports with Scene.importMesh and then unparents in code
 
 Fake 3D-Coat: the tree operations are simulated, so this proves what the two code
@@ -23,7 +23,7 @@ from fake_coat import TreeNode, build_environment  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LIB = os.path.join(HERE, "..", "CoatBridgeLib.py")
-HELPER = os.path.join(HERE, "..", "..", "coat_bridge", "after_import.py")
+HELPER = os.path.join(HERE, "..", "..", "coatlink", "after_import.py")
 
 FAILURES = []
 
@@ -55,7 +55,7 @@ def main():
     root = os.path.join(tmp, "Documents", "3DCoat", "Exchange")
     os.makedirs(root, exist_ok=True)
     coat, cmd = build_environment(tmp)
-    bridge = load(LIB, "coat_bridge_unparent_lib")
+    bridge = load(LIB, "coatlink_unparent_lib")
     bridge.documents_bases = lambda: [os.path.join(tmp, "Documents")]
     bridge.candidate_roots = lambda: [root]
     bridge.exchange_roots = lambda: [root]

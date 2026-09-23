@@ -14,7 +14,7 @@ switches, and anything with a droplist keeps a whole line so its text is not cut
 | Options | under **Send options**: `Scope`, `Import as` (voxel by default), `Remesh on send`, `Voxel size`, `Adaptivity` | the same scope droplist at the top, then reduction percentage and textures |
 | Return / settings | under **Return**: `Auto receive`, `Without materials` | `Refresh info` readout (sizes, faces, voxel-or-surface, how much of the tree is still surface) |
 | Below that | under **Setup**: `Axis`, `Scale (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs`, `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read`, `Unlink selected`.  Under **Status**: the readout and `Copy details` | under **Setup**: `Detect`, `Open folder`, `Start Blender`, `Remove tool buttons`.  Then `Copy details` and the queue line |
-| Source | `coat_bridge/` - Blender add-on, 8 files | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
+| Source | `coatlink/` - Blender add-on, 8 files | `coat_side/CoatBridgeLib.py` + three entry scripts + two XML files |
 
 The tool-strip buttons keep their longer labels (`Send to Blender`, `Pull from Blender`)
 because there they stand on their own, outside any menu; the panel's buttons say `Send` and

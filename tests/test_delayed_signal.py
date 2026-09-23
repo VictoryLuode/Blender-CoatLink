@@ -5,8 +5,8 @@ import tempfile
 import bpy
 import addon_utils
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-addon_utils.enable('coat_bridge', default_set=True, persistent=False)
-from coat_bridge import bridge, applink
+addon_utils.enable('coatlink', default_set=True, persistent=False)
+from coatlink import bridge, applink
 with tempfile.TemporaryDirectory(prefix='bridge_delayed_') as tmp:
     root = pathlib.Path(tmp)
     folder = root / 'BlenderBridge'
@@ -40,5 +40,5 @@ with tempfile.TemporaryDirectory(prefix='bridge_delayed_') as tmp:
     assert len(calls) == 3
     print('PASS explicit manual pull can reimport unchanged model')
     bridge._import_and_link = original
-addon_utils.disable('coat_bridge', default_set=True)
+addon_utils.disable('coatlink', default_set=True)
 print('DELAYED SIGNAL REGRESSION PASSED')

@@ -6,9 +6,9 @@ import bpy
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import coat_bridge
-coat_bridge.register()
-from coat_bridge import bridge, applink
+import coatlink
+coatlink.register()
+from coatlink import bridge, applink
 
 with tempfile.TemporaryDirectory(prefix='bridge_identity_') as tmp:
     applink._documents_bases = lambda: [tmp]
@@ -26,5 +26,5 @@ with tempfile.TemporaryDirectory(prefix='bridge_identity_') as tmp:
         assert bpy.data.objects['bridge'].as_pointer() == original
         assert len(bpy.data.objects) == 1
         print('PASS missing target', missing, ': first import survives; repeat preserves identity')
-coat_bridge.unregister()
+coatlink.unregister()
 print('TARGET IDENTITY REGRESSION PASSED')

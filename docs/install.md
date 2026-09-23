@@ -29,11 +29,16 @@ it ships) moves with it.
 
 | What | From | To |
 | --- | --- | --- |
-| Blender add-on | `coat_bridge\` (8 `.py` files) | `%APPDATA%\Blender Foundation\Blender\<ver>\scripts\addons\coat_bridge\` |
+| Blender add-on | `coatlink\` (8 `.py` files) | `%APPDATA%\Blender Foundation\Blender\<ver>\scripts\addons\coatlink\` |
 | 3D-Coat scripts | `coat_side\CoatBridge*.py` (6 files: the library, the receipts helper, the scoped-export helper and the three entries) | `<Documents>\3DCoat\UserPrefs\Scripts\CoatBridge\` |
 | Tool buttons | `coat_side\tools\CoatBridgeTools.xml.in` | `…\Scripts\ExtraMenuItems\CoatBridgeTools.xml`, with every `__SCRIPT_DIR__` replaced by the `CoatBridge` folder above, forward slashes (`C:/Users/…/CoatBridge`) |
 | Scripts menu entry | the block below | `…\Scripts\ExtraMenuItems\CoatBridge.xml` |
 | Button icons (optional) | `coat_side\icon\*.png` (4 files) | `<3D-Coat program folder>\data\Textures\icons64\` |
+
+An earlier build installed the add-on as `coat_bridge`.  `install.sh` and `install.ps1` move
+that folder to `<scripts>\coat_bridge.removed-<timestamp>` — out of Blender's add-ons search
+path, still on disk — before they install.  Installing by hand from the zip instead?  Delete
+the `coat_bridge` folder yourself, so Blender's list shows one CoatLink, not two.
 
 `CoatBridge.xml`, verbatim, with the same forward-slash path:
 

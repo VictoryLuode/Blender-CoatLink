@@ -89,8 +89,32 @@ grep -q "script:$(cygpath -m "$B/Documents/3DCoat/UserPrefs/Scripts")/CoatBridge
 MSYS2_ARG_CONV_EXCL='*' "$PS" -NoProfile -ExecutionPolicy Bypass \
     -File "$(cygpath -w "$REPO/install.ps1")" -BlenderOnly \
     -BlenderAddons "$(cygpath -w "$B/blender/5.2/scripts/addons")" > /dev/null 2>&1
-[ -f "$B/blender/5.2/scripts/addons/coat_bridge/__init__.py" ] \
+[ -f "$B/blender/5.2/scripts/addons/coatlink/__init__.py" ] \
     && check "a second run is harmless" yes || check "a second run is harmless" no
+
+# An older build called itself `coat_bridge`.  Through PowerShell the same move-aside must
+# happen: two CoatLinks in the list, one of them pointing at a module that no longer exists,
+# is exactly the sort of thing a user cannot debug.
+UPG="$TMP/upgrade"
+mkdir -p "$UPG/blender/5.2/scripts/addons/coat_bridge" \
+         "$UPG/Documents/3DCoat/UserPrefs/Scripts" \
+         "$UPG/3DCoat-2026/data/Textures/icons64"
+echo "old build" > "$UPG/blender/5.2/scripts/addons/coat_bridge/OLD-BUILD.txt"
+MSYS2_ARG_CONV_EXCL='*' "$PS" -NoProfile -ExecutionPolicy Bypass \
+    -File "$(cygpath -w "$REPO/install.ps1")" -BlenderOnly \
+    -BlenderAddons "$(cygpath -w "$UPG/blender/5.2/scripts/addons")" > "$TMP/upgrade.log" 2>&1
+[ -f "$UPG/blender/5.2/scripts/addons/coatlink/__init__.py" ] \
+    && check "PowerShell installs over an older build" yes \
+    || check "PowerShell installs over an older build" no
+[ -d "$UPG/blender/5.2/scripts/addons/coat_bridge" ] \
+    && check "PowerShell moves the older coat_bridge folder out of the way" no \
+    || check "PowerShell moves the older coat_bridge folder out of the way" yes
+moved="$(find "$UPG/blender/5.2/scripts" -maxdepth 1 -name 'coat_bridge.removed-*' -type d -print -quit)"
+if [ -n "$moved" ] && [ -f "$moved/OLD-BUILD.txt" ]; then
+    check "PowerShell keeps the older build, not deletes it" yes
+else
+    check "PowerShell keeps the older build, not deletes it" no "moved=$moved"
+fi
 
 # Automatic detection must sort version directories, not identical 'addons' leaves.
 AUTO="$TMP/autodetect"
@@ -101,13 +125,13 @@ BLENDER_CONFIG_DIR="$(cygpath -w "$AUTO")" BLENDER_ADDON_DIR='' \
 MSYS2_ARG_CONV_EXCL='*' "$PS" -NoProfile -ExecutionPolicy Bypass \
     -File "$(cygpath -w "$REPO/install.ps1")" -BlenderOnly > "$TMP/auto.log" 2>&1
 auto_status=$?
-if [ "$auto_status" -eq 0 ] && [ -f "$AUTO/5.10/scripts/addons/coat_bridge/__init__.py" ]; then
+if [ "$auto_status" -eq 0 ] && [ -f "$AUTO/5.10/scripts/addons/coatlink/__init__.py" ]; then
     check "automatic detection selects the highest numeric Blender version" yes
 else
     check "automatic detection selects the highest numeric Blender version" no
 fi
 for version in 3.6 4.0 4.1 4.2 4.3 4.4 4.5 5.0 5.1 5.2 5.9 backup; do
-    [ ! -d "$AUTO/$version/scripts/addons/coat_bridge" ] \
+    [ ! -d "$AUTO/$version/scripts/addons/coatlink" ] \
         && check "automatic detection leaves $version alone" yes \
         || check "automatic detection leaves $version alone" no
 done

@@ -18,7 +18,7 @@ if [ -z "$BLENDER" ]; then
     exit 2
 fi
 WIN_REPO="$(cygpath -w "$REPO")"
-WORK="$(mktemp -d "${LOCALAPPDATA:-/tmp}/coat_bridge_live.XXXXXX")"
+WORK="$(mktemp -d "${LOCALAPPDATA:-/tmp}/coatlink_live.XXXXXX")"
 WIN_WORK="$(cygpath -w "$WORK")"
 EXCHANGE="$(cygpath -w "$HOME/Documents/AppLinks/3D-Coat/Exchange")"
 

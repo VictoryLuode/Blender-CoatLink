@@ -50,11 +50,11 @@ def main():
     os.makedirs(EXCHANGE, exist_ok=True)
     check("model file exists", os.path.isfile(MODEL), MODEL)
 
-    bpy.ops.preferences.addon_enable(module="coat_bridge")
-    from coat_bridge import applink, bridge, transfer
+    bpy.ops.preferences.addon_enable(module="coatlink")
+    from coatlink import applink, bridge, transfer
 
     applink._candidate_exchange_folders = lambda: [os.path.normpath(EXCHANGE)]
-    prefs = bpy.context.preferences.addons["coat_bridge"].preferences
+    prefs = bpy.context.preferences.addons["coatlink"].preferences
     prefs.exchange_folder = EXCHANGE
     prefs.auto_pull = False
 
@@ -93,11 +93,11 @@ def main():
     check("signal consumed", not os.path.isfile(os.path.join(folder, "export.txt")))
     check("geometry replaced", after != before and after > 0, "%d -> %d" % (before, after))
     check("object identity kept", cube.name == "RoundTripTarget")
-    check("link recorded", cube.get("coat_bridge_file") == landed, cube.get("coat_bridge_file"))
+    check("link recorded", cube.get("coatlink_file") == landed, cube.get("coatlink_file"))
     meshes = [obj for obj in bpy.data.objects if obj.type == "MESH"]
     check("every imported part is linked to the returned file",
-          bool(meshes) and all(obj.get("coat_bridge_file") == landed for obj in meshes),
-          [(obj.name, obj.get("coat_bridge_file")) for obj in meshes])
+          bool(meshes) and all(obj.get("coatlink_file") == landed for obj in meshes),
+          [(obj.name, obj.get("coatlink_file")) for obj in meshes])
     print("     3D-Coat exported %d object(s): %s" % (len(messages), ", ".join(o.name for o in meshes)))
     print("     target: %d vertices, %d polygons; file %s" % (
         after, len(cube.data.polygons), os.path.basename(landed)))

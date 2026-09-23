@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# CoatLink - run inside 3D-Coat after an AppLink import (import.txt [pythonfile]).
+# CoatLink - run inside 3D-Coat after an AppLink import (as <root>/import.py).
 #
 """Drop the parent node 3D-Coat puts around an imported model.
 

@@ -127,12 +127,12 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
 def register():
     bpy.utils.register_class(CoatBridgePreferences)
     ui.register()
-    bpy.types.Object.coat_bridge_file = StringProperty(
+    bpy.types.Object.coatlink_file = StringProperty(
         name="CoatLink file",
         description="Model file this object is linked to, used to update it in place",
         default="",
     )
-    bpy.types.Scene.coat_bridge_status = StringProperty(
+    bpy.types.Scene.coatlink_status = StringProperty(
         name="CoatLink status",
         default="Ready",
     )
@@ -141,7 +141,7 @@ def register():
 
 def unregister():
     watcher.stop()
-    del bpy.types.Object.coat_bridge_file
-    del bpy.types.Scene.coat_bridge_status
+    del bpy.types.Object.coatlink_file
+    del bpy.types.Scene.coatlink_status
     ui.unregister()
     bpy.utils.unregister_class(CoatBridgePreferences)

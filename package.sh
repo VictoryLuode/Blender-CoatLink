@@ -34,7 +34,7 @@ rm -f dist/CoatLink.zip "$FULL"
 # pinned here, which is what makes the archives equal the committed bytes.
 ARCHIVE=(git -c core.autocrlf=false -c core.eol=lf archive --format=zip)
 
-"${ARCHIVE[@]}" --prefix="coat_bridge/" "$REF:coat_bridge" -o dist/CoatLink.zip
+"${ARCHIVE[@]}" --prefix="coatlink/" "$REF:coatlink" -o dist/CoatLink.zip
 "${ARCHIVE[@]}" --prefix="Blender-CoatLink-$VERSION/" "$REF" -o "$FULL"
 
 # the 3D-Coat half as one file: paste it into 3D-Coat's Python console, or run it

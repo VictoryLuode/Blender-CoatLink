@@ -1,7 +1,7 @@
 import importlib.util
 from pathlib import Path
 import tempfile
-spec = importlib.util.spec_from_file_location('receipts', Path(__file__).resolve().parents[1] / 'coat_bridge' / 'receipts.py')
+spec = importlib.util.spec_from_file_location('receipts', Path(__file__).resolve().parents[1] / 'coatlink' / 'receipts.py')
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 with tempfile.TemporaryDirectory() as tmp:

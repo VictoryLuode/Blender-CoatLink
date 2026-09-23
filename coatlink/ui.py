@@ -143,8 +143,8 @@ class COATBRIDGE_OT_unlink(bpy.types.Operator):
     def execute(self, context):
         count = 0
         for obj in context.selected_objects:
-            if obj.get("coat_bridge_file"):
-                del obj["coat_bridge_file"]
+            if bridge.link_path(obj):
+                bridge.clear_link(obj)
                 count += 1
         self.report({"INFO"}, "Unlinked %d object(s)" % count)
         return {"FINISHED"}

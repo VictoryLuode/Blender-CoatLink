@@ -34,6 +34,40 @@ SCALE_TOLERANCE = 0.02
 #: unit ambiguity, and 3D-Coat hands its own FBX back regardless
 SEND_FORMAT = "obj"
 
+#: where an object remembers the model it came from, and the name it had when it left.
+#: Objects linked by an earlier build carry these under the old module's prefix
+#: (`coat_bridge_*`); reads accept both, so an open scene keeps its links across the
+#: rename instead of importing a second copy of every model on the next round trip.
+#: Writes only ever use the new names.
+LINK_KEY = "coatlink_file"
+SOURCE_KEY = "coatlink_source_name"
+LEGACY_LINK_KEY = "coat_bridge_file"
+LEGACY_SOURCE_KEY = "coat_bridge_source_name"
+
+
+def link_path(obj):
+    """The model file an object is linked to - the new key, or the old build's key."""
+    return obj.get(LINK_KEY) or obj.get(LEGACY_LINK_KEY) or ""
+
+
+def source_alias(obj):
+    """The name the object had when it was sent - the new key, or the old build's."""
+    return obj.get(SOURCE_KEY) or obj.get(LEGACY_SOURCE_KEY) or ""
+
+
+def adopt_link(obj):
+    """Move an old build's link onto the new keys, the first time we touch the object."""
+    for new, old in ((LINK_KEY, LEGACY_LINK_KEY), (SOURCE_KEY, LEGACY_SOURCE_KEY)):
+        if not obj.get(new) and obj.get(old):
+            obj[new] = obj[old]
+
+
+def clear_link(obj):
+    """Drop the link, whichever build recorded it."""
+    for key in (LINK_KEY, LEGACY_LINK_KEY, SOURCE_KEY, LEGACY_SOURCE_KEY):
+        if key in obj.keys():
+            del obj[key]
+
 STATE = {
     "target": None,     # {"object": name, "file": path} of the last send
     "seen": {},         # signal file -> mtime already handled
@@ -246,7 +280,7 @@ def detail_lines(context=None):
     elif STATE.get("last_send"):
         lines.append("After-import step: not confirmed (no readable dated record)")
     lines.append("Last send %s / last pull %s" % (_stamp(STATE["last_send"]), _stamp(STATE["last_pull"])))
-    linked = [obj for obj in bpy.data.objects if obj.get("coat_bridge_file")]
+    linked = [obj for obj in bpy.data.objects if link_path(obj)]
     lines.append("Linked objects: %s" % (", ".join(obj.name for obj in linked[:6]) or "none"))
     lines += STATE["log"][-3:]
     return lines
@@ -369,8 +403,10 @@ def send(context):
         applink.ensure_app_folder(root)
 
     # Persistent per-object export aliases survive Blender-side renaming/reload.
+    # Objects sent by an earlier build get their old keys moved over here.
     for obj in objects:
-        obj["coat_bridge_source_name"] = obj.name
+        adopt_link(obj)
+        obj[SOURCE_KEY] = obj.name
     suspended = []
     remeshed = 0
     try:
@@ -724,7 +760,7 @@ def _import_and_link(context, path):
             existing = _object(existing_name)
             if existing is None or existing.type != "MESH" or existing_name in used:
                 continue
-            alias = existing.get("coat_bridge_source_name")
+            alias = source_alias(existing)
             if not alias:
                 continue
             suffix = arriving_name[len(alias):] if arriving_name.startswith(alias) else ""
@@ -752,13 +788,13 @@ def _import_and_link(context, path):
             if live is None:
                 raise RuntimeError("target disappeared during mesh replacement")
             material_note = _strip_materials(live, file_materials)
-            live["coat_bridge_file"] = path
+            live["coatlink_file"] = path
             notes = [part for part in (scale_note, material_note) if part]
             names.append(live.name + (" (%s)" % " ".join(notes) if notes else ""))
         else:
             # Keep Blender's collision-safe name; do not rename an unrelated object.
-            source["coat_bridge_file"] = path
-            source["coat_bridge_source_name"] = arriving_name
+            source["coatlink_file"] = path
+            source["coatlink_source_name"] = arriving_name
             _strip_materials(source, file_materials)
             names.append(source.name)
             if matches:
@@ -890,9 +926,9 @@ def _is_ours(path, roots):
 def _set_message(text):
     STATE["message"] = text
     scene = getattr(bpy.context, "scene", None)
-    if scene is not None and hasattr(scene, "coat_bridge_status"):
+    if scene is not None and hasattr(scene, "coatlink_status"):
         try:
-            scene.coat_bridge_status = text
+            scene.coatlink_status = text
         except Exception:
             pass
 

@@ -22,7 +22,7 @@ WORK="$(mktemp -d "${LOCALAPPDATA:-/tmp}/coat_export_test.XXXXXX")"
 WIN_WORK="$(cygpath -w "$WORK")"
 SCRIPTS="$WORK/scripts"
 mkdir -p "$SCRIPTS/addons"
-cp -r "$REPO/coat_bridge" "$SCRIPTS/addons/"
+cp -r "$REPO/coatlink" "$SCRIPTS/addons/"
 find "$SCRIPTS/addons" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 
 echo "model   : $MODEL"

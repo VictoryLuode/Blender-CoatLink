@@ -30,7 +30,7 @@ def check(name, ok, detail=None):
 
 
 def import_script():
-    spec = importlib.util.spec_from_file_location("coat_bridge_scope_lib", LIB)
+    spec = importlib.util.spec_from_file_location("coatlink_scope_lib", LIB)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

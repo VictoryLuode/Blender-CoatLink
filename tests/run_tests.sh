@@ -18,7 +18,7 @@ if [ -z "$BLENDER" ]; then
     echo "no Blender found - pass one: tests/run_tests.sh /path/to/blender.exe" >&2
     exit 2
 fi
-WORK="$(mktemp -d "${LOCALAPPDATA:-/tmp}/coat_bridge_test.XXXXXX")"
+WORK="$(mktemp -d "${LOCALAPPDATA:-/tmp}/coatlink_test.XXXXXX")"
 WIN_WORK="$(cygpath -w "$WORK")"
 WIN_REPO="$(cygpath -w "$REPO")"
 SCRIPTS="$WORK/scripts"
@@ -27,8 +27,8 @@ CONFIG="$WORK/config"
 REPORT="$WORK/report.json"
 
 mkdir -p "$SCRIPTS/addons" "$EXCHANGE" "$CONFIG"
-cp -r "$REPO/coat_bridge" "$SCRIPTS/addons/"
-rm -rf "$SCRIPTS/addons/coat_bridge/__pycache__"
+cp -r "$REPO/coatlink" "$SCRIPTS/addons/"
+rm -rf "$SCRIPTS/addons/coatlink/__pycache__"
 
 echo "blender : $BLENDER"
 echo "scripts : $WIN_WORK\\scripts"
