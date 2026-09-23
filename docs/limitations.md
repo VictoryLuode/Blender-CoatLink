@@ -33,6 +33,13 @@ so.  The short version is on the [README](../README.md).
   dated notes are accepted as that evidence - the job's `import.py.ran` and the helper's
   `CoatLink_AfterImport.py.ran` - and a note says the step started, never that the voxel
   conversion or the unparenting then succeeded.
+* **A returned model can arrive in pieces.**  3D-Coat's own AppLink export writes the model and
+  the signal itself, and the signal can land while the file is still growing: the import then
+  finds no objects.  The pull now waits a moment for the size and mtime to stop changing, calls
+  such a failure what it is (`the file was still being written`), retries on the next watcher
+  tick, and writes the traceback to the log once per file version instead of once per tick -
+  one trip used to leave 50 identical tracebacks and bury the one that mattered.  A file that
+  never settles is still imported, so waiting cannot lose a return.
 * **The selected-node export has not been through a live round trip.**  The API calls are the
   documented ones (`Scene.current()`, `fromVolume`, `fromReducedVolume`, `Mesh.Write`), the OBJ
   it produces is validated line by line, and everything that could go wrong has a test - but

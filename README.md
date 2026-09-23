@@ -163,7 +163,7 @@ script and exchange folders, and the 3D-Coat tests run against a stand-in `coat`
 3D-Coat's own Python.  The scripts pick the newest Blender build and 3D-Coat's bundled Python
 themselves; `BLENDER=`, `COAT_PYTHON=` and `COAT_DIR=` override.
 
-Current counts: Blender main suite **205/205** plus every regression script and both installer
+Current counts: Blender main suite **212/212** plus every regression script and both installer
 smoke tests; 3D-Coat logic **166/166**, tools **29/29**, tree report **12/12**, installer
 checks, API stub check, idle-redraw check and probe dry run.
 

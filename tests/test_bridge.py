@@ -719,6 +719,54 @@ def main():
           abs(bridge._diagonal(cube) - sent_diagonal) < 0.02,
           (bridge._diagonal(cube), sent_diagonal))
 
+    # ---- settled(): does the file stop growing? --------------------------------
+    # 3D-Coat's AppLink export writes the model and the signal itself, and the signal can
+    # land while the model is still being written.  Importing that found no objects (or
+    # half a mesh) and used to fill the log with one traceback per watcher tick.
+    stable = os.path.join(os.path.dirname(back_path), "stable.obj")
+    write(stable, "o cube\nv 0 0 0\n")
+    check("a file nobody is writing has settled", bridge.settled(stable) is True, stable)
+    growing = os.path.join(os.path.dirname(back_path), "growing.obj")
+    write(growing, "o cube\n")
+    real_sleep = bridge.time.sleep
+
+    def still_arriving(_seconds):
+        with open(growing, "a", encoding="utf-8", newline="\n") as handle:
+            handle.write("v 1 0 0\n")
+
+    bridge.time.sleep = still_arriving
+    try:
+        check("a file that keeps growing has not settled", bridge.settled(growing) is False, growing)
+    finally:
+        bridge.time.sleep = real_sleep
+    check("a file that is not there has not settled",
+          bridge.settled(growing + ".missing") is False)
+
+    breaking = os.path.join(os.path.dirname(back_path), "still-arriving.obj")
+    write(breaking, "")                        # nothing to import yet
+    write(signal, breaking + "\n")
+    fake_log = os.path.join(os.path.dirname(back_path), "arriving.log")
+    real_settled = bridge.settled
+    bridge.applink.shared_log_path = lambda: fake_log
+    bridge.settled = lambda path: False        # it never stops growing
+    try:
+        first = bridge.pull(bpy.context, force=True)
+        second = bridge.pull(bpy.context, force=True)
+    finally:
+        bridge.settled = real_settled
+        bridge.applink.shared_log_path = real_log
+    check("a return that is still being written says so",
+          any("still being written" in message for message in first), first)
+    check("and the next tick retries it rather than dropping it",
+          any("still being written" in message for message in second), second)
+    with open(fake_log, "r", encoding="utf-8") as handle:
+        noise = handle.read()
+    check("the traceback goes to the log once per file version, not once per tick",
+          noise.count("import traceback:") == 1, noise.count("import traceback:"))
+    for leftover in (stable, growing, breaking, fake_log, signal):
+        if os.path.isfile(leftover):
+            os.remove(leftover)
+
     # ---- a return at the same size is left alone ----
     bridge.send(bpy.context)
     transfer.export_model(back_path, "obj", [cube], apply_modifiers=False)

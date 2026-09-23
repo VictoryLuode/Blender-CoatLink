@@ -454,6 +454,48 @@ def pull(context, force=False):
         PULLING[0] = False
 
 
+#: (path, size, mtime) we have already written a traceback for.  A returned model can
+#: arrive in pieces, and one trip used to fill the log with 50 identical tracebacks,
+#: burying the one that mattered.
+_TRACED = {}
+
+#: how long to give a file that is still being written before importing it anyway
+SETTLE_SECONDS = 0.1
+SETTLE_TRIES = 3
+
+
+def settled(path):
+    """Has the file stopped growing?  Waits a little, then says so.
+
+    3D-Coat's own AppLink export writes the model *and* the signal, and the signal can
+    land first - importing then found no objects (or half a mesh).  Two samples with the
+    same size and mtime mean it has stopped; the cost is ~0.1 s on each return, and a
+    file that never settles is still imported, so nothing can be lost by waiting.
+    """
+    last = None
+    for _ in range(SETTLE_TRIES):
+        try:
+            stat = os.stat(path)
+        except OSError:
+            return False
+        current = (stat.st_size, stat.st_mtime_ns)
+        if last == current:
+            return True
+        last = current
+        time.sleep(SETTLE_SECONDS)
+    return False
+
+
+def _trace_once(key, version):
+    """True the first time this exact file version fails, False afterwards."""
+    if _TRACED.get(key) == version:
+        return False
+    _TRACED[key] = version
+    if len(_TRACED) > 64:
+        del _TRACED[next(iter(_TRACED))]
+    return True
+
+
 def _pull_once(context, force):
     p = prefs(context)
     if p is None:
@@ -511,6 +553,7 @@ def _pull_once(context, force):
     if candidates:
         candidates.sort(reverse=True)
         path = candidates[0][1]
+        key, version, arriving = "", None, False
         try:
             key = os.path.normcase(os.path.realpath(path))
             stat = os.stat(path)
@@ -527,6 +570,9 @@ def _pull_once(context, force):
                     save_history(p)
                 return []  # a delayed mirror signal, not a new export
             receipt_version = receipts.fingerprint(path)
+            # 3D-Coat writes the model and the signal itself, and the signal can land
+            # first: give a file that is still arriving a moment before importing it
+            arriving = not settled(path)
             imported = _import_and_link(context, path)
             if imported:
                 # Recorded before the receipt is written, on purpose: the receipt is
@@ -545,11 +591,14 @@ def _pull_once(context, force):
                 if len(STATE["seen"]) > 256:
                     del STATE["seen"][next(iter(STATE["seen"]))]
         except Exception as exc:
-            messages.append("import failed for %s: %s" % (os.path.basename(path), exc))
-            _log("import failed for %s: %s" % (os.path.basename(path), exc))
-            _log("import traceback:\n%s" % traceback.format_exc().strip())
-            _log("import context: target=%r objects=%d" % (
-                (STATE.get("target") or {}).get("object"), len(bpy.data.objects)))
+            name = os.path.basename(path)
+            why = " (the file was still being written)" if arriving else ""
+            messages.append("import failed for %s: %s%s" % (name, exc, why))
+            _log("import failed for %s: %s%s" % (name, exc, why))
+            if _trace_once(key, version):
+                _log("import traceback:\n%s" % traceback.format_exc().strip())
+                _log("import context: target=%r objects=%d" % (
+                    (STATE.get("target") or {}).get("object"), len(bpy.data.objects)))
     else:
         path = ""
 
