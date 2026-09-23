@@ -40,7 +40,7 @@ MODEL_STEM = "bridge"
 VOXELIZE = False
 
 #: same file the 3D-Coat side writes, so both halves of a trip land in one log
-LOG_NAME = "CoatBridge.log"
+LOG_NAME = "CoatLink.log"
 
 #: 3D-Coat runs a file with this name when it finds one beside the job file, and deletes
 #: it - with the job file - once the import is through.  It is the documented way to run
@@ -133,7 +133,7 @@ def shared_log_path():
         if os.path.isdir(folder):
             candidates.append(folder)
     candidates.sort(key=lambda folder: (
-        os.path.isfile(os.path.join(folder, "CoatBridge.json")),
+        os.path.isfile(os.path.join(folder, "CoatLink.json")),
         os.path.basename(folder).lower()), reverse=True)
     folder = candidates[0] if candidates else os.path.join(base, "3DCoat")
     return os.path.join(folder, LOG_NAME)

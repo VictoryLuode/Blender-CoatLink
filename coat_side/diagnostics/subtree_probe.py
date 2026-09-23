@@ -8,7 +8,7 @@ import tempfile
 import traceback
 import coat
 sys.path.insert(0, r'H:\Misc\Blender-CoatLink\coat_side')
-from CoatBridgeScopedExport import export_subtree
+from CoatLinkScopedExport import export_subtree
 folder = tempfile.mkdtemp(prefix='coat_subtree_probe_')
 path = os.path.join(folder, 'subtree.obj')
 report = {'export': path, 'scope': 'current node + descendants', 'reduction': 0}
@@ -40,7 +40,7 @@ try:
                   bounds_min=low, bounds_max=high, success=True)
 except Exception:
     report.update(success=False, traceback=traceback.format_exc())
-report_path = os.path.join(os.environ.get('LOCALAPPDATA', tempfile.gettempdir()), 'Temp', 'CoatBridge-subtree-probe.json')
+report_path = os.path.join(os.environ.get('LOCALAPPDATA', tempfile.gettempdir()), 'Temp', 'CoatLink-subtree-probe.json')
 os.makedirs(os.path.dirname(report_path), exist_ok=True)
 with open(report_path, 'w', encoding='utf-8') as stream:
     json.dump(report, stream, indent=2, ensure_ascii=False)

@@ -18,9 +18,9 @@ so everything below is the same code either way.
 
 What it does, and nothing else:
 
-    <scripts>/CoatBridge/*.py                     the bridge itself
-    <scripts>/ExtraMenuItems/CoatBridge.xml       Scripts > CoatLink entry
-    <scripts>/ExtraMenuItems/CoatBridgeTools.xml  the three tool buttons
+    <scripts>/CoatLink/*.py                     the bridge itself
+    <scripts>/ExtraMenuItems/CoatLink.xml       Scripts > CoatLink entry
+    <scripts>/ExtraMenuItems/CoatLinkTools.xml  the three tool buttons
     <program>/data/Textures/icons64/*.png         button icons, when that
                                                   folder is writable
 
@@ -39,46 +39,59 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 #: the folder our scripts live in, under 3D-Coat's Scripts folder
-APP_DIRNAME = "CoatBridge"
+APP_DIRNAME = "CoatLink"
 
 #: what we install; the scoped-export module is deliberately absent (nothing
 #: calls it, and shipping dead code in a released install is just confusing)
 SCRIPT_FILES = (
-    "CoatBridgeLib.py",
-    "CoatBridgeReceipts.py",
-    "CoatBridgeScopedExport.py",
-    "CoatBridge_Send.py",
-    "CoatBridge_Pull.py",
-    "CoatBridge_Setup.py",
+    "CoatLinkLib.py",
+    "CoatLinkReceipts.py",
+    "CoatLinkScopedExport.py",
+    "CoatLink_Send.py",
+    "CoatLink_Pull.py",
+    "CoatLink_Setup.py",
 )
 
 ICON_FILES = (
+    "CoatLink.png",
+    "CoatLink_Send.png",
+    "CoatLink_Pull.png",
+    "CoatLink_Setup.png",
+)
+
+MENU_FILES = ("CoatLink.xml", "CoatLinkTools.xml")
+
+#: layouts this project used before; removed on sight so an upgrade cannot leave
+#: a second copy of the bridge behind
+STALE_FILES = (
+    "CoatLink.py",
+    "CoatLinkQt.py",
+    "CoatLinkDialog.py",
+)
+
+#: what a release from before the rename installed (`CoatBridge`): a whole second copy of
+#: the scripts, the two XML files that make its buttons, and its icons.  The scripts folder
+#: is moved aside (never deleted); the XML and the icons go, because they would keep drawing
+#: buttons that point at scripts which are no longer there.
+LEGACY_APP_DIRNAME = "CoatBridge"
+LEGACY_MENU_FILES = ("CoatBridge.xml", "CoatBridgeTools.xml")
+LEGACY_ICON_FILES = (
     "CoatBridge.png",
     "CoatBridge_Send.png",
     "CoatBridge_Pull.png",
     "CoatBridge_Setup.png",
 )
 
-MENU_FILES = ("CoatBridge.xml", "CoatBridgeTools.xml")
-
-#: layouts this project used before; removed on sight so an upgrade cannot leave
-#: a second copy of the bridge behind
-STALE_FILES = (
-    "CoatBridge.py",
-    "CoatBridgeQt.py",
-    "CoatBridgeDialog.py",
-)
-
-TOOLS_TEMPLATE = "tools/CoatBridgeTools.xml.in"
+TOOLS_TEMPLATE = "tools/CoatLinkTools.xml.in"
 PLACEHOLDER = "__SCRIPT_DIR__"
 
 MENU_XML = """<ClassArray.ExtraMenuItem>
 \t<ExtraMenuItem>
 \t\t<MenuPath>Scripts</MenuPath>
-\t\t<MenuItem>CoatBridge</MenuItem>
+\t\t<MenuItem>CoatLink</MenuItem>
 \t\t<inRoom></inRoom>
 \t\t<inSection></inSection>
-\t\t<Command>script:{script_dir}/CoatBridge_Setup.py</Command>
+\t\t<Command>script:{script_dir}/CoatLink_Setup.py</Command>
 \t</ExtraMenuItem>
 </ClassArray.ExtraMenuItem>
 """
@@ -435,12 +448,30 @@ def install(scripts_dir, program=None, payload=None, report=None):
     menu_dir.mkdir(parents=True, exist_ok=True)
     # escaped on the way in: one & in a folder name would void the whole file
     xml_dir = xml_escape(script_dir)
-    _write(menu_dir / "CoatBridge.xml", MENU_XML.format(script_dir=xml_dir), report)
+    _write(menu_dir / "CoatLink.xml", MENU_XML.format(script_dir=xml_dir), report)
     tools = payload["tools_xml"].replace(PLACEHOLDER, xml_dir)
     if PLACEHOLDER in tools:
         report.line("the tools template still holds %s" % PLACEHOLDER)
         report.verified = False
-    _write(menu_dir / "CoatBridgeTools.xml", tools, report)
+    _write(menu_dir / "CoatLinkTools.xml", tools, report)
+
+    # A release from before the rename left a second copy under the old name.  Its folder
+    # moves aside - out of the Scripts folder 3D-Coat reads, never deleted - and its XML
+    # goes, so its buttons cannot survive pointing at scripts that are gone.
+    legacy_dir = scripts_dir / LEGACY_APP_DIRNAME
+    if legacy_dir.is_dir():
+        aside = scripts_dir / (LEGACY_APP_DIRNAME + ".removed")
+        index = 1
+        while aside.exists():
+            aside = scripts_dir / ("%s.removed-%d" % (LEGACY_APP_DIRNAME, index))
+            index += 1
+        legacy_dir.rename(aside)
+        report.line("moved the older %s scripts aside -> %s" % (LEGACY_APP_DIRNAME, aside))
+    for name in LEGACY_MENU_FILES:
+        path = menu_dir / name
+        if path.exists():
+            path.unlink()
+            report.removed.append(path)
 
     icon_dir = Path(program) / "data" / "Textures" / "icons64" if program else None
     if icon_dir and icon_dir.is_dir():
@@ -449,6 +480,14 @@ def install(scripts_dir, program=None, payload=None, report=None):
                 _write(icon_dir / name, data, report)
             except OSError as exc:
                 report.skipped.append((name, str(exc)))
+        for name in LEGACY_ICON_FILES:
+            path = icon_dir / name
+            if path.exists():
+                try:
+                    path.unlink()
+                    report.removed.append(path)
+                except OSError as exc:
+                    report.skipped.append((name, str(exc)))
     else:
         report.line("button icons skipped (%s)" % (icon_dir or "3D-Coat folder not found"))
     return report
@@ -471,13 +510,23 @@ def uninstall(scripts_dir, program=None, report=None):
         cache.rmdir()
     if app_dir.is_dir() and not any(app_dir.iterdir()):
         app_dir.rmdir()
-    for name in MENU_FILES:
+    for name in MENU_FILES + LEGACY_MENU_FILES:
         path = scripts_dir / "ExtraMenuItems" / name
         if path.exists():
             path.unlink()
             report.removed.append(path)
+    # a release from before the rename left its scripts under the old name too
+    legacy_dir = scripts_dir / LEGACY_APP_DIRNAME
+    if legacy_dir.is_dir():
+        for path in sorted(legacy_dir.iterdir()):
+            if path.is_file():
+                path.unlink()
+                report.removed.append(path)
+        if not any(legacy_dir.iterdir()):
+            legacy_dir.rmdir()
+            report.removed.append(legacy_dir)
     if program:
-        for name in ICON_FILES:
+        for name in ICON_FILES + LEGACY_ICON_FILES:
             path = Path(program) / "data" / "Textures" / "icons64" / name
             if path.exists():
                 try:
@@ -493,10 +542,10 @@ def uninstall(scripts_dir, program=None, report=None):
 def launcher_state_path(scripts_dir):
     """Where 3D-Coat's copy of our registered menu/tool entries lives.
 
-    ``…/Documents/3DCoat/CoatBridge.json`` - next to ``UserPrefs``, holding both the
+    ``…/Documents/3DCoat/CoatLink.json`` - next to ``UserPrefs``, holding both the
     user's panel settings and the list of launcher entries we added at run time.
     """
-    return Path(scripts_dir).parent.parent / "CoatBridge.json"
+    return Path(scripts_dir).parent.parent / "CoatLink.json"
 
 
 def forget_launchers(scripts_dir, report):

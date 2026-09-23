@@ -9,7 +9,7 @@ pulls it, enables the right I/O add-on on demand and replaces a linked object.
 
 Use it to re-verify the return leg after a 3D-Coat update:
 
-    tests/test_coat_export.sh "C:/Users/x/Documents/3DCoat/Exchange/BlenderBridge/001.fbx"
+    tests/test_coat_export.sh "C:/Users/x/Documents/3DCoat/Exchange/CoatLink/001.fbx"
 """
 
 import json

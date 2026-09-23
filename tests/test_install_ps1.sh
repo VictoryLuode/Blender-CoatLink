@@ -80,10 +80,10 @@ else
 fi
 
 # the XML really points into the tree it was installed into
-grep -q "script:$(cygpath -m "$B/Documents/3DCoat/UserPrefs/Scripts")/CoatBridge/CoatBridge_Setup.py" \
-    "$B/Documents/3DCoat/UserPrefs/Scripts/ExtraMenuItems/CoatBridge.xml" \
+grep -q "script:$(cygpath -m "$B/Documents/3DCoat/UserPrefs/Scripts")/CoatLink/CoatLink_Setup.py" \
+    "$B/Documents/3DCoat/UserPrefs/Scripts/ExtraMenuItems/CoatLink.xml" \
     && check "the XML points at the installed script folder" yes \
-    || check "the XML points at the installed script folder" no "$(cat "$B/Documents/3DCoat/UserPrefs/Scripts/ExtraMenuItems/CoatBridge.xml")"
+    || check "the XML points at the installed script folder" no "$(cat "$B/Documents/3DCoat/UserPrefs/Scripts/ExtraMenuItems/CoatLink.xml")"
 
 # idempotent
 MSYS2_ARG_CONV_EXCL='*' "$PS" -NoProfile -ExecutionPolicy Bypass \

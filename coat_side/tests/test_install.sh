@@ -23,17 +23,17 @@ bash "$REPO/coat_side/install.sh" "$SCRIPTS" "$COAT" > "$TMP/install.log" 2>&1
 [ -s "$TMP/install.log" ] && echo "PASS the installer says what it did" || { echo "FAIL installer quiet"; failed=1; }
 grep -q "Traceback\|not found\|No such file" "$TMP/install.log" && { echo "FAIL installer reported a problem"; cat "$TMP/install.log"; failed=1; }
 
-for name in CoatBridgeLib.py CoatBridge_Send.py CoatBridge_Pull.py CoatBridge_Setup.py; do
-    [ -f "$SCRIPTS/CoatBridge/$name" ] && check "installed $name" yes || check "installed $name" no
+for name in CoatLinkLib.py CoatLink_Send.py CoatLink_Pull.py CoatLink_Setup.py; do
+    [ -f "$SCRIPTS/CoatLink/$name" ] && check "installed $name" yes || check "installed $name" no
 done
-for name in CoatBridgeTools.xml CoatBridge.xml; do
+for name in CoatLinkTools.xml CoatLink.xml; do
     [ -f "$SCRIPTS/ExtraMenuItems/$name" ] && check "installed $name" yes || check "installed $name" no
 done
 
 # every script the XMLs point at must exist, and nothing stale may be referenced
 entries=0
 bad=""
-for name in CoatBridgeTools.xml CoatBridge.xml; do
+for name in CoatLinkTools.xml CoatLink.xml; do
     path="$SCRIPTS/ExtraMenuItems/$name"
     while read -r target; do
         target="${target#script:}"
@@ -42,7 +42,7 @@ for name in CoatBridgeTools.xml CoatBridge.xml; do
         host="/c${target#C:}"
         [ -f "$host" ] || bad="$bad $name->$(basename "$target")"
     done < <(grep -o 'script:[^<]*' "$path" 2>/dev/null)
-    if grep -q "CoatBridgeDialog\.py\|CoatBridgeQt\.py" "$path" 2>/dev/null; then
+    if grep -q "CoatLinkDialog\.py\|CoatLinkQt\.py" "$path" 2>/dev/null; then
         bad="$bad $name-references-deleted-entry"
     fi
 done
@@ -51,7 +51,7 @@ else check "XML references broken:$bad" no; fi
 
 # idempotent: a second run must not break anything
 bash "$REPO/coat_side/install.sh" "$SCRIPTS" "$COAT" > /dev/null 2>&1
-[ -f "$SCRIPTS/CoatBridge/CoatBridgeLib.py" ] && echo "PASS a second install is harmless" || { echo "FAIL reinstall"; failed=1; }
+[ -f "$SCRIPTS/CoatLink/CoatLinkLib.py" ] && echo "PASS a second install is harmless" || { echo "FAIL reinstall"; failed=1; }
 
 if [ "$failed" -eq 0 ]; then echo "\nINSTALL SMOKE TEST PASSED"; else echo "\nINSTALL SMOKE TEST FAILED"; fi
 exit "$failed"

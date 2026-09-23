@@ -48,9 +48,9 @@ done
     || check "no byte-code cache in the installed add-on" no
 
 # both halves are installed by the same command
-[ -f "$SCRIPTS/CoatBridge/CoatBridgeLib.py" ] \
+[ -f "$SCRIPTS/CoatLink/CoatLinkLib.py" ] \
     && check "installed the 3D-Coat half too" yes || check "installed the 3D-Coat half too" no
-[ -f "$SCRIPTS/ExtraMenuItems/CoatBridge.xml" ] \
+[ -f "$SCRIPTS/ExtraMenuItems/CoatLink.xml" ] \
     && check "installed the 3D-Coat menu entry" yes || check "installed the 3D-Coat menu entry" no
 
 # the real proof: Blender boots with that script folder and enables the add-on

@@ -11,10 +11,10 @@ _HERE = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() el
 if _HERE and _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-import CoatBridgeLib as lib
+import CoatLinkLib as lib
 
-lib.log("entry CoatBridge_Send as %r" % __name__)
-lib.run_action("CoatBridge_Send")
+lib.log("entry CoatLink_Send as %r" % __name__)
+lib.run_action("CoatLink_Send")
 
 
 def _allow_rerun():

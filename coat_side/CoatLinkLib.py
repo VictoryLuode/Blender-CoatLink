@@ -16,18 +16,18 @@
 # The exchange layout is the one the Blender add-on uses:
 #
 #     <root>/import.txt                  Blender's job file (we consume it)
-#     <root>/BlenderBridge/bridge.<ext>  the model Blender sent
-#     <root>/BlenderBridge/export.txt    what we write to hand a model back
+#     <root>/CoatLink/bridge.<ext>  the model Blender sent
+#     <root>/CoatLink/export.txt    what we write to hand a model back
 #
 # 3D-Coat registers more than one exchange root, so both are handled.
 
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import CoatBridgeReceipts as receipts
+import CoatLinkReceipts as receipts
 
 try:
-    import CoatBridgeScopedExport as scoped_export
+    import CoatLinkScopedExport as scoped_export
 except ImportError:  # older install without the helper
     scoped_export = None
 import subprocess
@@ -42,7 +42,7 @@ try:
 except ImportError:  # the command module is optional at import time
     CMD = None
 
-APP_FOLDER = "BlenderBridge"
+APP_FOLDER = "CoatLink"
 MODEL_NAME = "bridge"
 PANEL_CAPTION = "CoatLink"
 #: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
@@ -88,9 +88,9 @@ VOXEL_TOGGLE_ID = "$VoxTreeBranch.VoxSurf.%s"
 #: how many times to look at the object after pressing the badge before concluding
 #: the press did nothing (3D-Coat carries the conversion out over a few frames)
 VOXEL_TOGGLE_POLLS = 3
-STATE_FILE = "CoatBridge.json"
+STATE_FILE = "CoatLink.json"
 RUN_MARKER = "run.txt"
-MENU_ID = "CoatBridge"
+MENU_ID = "CoatLink"
 MENU_PATHS = ("Scripts", "Windows")  # launcher lives with the other script/window entries
 TOOL_ROOMS = ("Voxels",)             # rooms whose tool panel gets a CoatLink button
 REOPEN_HINT = "reopen: Scripts > CoatLink"
@@ -107,7 +107,7 @@ _LAST_OPEN = [0.0]
 def data_folder_of(start):
     """The 3D-Coat data folder that holds ``start``, or "".
 
-    ``…/Documents/3DCoat/UserPrefs/Scripts/CoatBridge`` -> ``…/Documents/3DCoat``,
+    ``…/Documents/3DCoat/UserPrefs/Scripts/CoatLink`` -> ``…/Documents/3DCoat``,
     and the 4.x layout (``…/3D-CoatV48/Scripts/…``) lands on ``…/3D-CoatV48`` the same
     way: the folder is the one carrying 3D-Coat's own name.
     """
@@ -126,14 +126,14 @@ def data_folder_of(start):
 def script_user_data():
     """The 3D-Coat data folder this script itself lives in, or "".
 
-    The installer puts these scripts in ``<user data>/UserPrefs/Scripts/CoatBridge``,
+    The installer puts these scripts in ``<user data>/UserPrefs/Scripts/CoatLink``,
     so the folder is *known* rather than guessed: walking up from ``__file__`` finds
     ``UserPrefs`` (2021 and later) or ``Scripts`` (the 4.x layout).  The folder it
     returns is 3D-Coat's *data* folder - ``…/Documents/3DCoat``, one level above
     ``UserPrefs`` - because that is where the Blender half, the installer and the
-    after-import helper all put ``CoatBridge.log`` and ``CoatBridge.json``.  Returning
+    after-import helper all put ``CoatLink.log`` and ``CoatLink.json``.  Returning
     ``UserPrefs`` instead split one trip's evidence into two files: the panel could never see
-    the other half's lines, and the Blender side read a stale ``CoatBridge.json`` for
+    the other half's lines, and the Blender side read a stale ``CoatLink.json`` for
     its axis and units.  That matters
     because ``~/Documents`` and 3D-Coat's own folders are not the same place once
     Documents is redirected (OneDrive) or ``COAT_FILES_PATH`` is set - and guessing
@@ -270,7 +270,7 @@ def is_our_model(root, path):
 def read_import_model(root):
     """The model Blender queued in <root>/import.txt, if it is ours and still there.
 
-    Only a job naming a model inside our own ``BlenderBridge`` folder counts.  The
+    Only a job naming a model inside our own ``CoatLink`` folder counts.  The
     official Blender AppLink writes its jobs into the very same ``import.txt``
     (measured in its own source: first line the model, third line ``[3B]``), so a
     path that is not ours belongs to that add-on - importing it here, and deleting
@@ -288,7 +288,7 @@ def read_import_model(root):
         return ""
     model = os.path.normpath(first)
     if not is_our_model(root, model):
-        log("import.txt names a model outside BlenderBridge - left for its own AppLink: %s" % model)
+        log("import.txt names a model outside CoatLink - left for its own AppLink: %s" % model)
         return ""
     return model
 
@@ -336,7 +336,7 @@ def sent_models(root):
 def log_path():
     """A small append-only log next to the 3D-Coat user data, so a silent
     failure inside 3D-Coat can be diagnosed from outside."""
-    return os.path.join(user_data_dir(), "CoatBridge.log")
+    return os.path.join(user_data_dir(), "CoatLink.log")
 
 
 def log_text(limit=200):
@@ -619,9 +619,9 @@ PANEL_LABELS = {
 }
 
 ACTION_LABELS = {
-    "CoatBridge_Send": ("SendToBlender", "Send to Blender"),
-    "CoatBridge_Pull": ("PullFromBlender", "Pull from Blender"),
-    "CoatBridge_Setup": ("OpenPanel", "CoatLink: panel"),
+    "CoatLink_Send": ("SendToBlender", "Send to Blender"),
+    "CoatLink_Pull": ("PullFromBlender", "Pull from Blender"),
+    "CoatLink_Setup": ("OpenPanel", "CoatLink: panel"),
 }
 
 
@@ -766,12 +766,12 @@ def run_action(tool_id):
     floating message - no window, no dialog."""
     method, label = ACTION_LABELS.get(tool_id, ("", tool_id))
     add_translations()
-    panel = CoatBridgePanel()
+    panel = CoatLinkPanel()
     action = getattr(panel, method, None)
     if action is None:
         return "unknown action: %s" % tool_id
     log("tool %s -> %s" % (tool_id, label))
-    if tool_id == "CoatBridge_Setup":
+    if tool_id == "CoatLink_Setup":
         ensure_launcher()         # the panel's own entry, XML or no XML
     coat_settings_info()          # also logs 3D-Coat's scale/units/axis
     try:
@@ -838,7 +838,7 @@ def panel_text_rows(text, count):
     return ["##" + (line or " ") for line in lines + [""] * (count - len(lines))]
 
 
-class CoatBridgePanel(object):
+class CoatLinkPanel(object):
     """State object for the dialog: attributes become controls, the ui() list
     is the layout, methods whose names appear in that list become buttons."""
 
@@ -915,7 +915,7 @@ class CoatBridgePanel(object):
             subprocess.run(["clip.exe"], input=report.encode("utf-16"),
                            check=True, timeout=5, creationflags=subprocess.CREATE_NO_WINDOW)
         except Exception as exc:
-            self._report("Could not copy details: %s" % exc, "Use the CoatBridge log instead")
+            self._report("Could not copy details: %s" % exc, "Use the CoatLink log instead")
             return
         # Preserve the diagnostic readout being copied, rather than replacing it.
         try:
@@ -1119,7 +1119,7 @@ class CoatBridgePanel(object):
             self._report("exchange folder not found - press Detect", "")
             return
         if not ensure_folder(root):
-            self._report("could not create the BlenderBridge folder", "")
+            self._report("could not create the CoatLink folder", "")
             return
 
         path = model_path(root, EXPORT_FORMAT)
@@ -1455,7 +1455,7 @@ def show_panel(force=False):
         return None
     _LAST_OPEN[0] = now
 
-    panel = CoatBridgePanel()
+    panel = CoatLinkPanel()
     coat.dialog() \
         .caption(PANEL_CAPTION) \
         .noModal() \

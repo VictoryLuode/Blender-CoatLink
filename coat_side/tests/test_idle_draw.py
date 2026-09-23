@@ -67,7 +67,7 @@ def main():
     watched |= _wrap(cmd, "CMD.", host_calls)
 
     spec = importlib.util.spec_from_file_location(
-        "idle_draw_lib", os.path.join(ROOT, "coat_side", "CoatBridgeLib.py"))
+        "idle_draw_lib", os.path.join(ROOT, "coat_side", "CoatLinkLib.py"))
     bridge = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(bridge)
 
@@ -81,7 +81,7 @@ def main():
     bridge.read_import_model = _recorder(
         "bridge.read_import_model", bridge.read_import_model, disk_calls)
 
-    panel = bridge.CoatBridgePanel()
+    panel = bridge.CoatLinkPanel()
     panel.refresh_detail = _recorder("panel.refresh_detail", panel.refresh_detail, disk_calls)
     panel.ui()                                  # first draw may read nothing host side
     host_calls[:] = []

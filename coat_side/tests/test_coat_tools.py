@@ -4,7 +4,7 @@
 Each button is a script that acts directly and reports with 3D-Coat's own
 floating message, so nothing has to be opened.  The XML that puts those buttons
 into the room tool panels is validated too (entries, rooms, script paths, and
-that every id has a label in CoatBridgeLib.ACTION_LABELS).
+that every id has a label in CoatLinkLib.ACTION_LABELS).
 
     python coat_side/tests/test_coat_tools.py
 """
@@ -35,7 +35,7 @@ def main():
     tmp = tempfile.mkdtemp(prefix="coat_tools_test.")
     own_root, job_root = fake_coat.make_exchange_tree(tmp)
     coat, cmd = fake_coat.build_environment(tmp)
-    import CoatBridgeLib as lib
+    import CoatLinkLib as lib
 
     # a model Blender queued, like the real workflow
     folder = lib.ensure_folder(job_root)
@@ -46,25 +46,25 @@ def main():
         handle.write(queued + "\n" + queued + "\n[ppp]\n")
 
     # ---- the buttons exist and are import-safe ----
-    for tool_id in ("CoatBridge_Send", "CoatBridge_Pull", "CoatBridge_Setup"):
+    for tool_id in ("CoatLink_Send", "CoatLink_Pull", "CoatLink_Setup"):
         path = os.path.join(COAT_SIDE, "%s.py" % tool_id)
         check("%s.py exists" % tool_id, os.path.isfile(path))
     check("the ids have labels", set(lib.ACTION_LABELS) ==
-          {"CoatBridge_Send", "CoatBridge_Pull", "CoatBridge_Setup"}, list(lib.ACTION_LABELS))
+          {"CoatLink_Send", "CoatLink_Pull", "CoatLink_Setup"}, list(lib.ACTION_LABELS))
     check("every label maps to a real action",
-          all(hasattr(lib.CoatBridgePanel, method) for method, _label in lib.ACTION_LABELS.values()),
+          all(hasattr(lib.CoatLinkPanel, method) for method, _label in lib.ACTION_LABELS.values()),
           lib.ACTION_LABELS)
 
     # ---- the setup button finds the exchange folder and reports ----
     messages_before = len(coat.messages)
-    lib.run_action("CoatBridge_Setup")
+    lib.run_action("CoatLink_Setup")
     check("setup reports through 3D-Coat's message system", len(coat.messages) > messages_before)
     check("setup writes a log line", os.path.isfile(lib.log_path()))
 
     # ---- the send button exports the selected tree node, opening nothing ----
     # (the whole-scene route has its own tests; the button sends the selection)
     coat.dialog_log.clear()
-    status = lib.run_action("CoatBridge_Send")
+    status = lib.run_action("CoatLink_Send")
     check("send exports the selected node",
           os.path.isfile(lib.model_path(job_root, lib.EXPORT_FORMAT)),
           lib.model_path(job_root, lib.EXPORT_FORMAT))
@@ -73,7 +73,7 @@ def main():
     check("send opens no dialog", coat.dialog_log == [], coat.dialog_log)
 
     # ---- the pull button imports the queue and consumes it ----
-    status = lib.run_action("CoatBridge_Pull")
+    status = lib.run_action("CoatLink_Pull")
     check("pull imports the queued model", coat.scene_imports == [queued], coat.scene_imports)
     check("pull consumes the queue", not os.path.isfile(lib.import_txt(job_root)))
     check("pull reports the result", "Pulled" in status, status)
@@ -82,7 +82,7 @@ def main():
     coat.scene_imports.clear()
     with open(lib.import_txt(job_root), "w", encoding="utf-8", newline="\n") as handle:
         handle.write(queued + "\n" + queued + "\n[ppp]\n")
-    runpy.run_path(os.path.join(COAT_SIDE, "CoatBridge_Pull.py"))
+    runpy.run_path(os.path.join(COAT_SIDE, "CoatLink_Pull.py"))
     check("the entry file pulls without any window",
           coat.scene_imports == [queued] and coat.dialog_log == [], (coat.scene_imports, coat.dialog_log))
 
@@ -105,23 +105,23 @@ def main():
     def click_with_queue():
         with open(lib.import_txt(job_root), "w", encoding="utf-8", newline="\n") as handle:
             handle.write(queued + "\n" + queued + "\n[ppp]\n")
-        click_entry("CoatBridgePkg.CoatBridge_Pull", "CoatBridge_Pull.py")
+        click_entry("CoatLinkPkg.CoatLink_Pull", "CoatLink_Pull.py")
 
     coat.scene_imports.clear()
     click_with_queue()
     check("the first click runs the action", coat.scene_imports == [queued], coat.scene_imports)
     app.processEvents()
     check("the entry leaves the module cache on the next frame",
-          "CoatBridgePkg.CoatBridge_Pull" not in sys.modules, list(sys.modules)[:3])
+          "CoatLinkPkg.CoatLink_Pull" not in sys.modules, list(sys.modules)[:3])
     click_with_queue()
     check("the second click runs the action again",
           coat.scene_imports == [queued, queued], coat.scene_imports)
     app.processEvents()
-    check("the module cache stays clean", "CoatBridgePkg.CoatBridge_Pull" not in sys.modules)
+    check("the module cache stays clean", "CoatLinkPkg.CoatLink_Pull" not in sys.modules)
 
     # ---- the log black box records what happened ----
     log_text = open(lib.log_path(), encoding="utf-8").read()
-    check("the log mentions the buttons", "tool CoatBridge_Send" in log_text and "tool CoatBridge_Pull" in log_text,
+    check("the log mentions the buttons", "tool CoatLink_Send" in log_text and "tool CoatLink_Pull" in log_text,
           log_text[-200:])
     check("the log records 3D-Coat's own scene scale",
           "coat settings: scale=1.0 units=m" in log_text, log_text[-200:])
@@ -129,7 +129,7 @@ def main():
           isinstance(lib.scene_scale_note(), str) and lib.scene_scale_note() != "")
 
     # ---- the tool-panel XML ----
-    xml_path = os.path.join(COAT_SIDE, "tools", "CoatBridgeTools.xml.in")
+    xml_path = os.path.join(COAT_SIDE, "tools", "CoatLinkTools.xml.in")
     check("the tool XML template exists", os.path.isfile(xml_path))
     tree = ET.parse(xml_path)
     entries = tree.findall("ExtraMenuItem")

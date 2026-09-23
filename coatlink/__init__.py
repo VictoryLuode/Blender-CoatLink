@@ -35,7 +35,7 @@ MODE_ITEMS = [
 ]
 
 
-class CoatBridgePreferences(bpy.types.AddonPreferences):
+class CoatLinkPreferences(bpy.types.AddonPreferences):
     bl_idname = __package__
 
     exchange_folder: StringProperty(
@@ -125,7 +125,7 @@ class CoatBridgePreferences(bpy.types.AddonPreferences):
 
 
 def register():
-    bpy.utils.register_class(CoatBridgePreferences)
+    bpy.utils.register_class(CoatLinkPreferences)
     ui.register()
     bpy.types.Object.coatlink_file = StringProperty(
         name="CoatLink file",
@@ -144,4 +144,4 @@ def unregister():
     del bpy.types.Object.coatlink_file
     del bpy.types.Scene.coatlink_status
     ui.unregister()
-    bpy.utils.unregister_class(CoatBridgePreferences)
+    bpy.utils.unregister_class(CoatLinkPreferences)

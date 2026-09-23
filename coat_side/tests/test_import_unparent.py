@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fake_coat import TreeNode, build_environment  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-LIB = os.path.join(HERE, "..", "CoatBridgeLib.py")
+LIB = os.path.join(HERE, "..", "CoatLinkLib.py")
 HELPER = os.path.join(HERE, "..", "..", "coatlink", "after_import.py")
 
 FAILURES = []
@@ -129,7 +129,7 @@ def main():
     # ---- and it always says it ran, even when there was nothing to do ----------
     coat.root.children.clear()
     helper.main()
-    log_path = os.path.join(tmp, "Documents", "3DCoat", "CoatBridge.log")
+    log_path = os.path.join(tmp, "Documents", "3DCoat", "CoatLink.log")
     with open(log_path, "r", encoding="utf-8") as handle:
         log_text = handle.read()
     check("the helper leaves a line saying it ran",
@@ -187,7 +187,7 @@ def main():
     coat.root.children.clear()
     coat.moves.clear()
     coat.removed.clear()
-    model = os.path.join(root, "BlenderBridge", "bridge.obj")
+    model = os.path.join(root, "CoatLink", "bridge.obj")
     os.makedirs(os.path.dirname(model), exist_ok=True)
     with open(model, "w", encoding="utf-8") as handle:
         handle.write("o bridge\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
@@ -195,7 +195,7 @@ def main():
     # the queue file names the model, so Pull takes exactly it
     with open(bridge.import_txt(root), "w", encoding="utf-8", newline="\n") as handle:
         handle.write(os.path.abspath(model).replace("\\", "/") + "\n")
-    panel = bridge.CoatBridgePanel()
+    panel = bridge.CoatLinkPanel()
     panel.PullFromBlender()
     names = [node.name() for node in coat.root.children]
     check("the pulled object is unparented too", names == ["Volume1"], names)

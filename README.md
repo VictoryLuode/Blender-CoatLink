@@ -26,12 +26,14 @@ the same sections in the same order.</sub>
    that zip (Blender 4.2 and newer).
 3. Enable **CoatLink** in the add-on list, then press **Detect** in its menu.
 
-*Upgrading from a build older than the module rename?*  Those installed themselves as
-`coat_bridge`.  Delete that folder from your add-ons directory once — or re-run
-`install.sh` / `install.ps1`, which moves it out of Blender's way for you — then enable
-**CoatLink**.  Links between your objects and the models they came from survive the rename;
-the add-on's own settings (import mode, remesh, exchange folder) go back to their defaults,
-so press **Detect** once after upgrading.
+*Upgrading from an older build?*  Everything used to be called `CoatBridge` / `coat_bridge`:
+the add-on's folder, the 3D-Coat scripts folder, the exchange folder, the log, and the tool
+and menu ids.  Both installers clean up after themselves — `install.sh` / `install.ps1` move
+the old `coat_bridge` add-on folder out of Blender's way, and the 3D-Coat installer moves
+`Scripts\CoatBridge` to `CoatBridge.removed` and deletes the old menu files — so the only
+thing left to do is enable **CoatLink** once and press **Detect**.  Links between your
+objects and the models they came from survive; the add-on's own settings go back to their
+defaults.
 
 ### 3D-Coat - double-click one file
 
@@ -91,7 +93,7 @@ Copying the files by hand, explicit install paths and the XML 3D-Coat needs:
    the exported copy only; the scene, the names and your own modifiers stay as they are.
 2. **`Send`**.  If 3D-Coat is not running, the job waits in the exchange folder until it is -
    `Start 3D-Coat` is right there in the menu.
-3. Work in 3D-Coat, then **`File > Export To > BlenderBridge`** (or `Bring object back`).
+3. Work in 3D-Coat, then **`File > Export To > CoatLink`** (or `Bring object back`).
    With **Auto receive** on, the model is imported within ~2 s and merged into the object it
    came from: same name, same materials, same place in the outliner, new geometry.
 
@@ -110,14 +112,14 @@ One exchange folder, one file layout, one vocabulary:
 ```
 <3D-Coat exchange root>/
     import.txt                 the job: what to load, where to return, how to open it
-    BlenderBridge/             our folder - everything else lives in here
+    CoatLink/             our folder - everything else lives in here
         bridge.obj             the model, both directions (one axis rule, one unit rule)
         export.txt             written by 3D-Coat when it hands a model back
         pull-history.json      what was already imported, so a restart does not repeat it
     CoatLink_AfterImport.py    run after the import: drops 3D-Coat's wrapper node
 ```
 
-Nothing else is written, and only files inside a `BlenderBridge` folder are ever touched -
+Nothing else is written, and only files inside a `CoatLink` folder are ever touched -
 with one exception: the job file `import.txt`.  3D-Coat polls that file only at the exchange
 root, and the official Blender AppLink queues its jobs in the very same file (its own source
 writes the model path first).  The two add-ons can therefore stay enabled side by side, but

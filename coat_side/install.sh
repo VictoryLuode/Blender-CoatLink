@@ -8,9 +8,9 @@
 # the four of them cannot drift apart.
 #
 # What lands where:
-#   <scripts>/CoatBridge/*.py                     the bridge itself
-#   <scripts>/ExtraMenuItems/CoatBridge.xml       Scripts > CoatLink entry
-#   <scripts>/ExtraMenuItems/CoatBridgeTools.xml  the three tool buttons
+#   <scripts>/CoatLink/*.py                     the bridge itself
+#   <scripts>/ExtraMenuItems/CoatLink.xml       Scripts > CoatLink entry
+#   <scripts>/ExtraMenuItems/CoatLinkTools.xml  the three tool buttons
 #   <3dcoat>/data/Textures/icons64/*.png          button icons, when writable
 #
 # Everything else in those folders is left alone, and the two menu XMLs are

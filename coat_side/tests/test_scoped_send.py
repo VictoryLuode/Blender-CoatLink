@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fake_coat import UNSET, build_environment  # shared fake 3D-Coat API  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-LIB = os.path.join(HERE, "..", "CoatBridgeLib.py")
+LIB = os.path.join(HERE, "..", "CoatLinkLib.py")
 
 FAILURES = []
 
@@ -58,7 +58,7 @@ def main():
     bridge.documents_bases = lambda: [os.path.join(tmp, "Documents")]
     bridge.candidate_roots = lambda: [root]
     bridge.exchange_roots = lambda: [root]
-    panel = bridge.CoatBridgePanel()
+    panel = bridge.CoatLinkPanel()
 
     check("the default scope is the selected tree node", bridge.send_scope() == "selected",
           bridge.send_scope())

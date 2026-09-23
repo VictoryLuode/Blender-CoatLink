@@ -12,44 +12,44 @@
 <ClassArray.ExtraMenuItem>
 	<ExtraMenuItem>
 		<MenuPath></MenuPath>
-		<MenuItem>CoatBridge_Send</MenuItem>
+		<MenuItem>CoatLink_Send</MenuItem>
 		<inRoom>Voxels</inRoom>
 		<inSection>*</inSection>
-		<Command>script:__SCRIPT_DIR__/CoatBridge_Send.py</Command>
+		<Command>script:__SCRIPT_DIR__/CoatLink_Send.py</Command>
 	</ExtraMenuItem>
 	<ExtraMenuItem>
 		<MenuPath></MenuPath>
-		<MenuItem>CoatBridge_Pull</MenuItem>
+		<MenuItem>CoatLink_Pull</MenuItem>
 		<inRoom>Voxels</inRoom>
 		<inSection>*</inSection>
-		<Command>script:__SCRIPT_DIR__/CoatBridge_Pull.py</Command>
+		<Command>script:__SCRIPT_DIR__/CoatLink_Pull.py</Command>
 	</ExtraMenuItem>
 	<ExtraMenuItem>
 		<MenuPath></MenuPath>
-		<MenuItem>CoatBridge_Setup</MenuItem>
+		<MenuItem>CoatLink_Setup</MenuItem>
 		<inRoom>Voxels</inRoom>
 		<inSection>*</inSection>
-		<Command>script:__SCRIPT_DIR__/CoatBridge_Setup.py</Command>
+		<Command>script:__SCRIPT_DIR__/CoatLink_Setup.py</Command>
 	</ExtraMenuItem>
 	<ExtraMenuItem>
 		<MenuPath></MenuPath>
-		<MenuItem>CoatBridge_Send</MenuItem>
+		<MenuItem>CoatLink_Send</MenuItem>
 		<inRoom>Paint</inRoom>
 		<inSection>*</inSection>
-		<Command>script:__SCRIPT_DIR__/CoatBridge_Send.py</Command>
+		<Command>script:__SCRIPT_DIR__/CoatLink_Send.py</Command>
 	</ExtraMenuItem>
 	<ExtraMenuItem>
 		<MenuPath></MenuPath>
-		<MenuItem>CoatBridge_Pull</MenuItem>
+		<MenuItem>CoatLink_Pull</MenuItem>
 		<inRoom>Paint</inRoom>
 		<inSection>*</inSection>
-		<Command>script:__SCRIPT_DIR__/CoatBridge_Pull.py</Command>
+		<Command>script:__SCRIPT_DIR__/CoatLink_Pull.py</Command>
 	</ExtraMenuItem>
 	<ExtraMenuItem>
 		<MenuPath></MenuPath>
-		<MenuItem>CoatBridge_Setup</MenuItem>
+		<MenuItem>CoatLink_Setup</MenuItem>
 		<inRoom>Paint</inRoom>
 		<inSection>*</inSection>
-		<Command>script:__SCRIPT_DIR__/CoatBridge_Setup.py</Command>
+		<Command>script:__SCRIPT_DIR__/CoatLink_Setup.py</Command>
 	</ExtraMenuItem>
 </ClassArray.ExtraMenuItem>

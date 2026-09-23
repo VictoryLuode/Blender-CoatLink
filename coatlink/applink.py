@@ -11,8 +11,8 @@
 """3D-Coat AppLink protocol - the two files that matter.
 
     <root>/import.txt                 job file: what to load, nothing else
-    <root>/BlenderBridge/             our folder: the model goes here
-    <root>/BlenderBridge/export.txt   3D-Coat writes it when it sends a model back
+    <root>/CoatLink/             our folder: the model goes here
+    <root>/CoatLink/export.txt   3D-Coat writes it when it sends a model back
 
 3D-Coat registers more than one root (it logs both on startup):
 
@@ -28,7 +28,7 @@ Measured again, live: 3D-Coat's engine picks the job file up from the AppLinks
 root only - a job written into Documents/3DCoat/Exchange sat there untouched for
 two minutes.  The AppLinks root is therefore the primary for the whole bridge:
 this add-on writes its job there and the 3D-Coat script
-(coat_side/CoatBridgeLib.py) writes its returns there too, so a return lands on
+(coat_side/CoatLinkLib.py) writes its returns there too, so a return lands on
 the very file the send wrote and there is one file to look at.
 
 Reference: "3D-Coat AppLinks specifications" (applinks.rst), shipped with
@@ -46,7 +46,7 @@ from . import after_import
 
 # Folder name that shows up in 3D-Coat's File > Export To menu.  Kept separate
 # from the official AppLink folder ("Blender") so both add-ons can coexist.
-APP_FOLDER = "BlenderBridge"
+APP_FOLDER = "CoatLink"
 
 _MODEL_NAME = "bridge"
 _COAT_EXE = "3DCoatGL64.exe"
@@ -103,13 +103,13 @@ def _looks_like_coat_data(path):
     for name in ("UserPrefs", "Exchange", "data"):
         if os.path.isdir(os.path.join(path, name)):
             return True
-    return os.path.isfile(os.path.join(path, "CoatBridge.json"))
+    return os.path.isfile(os.path.join(path, "CoatLink.json"))
 
 
 def coat_data_dirs():
     """3D-Coat's user data folders, the one in use first.
 
-    A folder 3D-Coat has already written to (it holds ``CoatBridge.json``) is the
+    A folder 3D-Coat has already written to (it holds ``CoatLink.json``) is the
     one in use; after that the newest name wins, because a machine can hold
     3DCoat2025 and 3DCoat2026 side by side.
     """
@@ -125,7 +125,7 @@ def coat_data_dirs():
             path = os.path.join(base, name)
             if os.path.isdir(path) and _looks_like_coat_data(path):
                 found.append(path)
-    found.sort(key=lambda path: (os.path.isfile(os.path.join(path, "CoatBridge.json")),
+    found.sort(key=lambda path: (os.path.isfile(os.path.join(path, "CoatLink.json")),
                                  os.path.basename(path).lower()),
                reverse=True)
     return found
@@ -197,7 +197,7 @@ def model_path(root, extension=None, name=_MODEL_NAME):
 
 
 def ensure_app_folder(root):
-    """Create <root>/BlenderBridge/ with the one file AppLink requires.
+    """Create <root>/CoatLink/ with the one file AppLink requires.
 
     run.txt only has to exist (it may be empty) for 3D-Coat to list the target
     in File > Export To.  No extension.txt: measured on 3D-Coat 2026, it ignores
@@ -247,8 +247,8 @@ def shared_log_path():
     """
     folders = coat_data_dirs()
     if folders:
-        return os.path.join(folders[0], "CoatBridge.log")
-    return os.path.join(_documents_bases()[0], "3DCoat", "CoatBridge.log")
+        return os.path.join(folders[0], "CoatLink.log")
+    return os.path.join(_documents_bases()[0], "3DCoat", "CoatLink.log")
 
 
 def signal_files(roots):
@@ -408,7 +408,7 @@ def coat_state():
     it on every action.
     """
     for folder in coat_data_dirs():
-        path = os.path.join(folder, "CoatBridge.json")
+        path = os.path.join(folder, "CoatLink.json")
         if not os.path.isfile(path):
             continue
         try:

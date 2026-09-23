@@ -21,8 +21,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fake_coat import FakeCoat, TreeNode, UNSET, build_environment  # shared fake 3D-Coat API
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-LIB = os.path.join(HERE, "..", "CoatBridgeLib.py")
-PANEL_ENTRY = os.path.join(HERE, "..", "CoatBridge_Setup.py")
+LIB = os.path.join(HERE, "..", "CoatLinkLib.py")
+PANEL_ENTRY = os.path.join(HERE, "..", "CoatLink_Setup.py")
 
 RESULTS = []
 
@@ -70,7 +70,7 @@ def main():
     # callback (a per-frame mesh read was observed to disturb the sculpt tree).
     check("panel installs no per-frame callback",
           not any(name == "process" and callable(args[0]) for name, args in coat.dialog_log))
-    idle_panel = bridge.CoatBridgePanel()
+    idle_panel = bridge.CoatLinkPanel()
     probe_scene, probe_state = coat.Scene.current, bridge.load_state
     coat.Scene.current = lambda: (_ for _ in ()).throw(AssertionError("scene touched during redraw"))
     bridge.load_state = lambda: (_ for _ in ()).throw(AssertionError("state read during redraw"))
@@ -89,7 +89,7 @@ def main():
     check("the shared root is primary", os.path.normcase(bridge.primary_root()) == os.path.normcase(job_root))
 
     folder = bridge.ensure_folder(own_root)
-    check("the BlenderBridge folder is created", os.path.isdir(folder), folder)
+    check("the CoatLink folder is created", os.path.isdir(folder), folder)
     check("run.txt marker exists and is empty",
           os.path.isfile(os.path.join(folder, "run.txt")) and os.path.getsize(os.path.join(folder, "run.txt")) == 0)
 
@@ -109,7 +109,7 @@ def main():
           bridge.read_import_model(os.path.join(own_root, "nope.txt")) == "")
 
     # ---- pull ----
-    panel = bridge.CoatBridgePanel()
+    panel = bridge.CoatLinkPanel()
     check("the native panel exposes Copy details", "CopyDetails" in panel.ui())
     check("refresh label describes sizes and voxel/surface statistics",
           bridge.PANEL_LABELS["RefreshStats"] == "Refresh info")
@@ -274,9 +274,9 @@ def main():
           {key: value for key, value in translations.items()
            if key in ("SendToBlender", "PullFromBlender")})
     check("the tool-strip buttons keep their longer labels",
-          translations.get("CoatBridge_Send") == "Send to Blender"
-          and translations.get("CoatBridge_Pull") == "Pull from Blender",
-          {key: value for key, value in translations.items() if key.startswith("CoatBridge")})
+          translations.get("CoatLink_Send") == "Send to Blender"
+          and translations.get("CoatLink_Pull") == "Pull from Blender",
+          {key: value for key, value in translations.items() if key.startswith("CoatLink")})
     check("the scope droplist reads like the Blender menu's",
           bridge.SEND_SCOPE_LABELS == "#Selected|#Whole scene", bridge.SEND_SCOPE_LABELS)
     check("and both scopes are explained under it",
@@ -491,7 +491,7 @@ def main():
     coat.inserted = []
     check("first run registers Scripts and Windows",
           bridge.register_menu_item() == ["Scripts", "Windows"]
-          and coat.inserted[:2] == [("Scripts", "CoatBridge", ""), ("Windows", "CoatBridge", "")],
+          and coat.inserted[:2] == [("Scripts", "CoatLink", ""), ("Windows", "CoatLink", "")],
           (bridge.load_state().get("menus"), coat.inserted))
     check("registering again adds nothing", bridge.register_menu_item() == [])
     check("the menu record is kept in the state file",
@@ -516,7 +516,7 @@ def main():
     coat.menu_inserted = True
     write_state({"format": "FBX"})
     check("an existing menu entry is detected instead of duplicated",
-          bridge.register_menu_item() == ["Windows"] and coat.inserted == [("Windows", "CoatBridge", "")],
+          bridge.register_menu_item() == ["Windows"] and coat.inserted == [("Windows", "CoatLink", "")],
           coat.inserted)
 
     # the runtime fallback: a menu file 3D-Coat cannot parse (one & in a path is
@@ -535,7 +535,7 @@ def main():
     added = bridge.register_room_tools()
     check("the tool button is inserted into the listed rooms", added == ["Voxels"], added)
     check("insertInToolset is called with the room and our id",
-          ("Voxels", "", "CoatBridge") in coat.ui.insertInToolset.calls, coat.ui.insertInToolset.calls)
+          ("Voxels", "", "CoatLink") in coat.ui.insertInToolset.calls, coat.ui.insertInToolset.calls)
     check("tool registration is idempotent", bridge.register_room_tools() == [])
     check("the room list is recorded", bridge.load_state().get("tools") == ["Voxels"], bridge.load_state())
 
@@ -543,7 +543,7 @@ def main():
     coat.ui.removeCommandFromMenu.calls = []
     panel.RemoveLauncher()
     check("removal calls the API with our id",
-          coat.ui.removeCommandFromMenu.calls == [("CoatBridge",)], coat.ui.removeCommandFromMenu.calls)
+          coat.ui.removeCommandFromMenu.calls == [("CoatLink",)], coat.ui.removeCommandFromMenu.calls)
     check("removal clears the records",
           bridge.load_state().get("tools") == [] and bridge.load_state().get("menus") == [],
           bridge.load_state())
@@ -603,15 +603,15 @@ def main():
           bridge.log_text()[-160:])
 
     # ---- the data folder the scripts live in: agreement with the Blender half ----
-    # Both halves, the installer and the after-import helper keep CoatBridge.log and
-    # CoatBridge.json in <Documents>/3DCoat.  Landing in UserPrefs instead split one
+    # Both halves, the installer and the after-import helper keep CoatLink.log and
+    # CoatLink.json in <Documents>/3DCoat.  Landing in UserPrefs instead split one
     # trip's evidence across two files and left Blender reading a stale axis/units
     # record, so the folder is pinned here.
-    deep = os.path.join(tmp, "Documents", "3DCoat", "UserPrefs", "Scripts", "CoatBridge")
+    deep = os.path.join(tmp, "Documents", "3DCoat", "UserPrefs", "Scripts", "CoatLink")
     check("the data folder is found above UserPrefs",
           bridge.data_folder_of(deep).replace("\\", "/").endswith("/Documents/3DCoat"),
           bridge.data_folder_of(deep))
-    old = os.path.join(tmp, "Documents", "3D-CoatV48", "Scripts", "CoatBridge")
+    old = os.path.join(tmp, "Documents", "3D-CoatV48", "Scripts", "CoatLink")
     check("and above the 4.x Scripts layout",
           bridge.data_folder_of(old).replace("\\", "/").endswith("/3D-CoatV48"),
           bridge.data_folder_of(old))
@@ -651,8 +651,8 @@ def main():
     # shown - must not be asked to persist anything)
     bridge.set_reduction_percent(40)
     check("that number field starts at the stored value",
-          bridge.CoatBridgePanel().ReductionPercent == 40,
-          bridge.CoatBridgePanel().ReductionPercent)
+          bridge.CoatLinkPanel().ReductionPercent == 40,
+          bridge.CoatLinkPanel().ReductionPercent)
     check("the panel carries a native number field for the percentage",
           "ReductionPercent,[0,100]" in panel.ui(), panel.ui())
     check("the panel carries a native choice for textures",
@@ -716,13 +716,13 @@ def main():
     coat.ui.cmd.calls = []
     check("no Qt module is pulled in by the panel", "PySide6" not in sys.modules,
           [name for name in sys.modules if "PySide" in name])
-    status = bridge.run_action("CoatBridge_Setup")
+    status = bridge.run_action("CoatLink_Setup")
     steps = [name for name, _args in coat.dialog_log]
     check("Setup opens 3D-Coat's own dialog", "show" in steps and "caption" in steps, coat.dialog_log)
     check("the panel is anchored in 3D-Coat's window", "topRight" in steps, coat.dialog_log)
     check("the panel carries the reduction controls",
-          any(str(item).startswith("ReductionPercent,") for item in bridge.CoatBridgePanel().ui()),
-          bridge.CoatBridgePanel().ui())
+          any(str(item).startswith("ReductionPercent,") for item in bridge.CoatLinkPanel().ui()),
+          bridge.CoatLinkPanel().ui())
     check("Setup reports back", bool(status), status)
 
     # ---- blender lookup ----

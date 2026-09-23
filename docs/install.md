@@ -30,26 +30,31 @@ it ships) moves with it.
 | What | From | To |
 | --- | --- | --- |
 | Blender add-on | `coatlink\` (8 `.py` files) | `%APPDATA%\Blender Foundation\Blender\<ver>\scripts\addons\coatlink\` |
-| 3D-Coat scripts | `coat_side\CoatBridge*.py` (6 files: the library, the receipts helper, the scoped-export helper and the three entries) | `<Documents>\3DCoat\UserPrefs\Scripts\CoatBridge\` |
-| Tool buttons | `coat_side\tools\CoatBridgeTools.xml.in` | `…\Scripts\ExtraMenuItems\CoatBridgeTools.xml`, with every `__SCRIPT_DIR__` replaced by the `CoatBridge` folder above, forward slashes (`C:/Users/…/CoatBridge`) |
-| Scripts menu entry | the block below | `…\Scripts\ExtraMenuItems\CoatBridge.xml` |
+| 3D-Coat scripts | `coat_side\CoatLink*.py` (6 files: the library, the receipts helper, the scoped-export helper and the three entries) | `<Documents>\3DCoat\UserPrefs\Scripts\CoatLink\` |
+| Tool buttons | `coat_side\tools\CoatLinkTools.xml.in` | `…\Scripts\ExtraMenuItems\CoatLinkTools.xml`, with every `__SCRIPT_DIR__` replaced by the `CoatLink` folder above, forward slashes (`C:/Users/…/CoatLink`) |
+| Scripts menu entry | the block below | `…\Scripts\ExtraMenuItems\CoatLink.xml` |
 | Button icons (optional) | `coat_side\icon\*.png` (4 files) | `<3D-Coat program folder>\data\Textures\icons64\` |
 
-An earlier build installed the add-on as `coat_bridge`.  `install.sh` and `install.ps1` move
-that folder to `<scripts>\coat_bridge.removed-<timestamp>` — out of Blender's add-ons search
-path, still on disk — before they install.  Installing by hand from the zip instead?  Delete
-the `coat_bridge` folder yourself, so Blender's list shows one CoatLink, not two.
+An earlier build called everything `CoatBridge` / `coat_bridge`: the add-on folder, the 3D-Coat
+scripts folder (now `Scripts\CoatLink`), the exchange folder (now `<exchange>\CoatLink`), the
+shared log and state file (now `CoatLink.log` / `CoatLink.json`) and the tool and menu ids (now
+`CoatLink_*`).  Both installers clear the old name away: `install.sh` / `install.ps1` move the
+old `coat_bridge` add-on folder to `<scripts>\coat_bridge.removed-<timestamp>`, and the 3D-Coat
+installer moves `Scripts\CoatBridge` to `Scripts\CoatBridge.removed` and deletes the old
+`CoatBridge.xml` / `CoatBridgeTools.xml` — that deletion is what takes the old tool buttons
+away.  Installing the add-on by hand from the zip instead?  Delete the `coat_bridge` folder
+yourself, so Blender's list shows one CoatLink and not two.
 
-`CoatBridge.xml`, verbatim, with the same forward-slash path:
+`CoatLink.xml`, verbatim, with the same forward-slash path:
 
 ```xml
 <ClassArray.ExtraMenuItem>
 	<ExtraMenuItem>
 		<MenuPath>Scripts</MenuPath>
-		<MenuItem>CoatBridge</MenuItem>
+		<MenuItem>CoatLink</MenuItem>
 		<inRoom></inRoom>
 		<inSection></inSection>
-		<Command>script:C:/Users/you/Documents/3DCoat/UserPrefs/Scripts/CoatBridge/CoatBridge_Setup.py</Command>
+		<Command>script:C:/Users/you/Documents/3DCoat/UserPrefs/Scripts/CoatLink/CoatLink_Setup.py</Command>
 	</ExtraMenuItem>
 </ClassArray.ExtraMenuItem>
 ```
@@ -100,6 +105,6 @@ double-click needs no arguments:
 installs; use one of these to take it out again).
 
 It removes its own scripts, its two XML files and the icons it added, clears the launcher
-record it wrote into 3D-Coat's `CoatBridge.json` (leaving your panel settings in that file
+record it wrote into 3D-Coat's `CoatLink.json` (leaving your panel settings in that file
 alone), and deletes nothing else.  Files another extension or you put in the same folders are
 left untouched - a test asserts exactly that.

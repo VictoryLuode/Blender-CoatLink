@@ -5,7 +5,7 @@
 
 Sends a cube named BridgeTestCube into the real exchange folder, waits for
 3D-Coat to consume the job file, then waits for the return signal (you press
-File > Export To > BlenderBridge in 3D-Coat - NOT the official "Bring object
+File > Export To > CoatLink in 3D-Coat - NOT the official "Bring object
 back", which writes a signal for the official add-on's own folder) and pulls
 it, reporting whether the object was updated in place.
 
@@ -96,7 +96,7 @@ def main():
     if not consumed:
         step("hint", "job file still there: 3D-Coat did not pick it up within 120s")
 
-    step("waiting for the return", "up to %d s - in 3D-Coat press File > Export To > BlenderBridge" % timeout)
+    step("waiting for the return", "up to %d s - in 3D-Coat press File > Export To > CoatLink" % timeout)
     step("exchange roots", " | ".join(roots))
     deadline = time.time() + timeout
     signal = ""

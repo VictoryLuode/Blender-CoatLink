@@ -17,7 +17,7 @@ try:
         report['reduction_value'] = coat.ui.getSliderValue(field)
 except Exception as exc:
     report['control_error'] = str(exc)
-path = os.path.join(os.path.expanduser('~'), 'Documents', '3DCoat', 'CoatBridge-reduction-diagnostic.json')
+path = os.path.join(os.path.expanduser('~'), 'Documents', '3DCoat', 'CoatLink-reduction-diagnostic.json')
 with open(path, 'w', encoding='utf-8') as stream:
     json.dump(report, stream, ensure_ascii=False, indent=2)
 print(json.dumps(report, ensure_ascii=False, indent=2))

@@ -106,7 +106,7 @@ def main():
           or [k for k in left if left[k] != right.get(k)])
 
     # ---- the scripts really are the project's files ---------------------------
-    written = a_scripts / "CoatBridge"
+    written = a_scripts / "CoatLink"
     for name in checkout.SCRIPT_FILES:
         source = COAT_SIDE / name
         check("%s is byte-identical to the source" % name,
@@ -115,10 +115,10 @@ def main():
     # ---- menu XMLs: real paths, no placeholder --------------------------------
     menu = a_scripts / "ExtraMenuItems"
     expected = str(written).replace("\\", "/")
-    script_xml = (menu / "CoatBridge.xml").read_text(encoding="utf-8")
-    tools_xml = (menu / "CoatBridgeTools.xml").read_text(encoding="utf-8")
+    script_xml = (menu / "CoatLink.xml").read_text(encoding="utf-8")
+    tools_xml = (menu / "CoatLinkTools.xml").read_text(encoding="utf-8")
     check("the Scripts entry points at this machine's path",
-          ("script:%s/CoatBridge_Setup.py" % expected) in script_xml, script_xml[:120])
+          ("script:%s/CoatLink_Setup.py" % expected) in script_xml, script_xml[:120])
     check("the tool buttons point at this machine's path",
           tools_xml.count("script:%s/" % expected) == 6, tools_xml.count("script:"))
     check("no placeholder survives",
@@ -134,7 +134,7 @@ def main():
     amp_scripts = amp_root / "Am&Co" / "Scripts"
     amp_scripts.mkdir(parents=True)
     standalone.install(amp_scripts, a_coat, payload=same)
-    amp_xml = (amp_scripts / "ExtraMenuItems" / "CoatBridge.xml").read_text(encoding="utf-8")
+    amp_xml = (amp_scripts / "ExtraMenuItems" / "CoatLink.xml").read_text(encoding="utf-8")
     check("an & in the path is escaped on the way into the XML",
           "Am&amp;Co" in amp_xml and "Am&Co" not in amp_xml.replace("Am&amp;Co", ""),
           amp_xml[:200])
@@ -143,7 +143,7 @@ def main():
     except Exception as exc:                    # a file 3D-Coat cannot read at all
         amp_command = "unparsable: %s" % exc
     check("and it still parses back to the real folder",
-          "/Am&Co/Scripts/CoatBridge/CoatBridge_Setup.py" in amp_command, amp_command)
+          "/Am&Co/Scripts/CoatLink/CoatLink_Setup.py" in amp_command, amp_command)
     shutil.rmtree(amp_root, ignore_errors=True)
 
     # ---- icons land beside 3D-Coat's own --------------------------------------
@@ -153,26 +153,26 @@ def main():
               == (COAT_SIDE / "icon" / name).read_bytes())
 
     # ---- other people's files stay put ----------------------------------------
-    theirs_script = a_scripts / "CoatBridge" / "SomebodyElses.py"
+    theirs_script = a_scripts / "CoatLink" / "SomebodyElses.py"
     theirs_menu = a_scripts / "ExtraMenuItems" / "SomebodyElses.xml"
     theirs_script.write_bytes(b"mine\n")
     theirs_menu.write_bytes(b"mine\n")
 
     # ---- stale layouts are cleared --------------------------------------------
-    for stale in ("CoatBridgeQt.py", "CoatBridge.py", "CoatBridgeDialog.py"):
-        (a_scripts / "CoatBridge" / stale).write_text("old\n", encoding="utf-8")
+    for stale in ("CoatLinkQt.py", "CoatLink.py", "CoatLinkDialog.py"):
+        (a_scripts / "CoatLink" / stale).write_text("old\n", encoding="utf-8")
     before = tree(a_scripts)
     report = checkout.install(a_scripts, a_coat, payload=same)
     after = tree(a_scripts)
     check("a second install is harmless and still reports ok", report.verified)
     check("stale files from earlier layouts are gone",
-          not any(k.endswith("CoatBridgeQt.py") or k.endswith("CoatBridgeDialog.py")
+          not any(k.endswith("CoatLinkQt.py") or k.endswith("CoatLinkDialog.py")
                   for k in after), sorted(k for k in after if "Coat" in k))
     check("unrelated files survive an install",
-          after["CoatBridge/SomebodyElses.py"] == b"mine\n"
+          after["CoatLink/SomebodyElses.py"] == b"mine\n"
           and after["ExtraMenuItems/SomebodyElses.xml"] == b"mine\n")
     check("only our files differ between the first and the second install",
-          set(before) - set(after) <= {"CoatBridge/" + name
+          set(before) - set(after) <= {"CoatLink/" + name
                                        for name in checkout.STALE_FILES},
           sorted(set(before) - set(after)))
 
@@ -188,7 +188,7 @@ def main():
               Path(checkout.program_dir()) == override, checkout.program_dir())
         checkout.install(a_scripts, checkout.program_dir(), payload=same)
         check("icons land in the folder that was found",
-              (override / "data" / "Textures" / "icons64" / "CoatBridge.png").is_file())
+              (override / "data" / "Textures" / "icons64" / "CoatLink.png").is_file())
     finally:
         del os.environ["COATLINK_COAT_DIR"]
 
@@ -207,7 +207,7 @@ def main():
     check("our scripts and menus are gone", left == expected, left)
     check("unrelated files are still there", left == expected, left)
     check("uninstall reports what it removed",
-          any(str(p).endswith("CoatBridgeLib.py") for p in removed.removed))
+          any(str(p).endswith("CoatLinkLib.py") for p in removed.removed))
     check("the icons are gone too",
           not any((a_coat / "data" / "Textures" / "icons64" / n).exists()
                   for n in checkout.ICON_FILES))
@@ -219,7 +219,7 @@ def main():
     # Windows-menu entry.
     state = checkout.launcher_state_path(a_scripts)
     check("the launcher record sits next to UserPrefs",
-          state == a_scripts.parent.parent / "CoatBridge.json", state)
+          state == a_scripts.parent.parent / "CoatLink.json", state)
     state.write_text(json.dumps({"format": "FBX", "reduction": 40,
                                  "menus": ["Scripts", "Windows"], "tools": ["Voxels"]}),
                      encoding="utf-8")
@@ -266,16 +266,53 @@ def main():
     buffer = io.StringIO()
     with redirect_stdout(buffer):
         code = checkout.main(["--scripts", str(c_scripts), "--coat", str(c_coat), "--uninstall"])
-    check("the command line uninstalls", code == 0 and not (c_scripts / "CoatBridge").exists())
+    check("the command line uninstalls", code == 0 and not (c_scripts / "CoatLink").exists())
+
+    # ---- a pre-rename install is cleared out ----------------------------------
+    # `CoatBridge` was this project's name before the rename.  Its scripts folder, its two
+    # XML files and its icons would otherwise survive as a second set of buttons pointing at
+    # scripts that no longer exist.
+    d_scripts, d_coat = fresh(tmp / "d")
+    legacy_scripts = d_scripts / checkout.LEGACY_APP_DIRNAME
+    legacy_scripts.mkdir(parents=True)
+    (legacy_scripts / "CoatBridgeLib.py").write_text("old\n", encoding="utf-8")
+    (d_scripts / "ExtraMenuItems").mkdir(parents=True, exist_ok=True)
+    legacy_menus = []
+    for name in checkout.LEGACY_MENU_FILES:
+        path = d_scripts / "ExtraMenuItems" / name
+        path.write_text("old\n", encoding="utf-8")
+        legacy_menus.append(path)
+    legacy_icons = []
+    for name in checkout.LEGACY_ICON_FILES:
+        path = d_coat / "data" / "Textures" / "icons64" / name
+        path.write_bytes(b"old\n")
+        legacy_icons.append(path)
+    report = checkout.install(d_scripts, d_coat, payload=same)
+    moved = d_scripts / (checkout.LEGACY_APP_DIRNAME + ".removed")
+    check("a pre-rename scripts folder is moved out of 3D-Coat's way",
+          not legacy_scripts.exists() and (moved / "CoatBridgeLib.py").is_file(),
+          sorted(p.name for p in d_scripts.iterdir()))
+    check("and it is kept, not deleted",
+          (moved / "CoatBridgeLib.py").read_text(encoding="utf-8") == "old\n")
+    check("the pre-rename menu files are gone", not any(p.exists() for p in legacy_menus))
+    check("the pre-rename icons are gone", not any(p.exists() for p in legacy_icons))
+    check("the installer says where the old scripts went",
+          any("moved the older" in note for note in report.notes), report.notes)
+    legacy_scripts.mkdir(parents=True)
+    (legacy_scripts / "CoatBridgeLib.py").write_text("old\n", encoding="utf-8")
+    checkout.uninstall(d_scripts, d_coat)
+    check("uninstall takes a pre-rename install with it",
+          not legacy_scripts.exists()
+          and not any(p.exists() for p in legacy_menus + legacy_icons),
+          sorted(tree(d_scripts)))
 
     # ---- nothing outside the two folders was touched --------------------------
     outside = sorted(str(p.relative_to(tmp)).replace("\\", "/")
                      for p in Path(tmp).rglob("*") if p.is_file())
+    allowed = ("a/", "b/", "c/", "d/", "built/", "overridden_coat/")
     check("nothing was written outside the script and icon folders",
-          all(name.startswith(("a/", "b/", "c/", "built/", "overridden_coat/"))
-              for name in outside),
-          [name for name in outside
-           if not name.startswith(("a/", "b/", "c/", "built/", "overridden_coat/"))][:5])
+          all(name.startswith(allowed) for name in outside),
+          [name for name in outside if not name.startswith(allowed)][:5])
 
     shutil.rmtree(tmp, ignore_errors=True)
     print("\nRESULT: %s" % ("installer checks passed" if not FAILURES

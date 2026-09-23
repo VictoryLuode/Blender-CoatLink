@@ -5,7 +5,7 @@
 ```
 Documents/AppLinks/3D-Coat/Exchange/     <- the job file goes here (3D-Coat polls the root)
     import.txt                               what to load, where to return, how to open it
-    BlenderBridge/                           <- our folder; everything else lives in here
+    CoatLink/                           <- our folder; everything else lives in here
         run.txt                                 empty marker: makes the folder appear in File > Export To
         bridge.obj                              the model, both ways: every send and every return overwrites it
         export.txt                              3D-Coat writes it when it hands a model back
@@ -16,11 +16,11 @@ Documents/AppLinks/3D-Coat/Exchange/     <- the job file goes here (3D-Coat poll
     import.py.ran                            and the note that it got that far
 
 Documents/3DCoat/Exchange/               <- 3D-Coat's own root: watched, never written to
-    BlenderBridge/                           a return from an older session can still be sitting here
+    CoatLink/                           a return from an older session can still be sitting here
 ```
 
 Both halves put `Documents/AppLinks/3D-Coat/Exchange` first (the Blender add-on in
-`applink._candidate_exchange_folders`, the 3D-Coat script in `CoatBridgeLib.candidate_roots`), and that
+`applink._candidate_exchange_folders`, the 3D-Coat script in `CoatLinkLib.candidate_roots`), and that
 is measured, not preferred: 3D-Coat's engine picks a job file up **only** from that root - a job left
 in `Documents/3DCoat/Exchange` sat untouched for two minutes.  With one shared primary a return lands
 on the same `bridge.obj` the send wrote, so there is one file to look at.  When the two sides
@@ -35,7 +35,7 @@ design.
 and one unit rule to keep straight.
 
 Both sides also keep **one log and one state file**, in 3D-Coat's own data folder
-(`Documents/3DCoat/CoatBridge.log` and `CoatBridge.json`): the log is what the 3D-Coat panel
+(`Documents/3DCoat/CoatLink.log` and `CoatLink.json`): the log is what the 3D-Coat panel
 shows, and the file is where the axis and unit records below are read from.  Each side works
 that folder out from its own location instead of guessing at `Documents`, so a redirected
 Documents (OneDrive) or a `COAT_FILES_PATH` install moves both together.  A side that lands one
@@ -104,7 +104,7 @@ Measured on 3D-Coat 2025/2026:
   after our send; older ones are left alone.
 * `extension.txt` in the app folder is ignored by 3D-Coat - it hands back what it wants to.
   The bridge reads the format from the returned file.
-* Anything 3D-Coat puts inside a `BlenderBridge` folder is ours; anything else is left alone,
+* Anything 3D-Coat puts inside a `CoatLink` folder is ours; anything else is left alone,
   so the official AppLink can stay enabled.
 * The Blender UI is drawn the way other top-bar extras are: a panel with
   `bl_space_type = 'TOPBAR'`, `bl_region_type = 'HEADER'`, hooked into `TOPBAR_HT_upper_bar`

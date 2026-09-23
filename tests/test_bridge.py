@@ -101,10 +101,10 @@ def main():
           prefs.remesh_voxel)
     check("and adaptivity off", prefs.remesh_adaptivity == 0.0, prefs.remesh_adaptivity)
     prefs.remesh = False        # its own section turns it back on when it gets there
-    check("menu panel registered", hasattr(bpy.types, "COATBRIDGE_PT_menu"))
+    check("menu panel registered", hasattr(bpy.types, "COATLINK_PT_menu"))
     check("menu lives in the top bar",
-          bpy.types.COATBRIDGE_PT_menu.bl_space_type == "TOPBAR"
-          and bpy.types.COATBRIDGE_PT_menu.bl_region_type == "HEADER")
+          bpy.types.COATLINK_PT_menu.bl_space_type == "TOPBAR"
+          and bpy.types.COATLINK_PT_menu.bl_region_type == "HEADER")
     hook = getattr(bpy.types, "TOPBAR_HT_upper_bar", None)
     if hook is None:
         print("note  top bar hook not available in this session - skipped")
@@ -203,20 +203,20 @@ def main():
     class _MenuSelf(object):
         layout = _MenuLayout()
 
-    coat_ui.COATBRIDGE_PT_menu.draw(_MenuSelf(), bpy.context)
+    coat_ui.COATLINK_PT_menu.draw(_MenuSelf(), bpy.context)
     check("the menu starts with the Send options heading",
           drawn[0] == ("label", "Send options"), drawn[:3])
     check("under it the scope, then the import mode",
           drawn[1] == ("prop", "scope", "Scope")
           and drawn[2] == ("prop", "mode", "Import as"), drawn[:4])
     check("then the two actions, named like the 3D-Coat panel's",
-          ("operator", "coatbridge.send", "Send") in drawn
-          and ("operator", "coatbridge.pull", "Pull") in drawn, drawn[:4])
+          ("operator", "coatlink.send", "Send") in drawn
+          and ("operator", "coatlink.pull", "Pull") in drawn, drawn[:4])
     check("in that order: scope, import as, Send, Pull",
           drawn.index(("prop", "scope", "Scope"))
           < drawn.index(("prop", "mode", "Import as"))
-          < drawn.index(("operator", "coatbridge.send", "Send"))
-          < drawn.index(("operator", "coatbridge.pull", "Pull")), drawn[:5])
+          < drawn.index(("operator", "coatlink.send", "Send"))
+          < drawn.index(("operator", "coatlink.pull", "Pull")), drawn[:5])
 
     folded = [item[1] for item in drawn if item[0] == "prop" and item[1] == "show_advanced"]
     check("nothing is hidden behind a fold-out", not folded, folded)
@@ -247,7 +247,7 @@ def main():
           [item for item in drawn if item[0] == "box"] == [("box", None)]
           and boxed_labels == [], boxed_labels)
     check("Status is a section like the others, with the readout under it",
-          drawn.index(("label", "Status")) < drawn.index(("operator", "coatbridge.copy_details", "Copy details")),
+          drawn.index(("label", "Status")) < drawn.index(("operator", "coatlink.copy_details", "Copy details")),
           drawn[-6:])
     props = [item[1] for item in drawn if item[0] == "prop"]
     check("the remesh settings are framed as one group", ("box", None) in drawn,
@@ -255,14 +255,14 @@ def main():
     for name in ("axis_mode", "coat_scale", "match_scale", "apply_modifiers", "skip_dialogs"):
         check("the setting '%s' is drawn straight away" % name, name in props, props)
     ids = [item[1] for item in drawn if item[0] == "operator"]
-    for name in ("coatbridge.detect", "coatbridge.open_folder", "coatbridge.launch",
-                 "coatbridge.unlink"):
+    for name in ("coatlink.detect", "coatlink.open_folder", "coatlink.launch",
+                 "coatlink.unlink"):
         check("the action '%s' is drawn straight away" % name, name in ids, ids)
-    check("no sidebar panel left", not hasattr(bpy.types, "COATBRIDGE_PT_main"))
+    check("no sidebar panel left", not hasattr(bpy.types, "COATLINK_PT_main"))
     check("operators registered",
-          hasattr(bpy.types, "COATBRIDGE_OT_send") and hasattr(bpy.types, "COATBRIDGE_OT_pull"))
+          hasattr(bpy.types, "COATLINK_OT_send") and hasattr(bpy.types, "COATLINK_OT_pull"))
     check("a copy-details action is available without opening another window",
-          hasattr(bpy.types, "COATBRIDGE_OT_copy_details"))
+          hasattr(bpy.types, "COATLINK_OT_copy_details"))
     formatter = getattr(coat_ui, "status_lines", None)
     check("status text has a bounded four-line readout",
           formatter is not None and len(formatter("Ready")) == 4)
@@ -280,7 +280,7 @@ def main():
         raise RuntimeError("Missing exchange folder; press Detect")
     bridge.send = fail_send
     try:
-        result = coat_ui.COATBRIDGE_OT_send.execute(_FailedAction(), bpy.context)
+        result = coat_ui.COATLINK_OT_send.execute(_FailedAction(), bpy.context)
         check("send errors remain visible after the toast disappears",
               result == {"CANCELLED"} and "Missing exchange folder" in bridge.STATE["message"],
               bridge.STATE["message"])
@@ -293,7 +293,7 @@ def main():
         def poll_message_set(cls, message):
             cls.messages.append(message)
     edit_context = type("Ctx", (), {"mode": "EDIT_MESH"})()
-    for operator_class in (coat_ui.COATBRIDGE_OT_send, coat_ui.COATBRIDGE_OT_pull):
+    for operator_class in (coat_ui.COATLINK_OT_send, coat_ui.COATLINK_OT_pull):
         enabled = operator_class.poll.__func__(_PollProbe, edit_context)
         check("disabled %s explains how to enable it" % operator_class.bl_idname,
               not enabled and "Object Mode" in _PollProbe.messages[-1])
@@ -301,7 +301,7 @@ def main():
         preferences = bpy.context.preferences
         window_manager = type("WindowManager", (), {"clipboard": ""})()
     copy_context = _ClipboardContext()
-    result = coat_ui.COATBRIDGE_OT_copy_details.execute(_FailedAction(), copy_context)
+    result = coat_ui.COATLINK_OT_copy_details.execute(_FailedAction(), copy_context)
     check("copy details preserves full diagnostic paths without changing the real clipboard",
           result == {"FINISHED"}
           and "Job file:" in copy_context.window_manager.clipboard
@@ -349,15 +349,15 @@ def main():
     # ---- send ----
     out_path = bridge.send(bpy.context)
     check("send writes the model", os.path.isfile(out_path), out_path)
-    check("model goes into the BlenderBridge folder",
+    check("model goes into the CoatLink folder",
           norm(os.path.dirname(out_path)) == norm(applink.app_folder(EXCHANGE)), out_path)
     check("model has the fixed name bridge.obj", os.path.basename(out_path) == "bridge.obj", out_path)
     check("send writes the material library", os.path.isfile(os.path.splitext(out_path)[0] + ".mtl"))
     job = applink.import_txt(EXCHANGE)
     check("send writes import.txt at the root", os.path.isfile(job))
     lines = read(job).splitlines()
-    check("import.txt: model path first", lines[0].endswith("BlenderBridge/bridge.obj"), lines)
-    check("import.txt: return path second", lines[1].endswith("BlenderBridge/bridge_back.obj"), lines)
+    check("import.txt: model path first", lines[0].endswith("CoatLink/bridge.obj"), lines)
+    check("import.txt: return path second", lines[1].endswith("CoatLink/bridge_back.obj"), lines)
     check("import.txt: the default mode line third", lines[2] == "[vox]", lines)
     check("import.txt: skip flags", lines[3:5] == ["[SkipImport]", "[SkipExport]"], lines)
     check("import.txt: nothing else", len(lines) == 6, lines)
@@ -721,7 +721,7 @@ def main():
     applink._documents_bases = lambda: [coat_home]
 
     def write_coat_state(info):
-        write(os.path.join(coat_home, "3DCoat", "CoatBridge.json"), json.dumps({"coat": info}))
+        write(os.path.join(coat_home, "3DCoat", "CoatLink.json"), json.dumps({"coat": info}))
 
     back_path_fbx = applink.model_path(EXCHANGE, "fbx", name="bridge_back")
 
@@ -733,7 +733,7 @@ def main():
     applink._documents_bases = lambda: [coat_home]
 
     def write_coat_state(info):
-        write(os.path.join(coat_home, "3DCoat", "CoatBridge.json"), json.dumps({"coat": info}))
+        write(os.path.join(coat_home, "3DCoat", "CoatLink.json"), json.dumps({"coat": info}))
     write(signal, back_path + "\n")
 
     messages = bridge.pull(bpy.context, force=True)
@@ -958,7 +958,7 @@ def main():
               "scale matched" in log_text or "scale:" in log_text, log_text[-200:])
 
     # ---- the second root is watched too (3D-Coat exports into its own root) ----
-    own_app_signal = os.path.join(OTHER_ROOT, "BlenderBridge", "export.txt")
+    own_app_signal = os.path.join(OTHER_ROOT, "CoatLink", "export.txt")
     write(own_app_signal, back_path + "\n")
     messages = bridge.pull(bpy.context, force=True)
     check("second root: app folder signal pulled",
@@ -1040,8 +1040,8 @@ def main():
     transfer.import_model = counting_import
     lone_path = applink.model_path(EXCHANGE, "obj", name="lone_return")
     transfer.export_model(lone_path, "obj", [cube], apply_modifiers=False)
-    both = [os.path.join(EXCHANGE, "BlenderBridge", "export.txt"),
-            os.path.join(OTHER_ROOT, "BlenderBridge", "export.txt")]
+    both = [os.path.join(EXCHANGE, "CoatLink", "export.txt"),
+            os.path.join(OTHER_ROOT, "CoatLink", "export.txt")]
     for target in both:
         write(target, lone_path + "\n")
     before = mesh_count()
@@ -1209,7 +1209,7 @@ def _unlink_clears(cube):
         obj.select_set(False)
     cube.select_set(True)
     bpy.context.view_layer.objects.active = cube
-    bpy.ops.coatbridge.unlink()
+    bpy.ops.coatlink.unlink()
     left = [key for key in (bridge.LINK_KEY, bridge.LEGACY_LINK_KEY,
                             bridge.SOURCE_KEY, bridge.LEGACY_SOURCE_KEY)
             if key in cube.keys()]

@@ -79,7 +79,7 @@ so.  The short version is on the [README](../README.md).
   queues its jobs in the same file (its own source writes the model path first).  Both can be
   enabled at once, but not send at the same instant: the last writer owns the queue.  CoatLink
   logs it when it replaces a job that was not its own, and it never imports or deletes a job
-  that points outside its own `BlenderBridge` folder - earlier releases did, which could take
+  that points outside its own `CoatLink` folder - earlier releases did, which could take
   the official add-on's queued model with it.
 * **3D-Coat 2025.12 or newer.**  The two handovers that unparent an imported model - the
   `[pythonfile …]` line and the job's `import.py` - are both documented for 2025.12 and later

@@ -85,7 +85,7 @@ with tempfile.TemporaryDirectory() as tmp:
     # 3D-Coat's data would send the next upgrade to a folder 3D-Coat never reads
     decoy = tmp / "decoy"
     (decoy / "3DCoat").mkdir(parents=True)
-    (decoy / "3DCoat" / "CoatBridge.log").write_text("", encoding="utf-8")
+    (decoy / "3DCoat" / "CoatLink.log").write_text("", encoding="utf-8")
     check("a bare 3DCoat folder (only our own log) is not 3D-Coat data",
           install.coat_data_dirs(decoy) == [], install.coat_data_dirs(decoy))
 

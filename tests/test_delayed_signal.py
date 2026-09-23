@@ -9,7 +9,7 @@ addon_utils.enable('coatlink', default_set=True, persistent=False)
 from coatlink import bridge, applink
 with tempfile.TemporaryDirectory(prefix='bridge_delayed_') as tmp:
     root = pathlib.Path(tmp)
-    folder = root / 'BlenderBridge'
+    folder = root / 'CoatLink'
     folder.mkdir()
     model = folder / 'bridge.obj'
     signal = folder / 'export.txt'

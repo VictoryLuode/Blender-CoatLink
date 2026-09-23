@@ -17,7 +17,7 @@ import bpy
 
 from . import applink, bridge
 
-POPOVER_ID = "COATBRIDGE_PT_menu"
+POPOVER_ID = "COATLINK_PT_menu"
 
 
 def status_lines(message):
@@ -29,8 +29,8 @@ def status_lines(message):
     return lines + [""] * (4 - len(lines))
 
 
-class COATBRIDGE_OT_send(bpy.types.Operator):
-    bl_idname = "coatbridge.send"
+class COATLINK_OT_send(bpy.types.Operator):
+    bl_idname = "coatlink.send"
     bl_label = "Send to 3D-Coat"
     bl_description = "Export the selection (or all visible meshes) to the exchange folder and ask 3D-Coat to load it"
     bl_options = {"REGISTER"}
@@ -53,8 +53,8 @@ class COATBRIDGE_OT_send(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class COATBRIDGE_OT_pull(bpy.types.Operator):
-    bl_idname = "coatbridge.pull"
+class COATLINK_OT_pull(bpy.types.Operator):
+    bl_idname = "coatlink.pull"
     bl_label = "Pull from 3D-Coat"
     bl_description = "Look for a model returned by 3D-Coat right now and merge it into the object it came from"
     bl_options = {"REGISTER"}
@@ -83,8 +83,8 @@ class COATBRIDGE_OT_pull(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class COATBRIDGE_OT_detect(bpy.types.Operator):
-    bl_idname = "coatbridge.detect"
+class COATLINK_OT_detect(bpy.types.Operator):
+    bl_idname = "coatlink.detect"
     bl_label = "Use detected folder"
     bl_description = "Find the 3D-Coat exchange folder and prepare the AppLink folder inside it"
     bl_options = {"REGISTER"}
@@ -102,8 +102,8 @@ class COATBRIDGE_OT_detect(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class COATBRIDGE_OT_open_folder(bpy.types.Operator):
-    bl_idname = "coatbridge.open_folder"
+class COATLINK_OT_open_folder(bpy.types.Operator):
+    bl_idname = "coatlink.open_folder"
     bl_label = "Open exchange folder"
     bl_description = "Show the exchange folder in the file browser"
     bl_options = {"REGISTER"}
@@ -118,8 +118,8 @@ class COATBRIDGE_OT_open_folder(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class COATBRIDGE_OT_launch(bpy.types.Operator):
-    bl_idname = "coatbridge.launch"
+class COATLINK_OT_launch(bpy.types.Operator):
+    bl_idname = "coatlink.launch"
     bl_label = "Launch 3D-Coat"
     bl_description = "Start 3D-Coat so it picks up the queued import"
     bl_options = {"REGISTER"}
@@ -134,8 +134,8 @@ class COATBRIDGE_OT_launch(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class COATBRIDGE_OT_unlink(bpy.types.Operator):
-    bl_idname = "coatbridge.unlink"
+class COATLINK_OT_unlink(bpy.types.Operator):
+    bl_idname = "coatlink.unlink"
     bl_label = "Unlink selected"
     bl_description = "Stop tracking the selected objects, so a pulled model becomes a new object instead of replacing them"
     bl_options = {"REGISTER", "UNDO"}
@@ -150,8 +150,8 @@ class COATBRIDGE_OT_unlink(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class COATBRIDGE_OT_copy_details(bpy.types.Operator):
-    bl_idname = "coatbridge.copy_details"
+class COATLINK_OT_copy_details(bpy.types.Operator):
+    bl_idname = "coatlink.copy_details"
     bl_label = "Copy details"
     bl_description = "Copy the full status, exchange paths and recent diagnostics to the clipboard (may contain local paths)"
 
@@ -162,7 +162,7 @@ class COATBRIDGE_OT_copy_details(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class COATBRIDGE_PT_menu(bpy.types.Panel):
+class COATLINK_PT_menu(bpy.types.Panel):
     """The whole bridge UI, opened from the top-bar button."""
 
     bl_idname = POPOVER_ID
@@ -195,8 +195,8 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
         # the two actions, given the room the point of the add-on deserves
         row = column.row(align=True)
         row.scale_y = 1.4
-        row.operator("coatbridge.send", text="Send", icon="EXPORT")
-        row.operator("coatbridge.pull", text="Pull", icon="IMPORT")
+        row.operator("coatlink.send", text="Send", icon="EXPORT")
+        row.operator("coatlink.pull", text="Pull", icon="IMPORT")
         column.separator()
         column.label(text="Return")
         row = column.row(align=True)
@@ -212,30 +212,30 @@ class COATBRIDGE_PT_menu(bpy.types.Panel):
         row.prop(p, "apply_modifiers", text="Modifiers")
         row.prop(p, "skip_dialogs", text="Skip dialogs")
         row = column.row(align=True)
-        row.operator("coatbridge.detect", text="Detect", icon="VIEWZOOM")
-        row.operator("coatbridge.open_folder", text="Open folder", icon="FILE_FOLDER")
+        row.operator("coatlink.detect", text="Detect", icon="VIEWZOOM")
+        row.operator("coatlink.open_folder", text="Open folder", icon="FILE_FOLDER")
         row = column.row(align=True)
-        row.operator("coatbridge.launch", text="Start 3D-Coat", icon="PLAY")
-        row.operator("coatbridge.pull", text="Force re-read", icon="FILE_REFRESH").force = True
-        column.operator("coatbridge.unlink", text="Unlink selected", icon="UNLINKED")
+        row.operator("coatlink.launch", text="Start 3D-Coat", icon="PLAY")
+        row.operator("coatlink.pull", text="Force re-read", icon="FILE_REFRESH").force = True
+        column.operator("coatlink.unlink", text="Unlink selected", icon="UNLINKED")
         # A section like the ones above it: the divider introduces the heading, and
         # only the remesh sub-group is framed, so no section is drawn differently.
         column.separator()
         column.label(text="Status")
         for line in status_lines(bridge.status(context)):
             column.label(text=line or " ")
-        column.operator("coatbridge.copy_details", text="Copy details", icon="COPYDOWN")
+        column.operator("coatlink.copy_details", text="Copy details", icon="COPYDOWN")
 
 
 CLASSES = (
-    COATBRIDGE_OT_send,
-    COATBRIDGE_OT_pull,
-    COATBRIDGE_OT_detect,
-    COATBRIDGE_OT_open_folder,
-    COATBRIDGE_OT_launch,
-    COATBRIDGE_OT_unlink,
-    COATBRIDGE_OT_copy_details,
-    COATBRIDGE_PT_menu,
+    COATLINK_OT_send,
+    COATLINK_OT_pull,
+    COATLINK_OT_detect,
+    COATLINK_OT_open_folder,
+    COATLINK_OT_launch,
+    COATLINK_OT_unlink,
+    COATLINK_OT_copy_details,
+    COATLINK_PT_menu,
 )
 
 

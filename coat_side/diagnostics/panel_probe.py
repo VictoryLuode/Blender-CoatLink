@@ -32,7 +32,7 @@ import traceback
 import coat
 
 sys.path.insert(0, r'H:\Misc\Blender-CoatLink\coat_side')
-import CoatBridgeLib  # noqa: E402
+import CoatLinkLib  # noqa: E402
 
 PHASE_SECONDS = 24.0
 INTERVAL = 4.0
@@ -63,13 +63,13 @@ def run_phase(label, seconds, opener=None):
 def main():
     report = {"object": None, "phases": [], "success": False}
     try:
-        report["object"] = CoatBridgeLib._element_name(coat.Scene.current())
+        report["object"] = CoatLinkLib._element_name(coat.Scene.current())
         print("Probe object: %s" % report["object"])
         print("Phase A: no panel. Watch the sculpt tree.")
         report["phases"].append(run_phase("A no panel", PHASE_SECONDS))
         print("Phase B: opening the CoatLink panel - watch the same object.")
         report["phases"].append(run_phase("B CoatLink panel", PHASE_SECONDS,
-                                          opener=lambda: CoatBridgeLib.show_panel(force=True)))
+                                          opener=lambda: CoatLinkLib.show_panel(force=True)))
         report["success"] = True
     except Exception:
         report["traceback"] = traceback.format_exc()

@@ -4,12 +4,12 @@
 
 """Send / pull orchestration.
 
-Send : export the chosen meshes to <root>/BlenderBridge/bridge.<ext> and drop a
+Send : export the chosen meshes to <root>/CoatLink/bridge.<ext> and drop a
        root-level import.txt next to it, then remember where they came from.
-Pull : watch <root>/BlenderBridge/export.txt for the returned model and merge it
+Pull : watch <root>/CoatLink/export.txt for the returned model and merge it
        into the object the send came from.
 
-Everything 3D-Coat writes into a BlenderBridge folder is ours; anything else is
+Everything 3D-Coat writes into a CoatLink folder is ours; anything else is
 left alone, so the official 3D-Coat AppLink can stay enabled.
 """
 
@@ -557,7 +557,7 @@ def _pull_once(context, force):
         dirty[0] = True
         if not ours:
             # 3D-Coat exports to its own AppLink pool as well (its own target), and
-            # that export.txt points outside BlenderBridge.  A file written after
+            # that export.txt points outside CoatLink.  A file written after
             # our last send is this trip's model, so take it: refusing it was why
             # "the model never arrives".
             last_send = STATE.get("last_send") or 0.0
@@ -573,7 +573,7 @@ def _pull_once(context, force):
                     candidates.append((os.path.getmtime(path), path))
                 continue
             if foreign:
-                messages.append("Ignored export.txt outside BlenderBridge: %s" % os.path.basename(paths[0]))
+                messages.append("Ignored export.txt outside CoatLink: %s" % os.path.basename(paths[0]))
             continue
         handled.append((signal, not foreign))
         for path in ours:
@@ -915,7 +915,7 @@ def _log(message):
 
 
 def _is_ours(path, roots):
-    """A model inside one of our BlenderBridge folders is ours - nothing else is."""
+    """A model inside one of our CoatLink folders is ours - nothing else is."""
     folder = os.path.normcase(os.path.normpath(os.path.dirname(path)))
     for root in roots:
         if folder == os.path.normcase(os.path.normpath(applink.app_folder(root))):
