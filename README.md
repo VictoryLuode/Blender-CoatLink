@@ -54,7 +54,7 @@ buttons at the end of the Voxels and Paint tool lists.
 Nothing is written outside 3D-Coat's user folder, and the tool buttons take 3D-Coat's default icon:
 deliberate, because a button icon would mean writing into `C:\Program Files`.
 
-Prefer a command, or have the release unzipped already?  `install.cmd`, `./install.sh`
+Prefer a command, or working from a checkout?  `install.cmd`, `./install.sh`
 (git-bash/MSYS/WSL) and `.\install.ps1` (PowerShell, both halves) run the same installer and put
 the 3D-Coat half exactly where the package would.  Both folders are worked out on the spot,
 wherever 3D-Coat is: the program folder from the uninstall entries Windows keeps, the data folder

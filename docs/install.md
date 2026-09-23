@@ -6,7 +6,7 @@ installed by Blender.  Both also have a command-line door, for when that is easi
 | Door | What the user does | Needs |
 | --- | --- | --- |
 | `CoatLink-<version>.3dcpack` | **Scripts > Install Extension** in 3D-Coat, then tick **CoatLink** once under **Windows > Panels > Extensions** and restart | 3D-Coat alone: nothing to unzip, no shell, no elevation |
-| `install.cmd` | unzips the release, double-clicks | Windows |
+| `install.cmd` | double-clicks it, in a checkout or GitHub's source archive | Windows |
 | `install.sh` / `install.ps1` | runs it in a shell (PowerShell does both halves) | bash, or Windows PowerShell |
 
 **Why the pack needs that one tick:** a pack installs files relative to 3D-Coat's user folder, but

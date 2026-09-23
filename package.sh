@@ -8,14 +8,14 @@
 #                                        Edit > Preferences > Add-ons > Install from Disk
 #   dist/CoatLink-<version>.3dcpack      the 3D-Coat half, in 3D-Coat's own package
 #                                        format: Scripts > Install Extension
-#   dist/CoatLink-<version>-full.zip     the whole project - sources, both
-#                                        installers, tests - ready to unzip anywhere
 #
-# The product name and the version are in every file name, so a folder holding two
-# releases cannot be mixed up.
+# Two downloads, one per half, and both carry the product name and the version, so a
+# folder holding two releases cannot be mixed up.  There is no archive of the whole
+# project: GitHub adds its own "Source code" archives to every release, and anyone who
+# wants the checkout can clone it.
 #
-# All of them are built from the committed tree (git archive), not from the working
-# copy, so what people download is exactly what the repository holds.
+# Both are built from the committed tree (git archive), not from the working copy, so
+# what people download is exactly what the repository holds.
 
 set -euo pipefail
 
@@ -30,10 +30,9 @@ if [ -z "$VERSION" ]; then
 fi
 
 ADDON="dist/CoatLink-$VERSION.zip"
-FULL="dist/CoatLink-$VERSION-full.zip"
 PACK="dist/CoatLink-$VERSION.3dcpack"
 mkdir -p dist
-rm -f "$ADDON" "$FULL" "$PACK"
+rm -f "$ADDON" "$PACK"
 
 # `git archive` asks the checkout configuration what line endings to write, and on a
 # machine whose git defaults to CRLF that produced archives with CRLF while the
@@ -42,7 +41,6 @@ rm -f "$ADDON" "$FULL" "$PACK"
 ARCHIVE=(git -c core.autocrlf=false -c core.eol=lf archive --format=zip)
 
 "${ARCHIVE[@]}" --prefix="coatlink/" "$REF:coatlink" -o "$ADDON"
-"${ARCHIVE[@]}" --prefix="CoatLink-$VERSION/" "$REF" -o "$FULL"
 
 # the 3D-Coat half as a .3dcpack - 3D-Coat's own package format, installed from its
 # Scripts > Install Extension menu.  Staged from the committed sources like the
@@ -63,7 +61,7 @@ else
 fi
 
 echo
-for archive in "$ADDON" "$FULL" "$PACK"; do
+for archive in "$ADDON" "$PACK"; do
     [ -f "$archive" ] && printf '%-44s %s\n' "$archive" "$(du -h "$archive" | cut -f1)"
 done
 echo

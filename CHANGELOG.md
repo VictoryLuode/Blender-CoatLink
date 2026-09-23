@@ -26,9 +26,10 @@
   exchange folder's root and nothing else.
 * **The Blender top-bar button is drawn like the buttons next to it**, rather than as a flat
   popover, so it no longer reads as a different kind of control.
-* **Every download carries the version in its name**: `CoatLink-1.18.0.zip` (the Blender
-  add-on), `CoatLink-1.18.0.3dcpack` (the 3D-Coat extension) and `CoatLink-1.18.0-full.zip` (the
-  whole project: sources, both installers and the tests).
+* **Every download carries the version in its name, and there are two of them**:
+  `CoatLink-1.18.0.zip` for Blender and `CoatLink-1.18.0.3dcpack` for 3D-Coat.  The old
+  archive of the whole project is gone - GitHub attaches its own source archives to a release,
+  and anyone who wants the checkout can clone it.
 
 Blender 1.18.0, 3D-Coat side 1.18.0.
 

@@ -82,17 +82,16 @@ def main():
           (heading, stamped))
 
     # Every download is named after the product *and* the version - the add-on archive
-    # (CoatLink-<version>.zip), the 3D-Coat package (CoatLink-<version>.3dcpack) and the
-    # project archive (CoatLink-<version>-full.zip) - because a second name for the same
-    # thing is how a download link goes stale.  The folder inside the add-on archive stays
-    # `coatlink`: it is the add-on's module name, which existing installs and their
-    # preferences are keyed on.
+    # (CoatLink-<version>.zip) and the 3D-Coat package (CoatLink-<version>.3dcpack) - because
+    # a second name for the same thing is how a download link goes stale.  There is no
+    # archive of the whole project: GitHub attaches its own source archives to a release.
+    # The folder inside the add-on archive stays `coatlink`: it is the add-on's module name,
+    # which existing installs and their preferences are keyed on.
     packaging = read(os.path.join(repo_root, "package.sh"))
     check("every download is named after CoatLink and its version",
           "dist/CoatLink-$VERSION.zip" in packaging
           and "dist/CoatLink-$VERSION.3dcpack" in packaging
-          and "dist/CoatLink-$VERSION-full.zip" in packaging
-          and "Blender-CoatLink-$VERSION.zip" not in packaging,
+          and "-full.zip" not in packaging,
           [line.strip() for line in packaging.splitlines() if ".zip" in line][:3])
 
     # Keep the suite hermetic: 3D-Coat's real roots are replaced by two temp ones.
