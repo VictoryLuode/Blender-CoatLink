@@ -598,6 +598,26 @@ def main():
     check("they land in the state file Blender reads",
           (bridge.load_state().get("coat") or {}).get("swap_yz") is True, bridge.load_state())
     check("the log records them", "coat settings: scale=" in bridge.log_text(), bridge.log_text()[-160:])
+    check("a log line says which half wrote it",
+          any(" | 3dcoat | " in line for line in bridge.log_text().splitlines()),
+          bridge.log_text()[-160:])
+
+    # ---- the data folder the scripts live in: agreement with the Blender half ----
+    # Both halves, the installer and the after-import helper keep CoatBridge.log and
+    # CoatBridge.json in <Documents>/3DCoat.  Landing in UserPrefs instead split one
+    # trip's evidence across two files and left Blender reading a stale axis/units
+    # record, so the folder is pinned here.
+    deep = os.path.join(tmp, "Documents", "3DCoat", "UserPrefs", "Scripts", "CoatBridge")
+    check("the data folder is found above UserPrefs",
+          bridge.data_folder_of(deep).replace("\\", "/").endswith("/Documents/3DCoat"),
+          bridge.data_folder_of(deep))
+    old = os.path.join(tmp, "Documents", "3D-CoatV48", "Scripts", "CoatBridge")
+    check("and above the 4.x Scripts layout",
+          bridge.data_folder_of(old).replace("\\", "/").endswith("/3D-CoatV48"),
+          bridge.data_folder_of(old))
+    check("a script outside 3D-Coat's own folders names nothing",
+          bridge.data_folder_of(os.path.join(tmp, "somewhere", "elsewhere")) == "",
+          bridge.data_folder_of(os.path.join(tmp, "somewhere", "elsewhere")))
 
     saved = coat.settings_values
     coat.settings_values = {}          # a 3D-Coat build without that option

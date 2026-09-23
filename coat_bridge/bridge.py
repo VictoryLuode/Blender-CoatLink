@@ -182,16 +182,28 @@ def save_history(p):
 AFTER_IMPORT_MARK = "after-import ran"
 
 
-def after_import_seen():
+def after_import_seen(roots=None):
     """Did 3D-Coat run the after-import step since our last send?
 
     True means dated execution evidence after the last send; False means unconfirmed,
     not proof of non-execution. None means no send or an unreadable log.
     This is diagnostic evidence, not a per-job success receipt.
+
+    The helper's own marker is checked first, because it is the one record that
+    survives a machine where the shared log cannot be reached from inside 3D-Coat -
+    and because "the step never ran" and "it ran but could not write anything" used
+    to look exactly the same from out here.
     """
     sent = STATE.get("last_send") or 0.0
     if not sent:
         return None
+    for root in roots or []:
+        marker = applink.after_import_marker(root)
+        try:
+            if os.path.isfile(marker) and os.path.getmtime(marker) >= sent - 1.0:
+                return True
+        except OSError:
+            continue
     try:
         with open(applink.shared_log_path(), "rb") as handle:
             handle.seek(0, os.SEEK_END)
@@ -228,7 +240,7 @@ def detail_lines(context=None):
         lines.append("Also watching: %s" % applink.app_folder(extra))
     target = STATE["target"]
     lines.append("Target object: %s" % (target["object"] if target else "none"))
-    seen = after_import_seen()
+    seen = after_import_seen(roots)
     if seen is True:
         lines.append("After-import step: 3D-Coat ran it")
     elif STATE.get("last_send"):

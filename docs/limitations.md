@@ -5,11 +5,15 @@ so.  The short version is on the [README](../README.md).
 
 ## Verified incompletely or not at all
 
-* **No live round trip has been run on this release.**  The 3D-Coat side is covered by tests
-  against a stand-in `coat` module and the Blender side by headless runs against throwaway
-  folders.  `tests/live_roundtrip.sh` runs the real thing (both applications open) and records
-  the add-on version and the exact `import.txt` it wrote - the evidence earlier attempts were
-  missing.  Until someone runs it, "works on a live pair" is an expectation, not a fact.
+* **A live round trip has been run once**, on Blender 5.2 and 3D-Coat 2025.17 (2026-09-23).
+  3D-Coat's own log shows it reading the job file this side wrote - `[vox]`, `[SkipImport]`,
+  `[SkipExport]`, `[pythonfile …]` - and importing the OBJ (its `Model info:` line counted the
+  objects), and the return leg left a dated receipt naming the object it pulled.  What that
+  does **not** cover: grouping, positions, scale and axis on real geometry, a second machine,
+  a second 3D-Coat build, or the selected-node export.  `tests/live_roundtrip.sh` runs the
+  real thing (both applications open) and records the add-on version and the exact
+  `import.txt` it wrote - until it has been run, "works on a live pair" is an expectation,
+  not a fact.
 * **The `[vox]` import mode is asked for, not guaranteed.**  The mode line is written and
   3D-Coat's own log shows it being read, but on the build this was developed against the model
   still arrives in *surface* mode (`S` in the Sculpt Tree, `Volume.isSurface()` against
@@ -21,7 +25,13 @@ so.  The short version is on the [README](../README.md).
   and what the optional voxel conversion of an import rides on.  The panel's detail lines now
   report it as evidence: a dated, microsecond-resolution record means 3D-Coat ran the helper,
   while a missing, unreadable, undated or old record only means **not confirmed** - never proof
-  that it did not run.  A record also does not say the conversion succeeded.
+  that it did not run.  A record also does not say the conversion succeeded.  On the live trip
+  of 2026-09-23 (3D-Coat 2025.17) the job file carried the line and 3D-Coat's log shows it
+  reading the file, but no line and no marker appeared - so the helper is now believed **not to
+  have run**, and that trip's imported objects stayed under their import parent.  To tell
+  "never ran" from "ran with nowhere to write", the helper writes a dated marker beside itself
+  in the exchange root (`CoatLink_AfterImport.py.ran`) as its first action, before it touches
+  3D-Coat's API or any other folder; the panel reads it as the same evidence as a log line.
 * **The selected-node export has not been through a live round trip.**  The API calls are the
   documented ones (`Scene.current()`, `fromVolume`, `fromReducedVolume`, `Mesh.Write`), the OBJ
   it produces is validated line by line, and everything that could go wrong has a test - but

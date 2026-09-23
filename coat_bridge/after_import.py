@@ -18,6 +18,7 @@ imports from the add-on.
 """
 
 import os
+import sys
 import time
 from datetime import datetime
 
@@ -94,6 +95,48 @@ def note(message):
                 datetime.now().isoformat(sep=" ", timespec="microseconds"), message))
     except Exception:
         pass
+
+
+def helper_path():
+    """This script's own path, or "" when 3D-Coat does not say what it ran."""
+    for candidate in (globals().get("__file__"), sys.argv[0] if sys.argv else ""):
+        if not candidate:
+            continue
+        try:
+            return os.path.abspath(candidate)
+        except Exception:
+            pass
+    return ""
+
+
+def marker_path():
+    """The note beside this script that says the helper ran at all."""
+    path = helper_path()
+    return (path + ".ran") if path else ""
+
+
+def mark_started():
+    '''Leave a trace before touching anything else.
+
+    A build that ignores ``[pythonfile ...]`` leaves nothing behind, and so does a
+    run whose log cannot be reached - from the outside the two look identical, which
+    is why "did the step run at all?" stayed unproven for so long.  This writes a
+    dated file next to the helper (a folder we know is writable: the Blender side
+    just put the helper there) and, best effort, the same note in the shared log.
+
+    It is evidence that the helper ran, and nothing more: it says nothing about
+    whether the unparenting or the voxel step then succeeded.
+    '''
+    stamp = datetime.now().isoformat(sep=" ", timespec="microseconds")
+    path = marker_path()
+    if path:
+        try:
+            with open(path, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write("%s | the after-import helper started\n" % stamp)
+        except Exception:
+            pass
+    note("after-import helper started")
+
 
 
 def move_to_root(child, root):
@@ -178,6 +221,7 @@ def voxelize(coat, stem=MODEL_STEM):
 
 
 def main():
+    mark_started()
     try:
         import coat
     except Exception as exc:                      # not running inside 3D-Coat

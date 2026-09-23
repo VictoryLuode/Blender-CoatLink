@@ -470,6 +470,34 @@ def main():
     bridge.applink.shared_log_path = real_log
     os.remove(fake_log)
 
+    # The helper's own marker counts too: it is written before the helper touches
+    # anything, so it survives a machine where the shared log cannot be reached from
+    # inside 3D-Coat - and "never ran" vs "ran but could not write" used to look alike.
+    marker = applink.after_import_marker(EXCHANGE)
+    with open(marker, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("2026-01-01 00:00:00.000000 | the after-import helper started\n")
+    bridge.applink.shared_log_path = lambda: os.path.join(os.path.dirname(out_path), "no-such.log")
+    bridge.STATE["last_send"] = time.time() - 30
+    check("the helper's own marker counts as evidence it ran",
+          bridge.after_import_seen([EXCHANGE]) is True, bridge.after_import_seen([EXCHANGE]))
+    bridge.STATE["last_send"] = time.time() + 30
+    check("a marker older than our send does not count",
+          bridge.after_import_seen([EXCHANGE]) is not True, bridge.after_import_seen([EXCHANGE]))
+    bridge.applink.shared_log_path = real_log
+    os.remove(marker)
+
+    # A line the 3D-Coat panel wrote carries the same tag but a short clock stamp, and
+    # it is not execution evidence: only the helper's own full-timestamp record is.
+    # Without this the panel would claim "3D-Coat ran it" for a step that never ran.
+    with open(fake_log, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("08:05:01 | 3dcoat | after-import ran: 0 moved, 0 to voxels\n")
+    bridge.applink.shared_log_path = lambda: fake_log
+    bridge.STATE["last_send"] = time.time() - 30
+    check("a panel line is not mistaken for the helper's record",
+          bridge.after_import_seen() is not True, bridge.after_import_seen())
+    bridge.applink.shared_log_path = real_log
+    os.remove(fake_log)
+
     # A user modifier with our preferred name is still owned by the user.
     owned = cube.modifiers.new(bridge.REMESH_MODIFIER, "BEVEL")
     owned_pointer = owned.as_pointer()

@@ -11,6 +11,7 @@ Documents/AppLinks/3D-Coat/Exchange/     <- the job file goes here (3D-Coat poll
         export.txt                              3D-Coat writes it when it hands a model back
         pull-history.json                       what we already imported, so a restart does not re-import it
     CoatLink_AfterImport.py                  run by 3D-Coat after the import: unparents the objects
+    CoatLink_AfterImport.py.ran              the helper's own note that it ran: dated, written first
 
 Documents/3DCoat/Exchange/               <- 3D-Coat's own root: watched, never written to
     BlenderBridge/                           a return from an older session can still be sitting here
@@ -30,6 +31,14 @@ design.
 
 `bridge.obj` is the model in **both** directions, which is what leaves exactly one axis rule
 and one unit rule to keep straight.
+
+Both sides also keep **one log and one state file**, in 3D-Coat's own data folder
+(`Documents/3DCoat/CoatBridge.log` and `CoatBridge.json`): the log is what the 3D-Coat panel
+shows, and the file is where the axis and unit records below are read from.  Each side works
+that folder out from its own location instead of guessing at `Documents`, so a redirected
+Documents (OneDrive) or a `COAT_FILES_PATH` install moves both together.  A side that lands one
+folder lower - 3D-Coat's own `UserPrefs` - splits one trip's evidence across two files *and*
+leaves the other side reading a stale axis/unit record, which is exactly what the old split did.
 
 ## What the two sides quietly handle for you
 

@@ -105,12 +105,37 @@ _LAST_OPEN = [0.0]
 # exchange folders (same discovery rules as the Blender add-on)
 # --------------------------------------------------------------------------
 
+def data_folder_of(start):
+    """The 3D-Coat data folder that holds ``start``, or "".
+
+    ``…/Documents/3DCoat/UserPrefs/Scripts/CoatBridge`` -> ``…/Documents/3DCoat``,
+    and the 4.x layout (``…/3D-CoatV48/Scripts/…``) lands on ``…/3D-CoatV48`` the same
+    way: the folder is the one carrying 3D-Coat's own name.
+    """
+    folder = os.path.abspath(start)
+    for _ in range(8):
+        name = os.path.basename(folder).lower()
+        if name.startswith("3dcoat") or name.startswith("3d-coat"):
+            return folder
+        parent = os.path.dirname(folder)
+        if parent == folder:     # reached the drive root
+            break
+        folder = parent
+    return ""
+
+
 def script_user_data():
-    """The 3D-Coat user data folder this script itself lives in, or "".
+    """The 3D-Coat data folder this script itself lives in, or "".
 
     The installer puts these scripts in ``<user data>/UserPrefs/Scripts/CoatBridge``,
     so the folder is *known* rather than guessed: walking up from ``__file__`` finds
-    ``UserPrefs`` (2021 and later) or ``Scripts`` (the 4.x layout).  That matters
+    ``UserPrefs`` (2021 and later) or ``Scripts`` (the 4.x layout).  The folder it
+    returns is 3D-Coat's *data* folder - ``…/Documents/3DCoat``, one level above
+    ``UserPrefs`` - because that is where the Blender half, the installer and the
+    after-import helper all put ``CoatBridge.log`` and ``CoatBridge.json``.  Returning
+    ``UserPrefs`` instead split one trip's evidence into two files: the panel could never see
+    the other half's lines, and the Blender side read a stale ``CoatBridge.json`` for
+    its axis and units.  That matters
     because ``~/Documents`` and 3D-Coat's own folders are not the same place once
     Documents is redirected (OneDrive) or ``COAT_FILES_PATH`` is set - and guessing
     wrong there is what makes the panel say "no exchange folder found" on a machine
@@ -118,17 +143,7 @@ def script_user_data():
     version on some builds (``3DCoat2025``), which a hard-coded ``3DCoat`` misses.
     """
     folder = os.path.dirname(os.path.abspath(__file__))
-    for _ in range(8):
-        name = os.path.basename(folder).lower()
-        if name == "userprefs":  # 2021 and later
-            return os.path.dirname(folder)
-        if name == "scripts":    # 4.x: <user data>/Scripts/...
-            return os.path.dirname(folder)
-        parent = os.path.dirname(folder)
-        if parent == folder:     # reached the drive root
-            break
-        folder = parent
-    return ""
+    return data_folder_of(folder)
 
 
 def windows_documents():
@@ -347,7 +362,10 @@ def log(message):
                 with open(path, "w", encoding="utf-8", newline="\n") as handle:
                     handle.write("\n".join(lines[-LINES // 2:]) + "\n")
         with open(path, "a", encoding="utf-8", newline="\n") as handle:
-            handle.write("%s | %s\n" % (time.strftime("%H:%M:%S"), message))
+            # the same three-field shape the Blender half and the after-import helper
+            # write, so one file can be read by all three and a line can be told apart
+            # by who wrote it
+            handle.write("%s | 3dcoat | %s\n" % (time.strftime("%H:%M:%S"), message))
         return True
     except Exception:
         return False

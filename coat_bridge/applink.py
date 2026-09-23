@@ -278,6 +278,16 @@ def after_import_path(root):
     return os.path.join(root, AFTER_IMPORT_NAME)
 
 
+def after_import_marker(root):
+    """Where the helper says it started: beside itself, in the exchange root.
+
+    The helper writes this before it touches anything, so it works even when the
+    shared log cannot be reached from inside 3D-Coat - and its *absence* is not proof
+    the step never ran, only a dated one from this trip is proof that it did.
+    """
+    return after_import_path(root) + ".ran"
+
+
 def write_after_import(root, voxelize=False):
     """Copy the helper into the exchange root; returns its path (or "" on failure).
 

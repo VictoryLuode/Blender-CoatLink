@@ -61,7 +61,14 @@ def main():
     bridge.exchange_roots = lambda: [root]
 
     # ---- the AppLink path: the script import.txt carries ----------------------
-    helper = load(HELPER, "coatlink_after_import")
+    # loaded from a copy, the way the Blender side puts it in the exchange root: the
+    # helper writes its "I started" marker next to itself, and that must not land in
+    # the checkout
+    helper_copy = os.path.join(tmp, "CoatLink_AfterImport.py")
+    with open(HELPER, "r", encoding="utf-8") as source, \
+            open(helper_copy, "w", encoding="utf-8", newline="\n") as target:
+        target.write(source.read())
+    helper = load(helper_copy, "coatlink_after_import")
     wrapper = bridge_imported_tree(coat)
     moved = helper.flatten(coat)
     check("the helper finds the imported group and moves both objects", moved == 2, moved)
@@ -134,6 +141,20 @@ def main():
     with open(log_path, "r", encoding="utf-8") as handle:
         log_text = handle.read()
     check("and the counts follow the real work", "1 moved" in log_text, log_text[-200:])
+
+    # ---- and the marker that says it ran at all --------------------------------
+    # 3D-Coat only runs this file on a build that honours [pythonfile ...].  Without
+    # the marker, "the step never ran" and "it ran with nowhere to write" look the
+    # same from the Blender side, which is why the question stayed open so long.  It
+    # is written before anything else is touched, and it claims only that: running.
+    marker = helper.marker_path()
+    check("the helper leaves a marker beside itself",
+          marker == os.path.join(tmp, "CoatLink_AfterImport.py.ran") and os.path.isfile(marker),
+          marker)
+    with open(marker, "r", encoding="utf-8") as handle:
+        marker_text = handle.read()
+    check("dated, and saying it started rather than that it worked",
+          marker_text[:4].isdigit() and "helper started" in marker_text, marker_text)
 
     # ---- our own Pull button: the same result through code --------------------
     coat.root.children.clear()

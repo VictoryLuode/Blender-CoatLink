@@ -164,7 +164,7 @@ script and exchange folders, and the 3D-Coat tests run against a stand-in `coat`
 themselves; `BLENDER=`, `COAT_PYTHON=` and `COAT_DIR=` override.
 
 Current counts: Blender main suite **196/196** plus every regression script and both installer
-smoke tests; 3D-Coat logic **162/162**, tools **29/29**, tree report **12/12**, installer
+smoke tests; 3D-Coat logic **166/166**, tools **29/29**, tree report **12/12**, installer
 checks, API stub check, idle-redraw check and probe dry run.
 
 ## License
