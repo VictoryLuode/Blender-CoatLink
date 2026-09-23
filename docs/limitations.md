@@ -9,7 +9,9 @@ so.  The short version is on the [README](../README.md).
   3D-Coat's own log shows it reading the job file this side wrote - `[vox]`, `[SkipImport]`,
   `[SkipExport]`, `[pythonfile …]` - and importing the OBJ (its `Model info:` line counted the
   objects), and the return leg left a dated receipt naming the object it pulled.  What that
-  does **not** cover: grouping, positions, scale and axis on real geometry, a second machine,
+  does **not** cover: grouping, positions, scale and axis on real geometry (including
+  `Send to origin`, whose file is checked here but which has never been watched landing on the
+  origin in a running 3D-Coat), a second machine,
   a second 3D-Coat build, or the selected-node export.  `tests/live_roundtrip.sh` runs the
   real thing (both applications open) and records the add-on version and the exact
   `import.txt` it wrote - until it has been run, "works on a live pair" is an expectation,

@@ -186,6 +186,7 @@ class COATLINK_PT_menu(bpy.types.Panel):
         column.label(text="Send options")
         column.prop(p, "scope", text="Scope")
         column.prop(p, "mode", text="Import as")
+        column.prop(p, "send_origin", text="Send to origin")
         box = column.box()
         box.prop(p, "remesh", text="Remesh on send")
         settings = box.column(align=True)

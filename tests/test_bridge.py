@@ -220,6 +220,10 @@ def main():
           < drawn.index(("prop", "mode", "Import as"))
           < drawn.index(("operator", "coatlink.send", "Send"))
           < drawn.index(("operator", "coatlink.pull", "Pull")), drawn[:5])
+    check("Send to origin sits with the other send options",
+          drawn.index(("prop", "mode", "Import as"))
+          < drawn.index(("prop", "send_origin", "Send to origin"))
+          < drawn.index(("operator", "coatlink.send", "Send")), drawn[:6])
 
     folded = [item[1] for item in drawn if item[0] == "prop" and item[1] == "show_advanced"]
     check("nothing is hidden behind a fold-out", not folded, folded)
@@ -317,6 +321,7 @@ def main():
           MODE_ITEMS[0][0] == "vox", [item[0] for item in MODE_ITEMS][:3])
     check("there is no format option any more", not hasattr(prefs, "fmt"))
     check("the send format is fixed to OBJ", bridge.SEND_FORMAT == "obj")
+    check("Send to origin is off out of the box", prefs.send_origin is False, prefs.send_origin)
     for gone in ("apply_textures", "preset", "interval", "skip_import", "skip_export"):
         check("no '%s' option left" % gone, not hasattr(prefs, gone))
 
@@ -1179,6 +1184,149 @@ def main():
     check("details list the job file",
           any(line.startswith("Job file:") for line in bridge.detail_lines(bpy.context)),
           bridge.detail_lines(bpy.context))
+
+    # ---- "Send to origin": the model lands on the other end's 0,0,0 (opt-in) ----
+    # OBJ carries no transform of its own, so the only place the position can be
+    # changed is the objects themselves, for the length of the export.  The shift is
+    # recorded on them, which is what puts a returned model back where it came from.
+    def file_bounds(path):
+        """The file's own vertex coordinates: (low, high) per axis."""
+        points = [[float(part) for part in line.split()[1:4]]
+                  for line in read(path).splitlines() if line.startswith("v ")]
+        if not points:
+            return None
+        return [(min(point[axis] for point in points), max(point[axis] for point in points))
+                for axis in range(3)]
+
+    def file_centre(path):
+        bounds = file_bounds(path)
+        return None if bounds is None else [(low + high) / 2.0 for low, high in bounds]
+
+    def at(value, expected, tolerance=1e-4):
+        return abs(value - expected) <= tolerance
+
+    def placed_at(vector, where):
+        return all(at(vector[index], where[index]) for index in range(3))
+
+    def aim_at(obj):
+        """Send exactly this object: the scope must not depend on what is selected."""
+        prefs.scope = "selected"
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        bpy.context.view_layer.update()
+
+    home = (4.0, -3.0, 1.5)
+    home_length = math.sqrt(sum(part * part for part in home))
+    # The file's own coordinates are what the checks below read, so pin the conversion
+    # first: "swap" is the axis rule that leaves the file's numbers where the scene has
+    # them, and a manual scale of 1 takes 3D-Coat's own number out of the picture.  The
+    # last checks put a real conversion back on, because the shift has to survive that.
+    prefs.axis_mode = "swap"
+    prefs.coat_scale = 1.0
+    probe = bpy.data.objects.new("OriginProbe", cube.data.copy())
+    bpy.context.scene.collection.objects.link(probe)
+    probe.location = home
+    aim_at(probe)
+
+    prefs.send_origin = False
+    bridge.send(bpy.context)
+    away = file_centre(out_path)
+    check("without the option the model is sent from where it sits",
+          away is not None and placed_at(away, home), away)
+    check("and the trip records nothing", probe.get(bridge.OFFSET_KEY) is None,
+          dict(probe.items()))
+
+    prefs.send_origin = True
+    aim_at(probe)
+    bridge.send(bpy.context)
+    centred = file_centre(out_path)
+    check("with the option on the model is sent to the origin",
+          centred is not None and placed_at(centred, (0.0, 0.0, 0.0)), centred)
+    check("the status says where it went",
+          "to origin (4, -3, 1.5)" in bridge.status(bpy.context), bridge.status(bpy.context))
+    check("the shift is recorded on the object",
+          [round(float(part), 4) for part in probe.get(bridge.OFFSET_KEY) or []] == list(home),
+          probe.get(bridge.OFFSET_KEY))
+    check("and the object is left exactly where it was",
+          placed_at(probe.matrix_world.translation, home), tuple(probe.matrix_world.translation))
+    check("none of the selection is left behind by the shift",
+          len(cube.data.vertices) == len(probe.data.vertices), len(cube.data.vertices))
+
+    # the return: 3D-Coat hands the model back from where it now sits, on its origin
+    shutil.copy(out_path, back_path)
+    write(signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("a returned model is put back where it was sent from",
+          placed_at(probe.matrix_world.translation, home), tuple(probe.matrix_world.translation))
+    check("and the pull says so", any("back at" in message for message in messages), messages)
+
+    # a later send without the option drops the record, so the next return is not moved
+    prefs.send_origin = False
+    aim_at(probe)
+    bridge.send(bpy.context)
+    check("turning the option off drops the record",
+          probe.get(bridge.OFFSET_KEY) is None, dict(probe.items()))
+    shutil.copy(out_path, back_path)
+    write(signal, back_path + "\n")
+    bridge.pull(bpy.context, force=True)
+    check("and then the file decides where the model lands",
+          max(abs(part) for part in probe.matrix_world.translation) < 1e-3,
+          tuple(probe.matrix_world.translation))
+
+    # unlinking stops the tracking, record included
+    probe[bridge.OFFSET_KEY] = [1.0, 2.0, 3.0]
+    bridge.clear_link(probe)
+    check("unlink drops the shift record too", probe.get(bridge.OFFSET_KEY) is None,
+          dict(probe.items()))
+
+    # an export that fails must leave both the scene and the record alone.  A fresh
+    # cube for this and the checks after it: its mesh sits on its own origin, which is
+    # what makes "moved by its own position" measurable.
+    bpy.ops.mesh.primitive_cube_add(size=2)
+    fresh = bpy.context.active_object
+    fresh.name = "OriginProbe2"
+    fresh.location = home
+    prefs.send_origin = True
+    aim_at(fresh)
+    transfer.export_model = failed_export
+    try:
+        bridge.send(bpy.context)
+        check("a failed export still raises", False, "no exception")
+    except RuntimeError:
+        pass
+    finally:
+        transfer.export_model = real_export
+    check("a failed export leaves the object where it was",
+          placed_at(fresh.matrix_world.translation, home), tuple(fresh.matrix_world.translation))
+    check("and records no trip", fresh.get(bridge.OFFSET_KEY) is None, dict(fresh.items()))
+
+    # 3D-Coat's real conversion - 100x units and a Y-up file - must not upset it: the
+    # objects are moved before the exporter converts them, so the model lands on the
+    # origin in that file too
+    prefs.axis_mode = "normal"
+    prefs.coat_scale = 100.0
+    prefs.send_origin = False
+    aim_at(fresh)
+    bridge.send(bpy.context)
+    converted = file_centre(out_path)
+    prefs.send_origin = True
+    aim_at(fresh)
+    bridge.send(bpy.context)
+    converted_shifted = file_centre(out_path)
+    check("the model still lands on the origin when the export is scaled and converted",
+          converted_shifted is not None and placed_at(converted_shifted, (0.0, 0.0, 0.0)),
+          converted_shifted)
+    check("and the conversion really is in the plain file (100x out, other axis rule)",
+          converted is not None
+          and abs(math.sqrt(sum(part * part for part in converted)) - 100.0 * home_length) < 1.0,
+          (converted, home_length))
+
+    prefs.send_origin = False
+    prefs.axis_mode = "auto"
+    prefs.coat_scale = 0.0
+    bpy.data.objects.remove(fresh, do_unlink=True)
+    bpy.data.objects.remove(probe, do_unlink=True)
 
     # ---- links written by an earlier build keep working ----
     # Until the module was renamed to `coatlink`, these keys were `coat_bridge_*`.  A

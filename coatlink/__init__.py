@@ -76,6 +76,14 @@ class CoatLinkPreferences(bpy.types.AddonPreferences):
                ("scene", "Whole scene", "Send every visible object in the scene")],
         default="selected",
     )
+    send_origin: BoolProperty(
+        name="Send to origin",
+        description="Land the model on 3D-Coat's world origin instead of where it sits here: "
+                    "the active object's own origin becomes 0,0,0, and the rest of the "
+                    "selection keeps its offset from it.  A model that comes back still "
+                    "lands where it was sent from",
+        default=False,
+    )
     auto_pull: BoolProperty(
         name="Auto pull",
         description="Watch the exchange folder and take a returned model automatically",

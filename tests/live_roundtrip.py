@@ -9,6 +9,10 @@ File > Export To > CoatLink in 3D-Coat - NOT the official "Bring object
 back", which writes a signal for the official add-on's own folder) and pulls
 it, reporting whether the object was updated in place.
 
+With --origin the cube starts away from the origin and "Send to origin" is on:
+the report then also says where the model sits in the file that went out and
+where the object is after the pull, which is what a round trip must not change.
+
 Nothing is written outside the exchange folder.
 """
 
@@ -18,6 +22,33 @@ import sys
 import time
 
 import bpy
+from mathutils import Vector
+
+#: where the --origin run starts the cube: off the origin on all three axes, so a shift
+#: that did nothing and a shift applied twice both show up in the report
+HOME = (3.0, 2.0, 1.0)
+
+
+def _file_centre(path):
+    """The model's bounding-box centre in coordinates of the file the bridge wrote."""
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            points = [[float(part) for part in line.split()[1:4]]
+                      for line in handle.read().splitlines() if line.startswith("v ")]
+    except OSError:
+        return None
+    if not points:
+        return None
+    return [round((min(point[axis] for point in points)
+                   + max(point[axis] for point in points)) / 2.0, 4) for axis in range(3)]
+
+
+def _world_centre(obj):
+    """Where the object's geometry really is, in scene coordinates."""
+    bpy.context.view_layer.update()
+    corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    return [round((min(corner[axis] for corner in corners)
+                   + max(corner[axis] for corner in corners)) / 2.0, 4) for axis in range(3)]
 
 
 def _arg(name, default=""):
@@ -33,7 +64,8 @@ def main():
     exchange = _arg("--exchange")
     timeout = float(_arg("--timeout", "900"))
     report_path = _arg("--report")
-    report = {"exchange": exchange, "steps": []}
+    origin = "--origin" in sys.argv      # also exercise "Send to origin"
+    report = {"exchange": exchange, "origin": origin, "steps": []}
 
     def step(name, value):
         report["steps"].append({"step": name, "value": str(value)})
@@ -52,6 +84,7 @@ def main():
     prefs.auto_pull = False  # this script drives the pulls itself
     prefs.skip_dialogs = True
     prefs.apply_modifiers = False
+    prefs.send_origin = origin
 
     import coatlink as addon
     step("add-on version", ".".join(str(part) for part in addon.bl_info["version"]))
@@ -71,16 +104,27 @@ def main():
     bpy.ops.mesh.primitive_cube_add(size=2, calc_uvs=True)
     cube = bpy.context.active_object
     cube.name = "BridgeTestCube"
+    if origin:
+        cube.location = HOME
+        bpy.context.view_layer.update()
     material = bpy.data.materials.new("BridgeTestMat")
     material.use_nodes = True
     cube.data.materials.append(material)
     before = len(cube.data.vertices)
     step("cube ready", "%s, %d verts, %d uv layer(s)" % (cube.name, before, len(cube.data.uv_layers)))
+    step("send to origin", prefs.send_origin)
+    step("where the cube is", _world_centre(cube))
 
     out_path = bridge.send(bpy.context)
     sent_at = time.time()       # a signal older than this is a leftover, not a return
     job = applink.import_txt(exchange)
     step("sent", os.path.basename(out_path))
+    step("model centre in the sent file", _file_centre(out_path))
+    step("where the cube is after the send", _world_centre(cube))
+    if origin:
+        centre = _file_centre(out_path)
+        step("and it is on the file's origin",
+             bool(centre) and all(abs(part) < 1e-3 for part in centre))
     step("import.txt written", os.path.isfile(job))
     # the exact job file 3D-Coat is about to read: without it a failed trip cannot be
     # diagnosed afterwards
@@ -123,6 +167,10 @@ def main():
         step("pull messages", " | ".join(messages) or "(none)")
         after = len(cube.data.vertices)
         step("vertices before -> after", "%d -> %d" % (before, after))
+        step("where the cube's geometry is after the pull", _world_centre(cube))
+        if origin:
+            landed = _world_centre(cube)
+            step("came home", all(abs(landed[axis] - HOME[axis]) < 1e-3 for axis in range(3)))
         step("object name kept", cube.name)
         step("material kept", cube.material_slots[0].material.name if cube.material_slots else "none")
         step("link recorded", cube.get("coatlink_file", ""))

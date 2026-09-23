@@ -14,6 +14,8 @@ the same sections in the same order.</sub>
 * `Send` / `Pull` in both directions.  Objects keep their names, their materials and their
   place in the outliner; nothing in your scene is renamed, joined or deleted
 * units and axes are read from 3D-Coat itself, so 2 m in Blender is 2 m in 3D-Coat
+* optional `Send to origin`: hand the model to 3D-Coat's world origin instead of from where it
+  sits in the scene - and take it back to the same place when it returns
 * optional voxel remesh on send (over the exported copy only), and one-click `To voxels` in
   3D-Coat that converts what the Sculpt Tree is showing
 

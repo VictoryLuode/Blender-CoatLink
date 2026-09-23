@@ -44,6 +44,11 @@ SOURCE_KEY = "coatlink_source_name"
 LEGACY_LINK_KEY = "coat_bridge_file"
 LEGACY_SOURCE_KEY = "coat_bridge_source_name"
 
+#: the shift a send applied to land the model on the other end's origin, kept on the
+#: object that carried it so the same model can be put back where it came from
+#: (see _restore_placement).  No earlier build wrote this one.
+OFFSET_KEY = "coatlink_sent_offset"
+
 
 def link_path(obj):
     """The model file an object is linked to - the new key, or the old build's key."""
@@ -64,7 +69,7 @@ def adopt_link(obj):
 
 def clear_link(obj):
     """Drop the link, whichever build recorded it."""
-    for key in (LINK_KEY, LEGACY_LINK_KEY, SOURCE_KEY, LEGACY_SOURCE_KEY):
+    for key in (LINK_KEY, LEGACY_LINK_KEY, SOURCE_KEY, LEGACY_SOURCE_KEY, OFFSET_KEY):
         if key in obj.keys():
             del obj[key]
 
@@ -407,7 +412,12 @@ def send(context):
     for obj in objects:
         adopt_link(obj)
         obj[SOURCE_KEY] = obj.name
+    # "Send to origin" (off by default): the model lands on the other end's world
+    # origin instead of where it sits here (the shift itself is in the try block below)
+    origin = active.matrix_world.translation.copy() if getattr(p, "send_origin", False) else None
     suspended = []
+    shifted = []
+    stuck = []
     remeshed = 0
     try:
         if p.remesh and not p.apply_modifiers:
@@ -420,6 +430,8 @@ def send(context):
         remeshed = (add_remesh(objects, getattr(p, "remesh_voxel", 0.0),
                                getattr(p, "remesh_adaptivity", 0.0))
                     if p.remesh else 0)
+        if origin is not None and origin.length > 0.0:
+            shifted, stuck = _shift_to_origin(objects, origin)
         # the remesh only exists as a modifier, so the export has to apply modifiers
         dropped = transfer.export_model(out_path, fmt, objects,
                                         p.apply_modifiers or bool(remeshed), overrides)
@@ -427,6 +439,7 @@ def send(context):
         try:
             remove_remesh(objects)
         finally:
+            _restore_basis(shifted)
             for modifier, viewport, render in suspended:
                 modifier.show_viewport = viewport
                 modifier.show_render = render
@@ -437,6 +450,11 @@ def send(context):
         # vanished for no reason
         _log("replaced another AppLink's queued job: %s" % replaced)
     applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
+    # the trip is queued now, so the shift this send applied is recorded on the objects
+    # themselves: that is what puts a returned model back where it came from, and a
+    # later send without the option drops the record again
+    for obj in objects:
+        _set_sent_offset(obj, origin)
 
     STATE["target"] = {"object": active.name, "file": out_path, "diagonal": _diagonal(objects[0])}
     STATE["last_send"] = time.time()
@@ -447,12 +465,21 @@ def send(context):
         applied.append("x%s (%s)" % (_trim(scale), scale_from))
     if swap is not None:
         applied.append("swap Y/Z" if swap else "Y up")
+    if origin is not None and origin.length > 0.0:
+        applied.append("to origin %s" % _vector_text(origin))
+    if stuck:
+        applied.append("%d object(s) stayed put" % len(stuck))
     if remeshed:
         applied.append("remeshed" if len(objects) == 1 else "remeshed %d" % remeshed)
     where = " [%s]" % ", ".join(applied) if applied else ""
     _log("sent %s: %s (%s, %d object(s)) diagonal %.4f m%s"
          % (active.name, os.path.basename(out_path), scope, len(objects),
             STATE["target"]["diagonal"] or 0.0, where))
+    if stuck:
+        # an object driven by an action or a driver takes its transform from the
+        # animation system, so the shift could not take: say so rather than let the
+        # model turn up away from the origin with nothing explaining why
+        _log("origin shift did not move: %s (animated?)" % ", ".join(stuck))
 
     if applink.is_coat_running() is False:
         note = " - start 3D-Coat to pick it up"
@@ -787,9 +814,10 @@ def _import_and_link(context, path):
             live = _object(target_name)
             if live is None:
                 raise RuntimeError("target disappeared during mesh replacement")
+            placement_note = _restore_placement(live)
             material_note = _strip_materials(live, file_materials)
             live["coatlink_file"] = path
-            notes = [part for part in (scale_note, material_note) if part]
+            notes = [part for part in (scale_note, placement_note, material_note) if part]
             names.append(live.name + (" (%s)" % " ".join(notes) if notes else ""))
         else:
             # Keep Blender's collision-safe name; do not rename an unrelated object.
@@ -832,6 +860,96 @@ def _diagonal(obj):
         max(c.z for c in corners) - min(c.z for c in corners),
     ))
     return size.length
+
+
+def _vector_text(vector):
+    """(4, -3, 1.5) - short enough for the status line, exact enough to check."""
+    return "(%s)" % ", ".join(_trim(part) for part in vector)
+
+
+def _sent_offset(obj):
+    """The origin shift a send applied to this object, or None when it applied none."""
+    value = obj.get(OFFSET_KEY)
+    if value is None:
+        return None
+    try:
+        return Vector((float(value[0]), float(value[1]), float(value[2])))
+    except (TypeError, ValueError, IndexError):
+        return None  # a scene saved by hand: treat a broken record as no record
+
+
+def _set_sent_offset(obj, offset):
+    """Record (or drop) the shift this send applied, so the trip can be undone."""
+    if offset is None:
+        if OFFSET_KEY in obj.keys():
+            del obj[OFFSET_KEY]
+        return
+    obj[OFFSET_KEY] = [float(offset.x), float(offset.y), float(offset.z)]
+
+
+def _shift_to_origin(objects, offset):
+    """Move the exported selection so `offset` (world space) lands on the origin.
+
+    OBJ carries no transform of its own - the exporter bakes each object's world
+    transform into the file - so "the model arrives on the other end's origin" can
+    only be done by moving the objects for the length of the export and putting them
+    back straight after (see _restore_basis).
+
+    Returns (what to undo, the names that did not actually move).  An object driven by
+    an action or a driver takes its transform from the animation system, so the shift
+    cannot take there: the caller reports that instead of pretending it worked.
+    """
+    saved = []
+    wanted = []
+    for obj in objects:
+        try:
+            saved.append((obj, obj.matrix_basis.copy()))
+            wanted.append((obj, obj.matrix_world.translation - offset))
+            obj.matrix_world = Matrix.Translation(-offset) @ obj.matrix_world
+        except ReferenceError:
+            continue
+    bpy.context.view_layer.update()
+    stuck = []
+    for obj, expected in wanted:
+        try:
+            if (obj.matrix_world.translation - expected).length > 1e-6:
+                stuck.append(obj.name)
+        except ReferenceError:
+            continue
+    return saved, stuck
+
+
+def _restore_basis(saved):
+    """Put a shifted selection back exactly as it was.
+
+    Every object's own basis is restored, parents included: a child whose parent moved
+    with it is then back on its original basis, so nothing is left displaced by the
+    order the two are handled in.
+    """
+    for obj, basis in saved:
+        try:
+            obj.matrix_basis = basis
+        except ReferenceError:
+            continue
+    if saved:
+        bpy.context.view_layer.update()
+
+
+def _restore_placement(obj):
+    """Put a returned model back where it was sent from.
+
+    Only a send with "Send to origin" leaves a shift on the object: that trip dropped
+    the model on the other end's origin, so the geometry coming back sits there rather
+    than where the object lives in this scene.  Undoing it is what stops a round trip
+    from rearranging the scene, and it reads the record on the object itself, so it
+    still works after a reload.
+    """
+    offset = _sent_offset(obj)
+    if offset is None or offset.length <= 0.0:
+        return ""
+    obj.matrix_world = Matrix.Translation(offset) @ obj.matrix_world
+    _log("origin shift undone on %s: %s" % (obj.name, _vector_text(offset)))
+    return "back at %s" % _vector_text(offset)
 
 
 def _match_scale(target):
