@@ -235,19 +235,22 @@ def main():
         if "," in name:
             name = name.split(",", 1)[0]
         check("layout item '%s' exists on the panel" % name, hasattr(panel, name))
-    check("layout starts with the send scope",
-          items[0].startswith("SendScope,[#"), items[0])
+    check("layout starts with the two actions in one row, like the Blender menu",
+          items[:3] == ["[1 1]", "SendToBlender", "PullFromBlender"], items[:3])
     check("the panel keeps no fold-out either", not hasattr(panel, "Advanced"))
     check("so the advanced controls are on screen without unfolding",
           all(name in items for name in ("Detect", "OpenFolder", "StartBlender",
                                          "RemoveLauncher")),
           [item for item in items if item in ("Detect", "OpenFolder", "StartBlender",
                                               "RemoveLauncher", "Advanced")])
+    scope_index = next(index for index, item in enumerate(items)
+                       if item.startswith("SendScope,[#"))
+    check("the scope is the first thing inside the Send options block, like Blender's",
+          items.index("#Send options") < scope_index < items.index("#" + panel.SizeLabel),
+          items[:8])
     check("the scope says what it will send",
-          items[1] == "##" + bridge.SEND_SCOPE_HINTS[int(panel.SendScope)], items[:2])
-    check("then the two actions in one row, like the Blender menu",
-          items[2] == "[1 1]" and items[3] == "SendToBlender" and items[4] == "PullFromBlender",
-          items[:5])
+          items[scope_index + 1] == "##" + bridge.SEND_SCOPE_HINTS[int(panel.SendScope)],
+          items[scope_index:scope_index + 2])
     check("with the sections headed like the Blender menu's",
           "Send options" in [item[1:] for item in items if item.startswith("#")]
           and "Setup" in [item[1:] for item in items if item.startswith("#")],

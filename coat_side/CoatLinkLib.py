@@ -872,12 +872,7 @@ class CoatLinkPanel(object):
     def ui(self):
         self.process()  # cached controls only; no scene access
         items = []
-        items.append("SendScope,[%s]" % SEND_SCOPE_LABELS)
-        try:
-            items.append("##" + SEND_SCOPE_HINTS[int(self.SendScope)])
-        except (IndexError, TypeError, ValueError):
-            pass
-        # the two actions side by side, like the Blender menu draws them
+        # the two actions side by side, first, exactly like the Blender menu draws them
         items.append("[1 1]")
         items.append("SendToBlender")
         items.append("PullFromBlender")
@@ -886,6 +881,11 @@ class CoatLinkPanel(object):
         items.append("##makes every visible object in the Sculpt Tree a voxel volume")
         items.append("---")
         items.append("#Send options")
+        items.append("SendScope,[%s]" % SEND_SCOPE_LABELS)
+        try:
+            items.append("##" + SEND_SCOPE_HINTS[int(self.SendScope)])
+        except (IndexError, TypeError, ValueError):
+            pass
         items.append("#" + self.SizeLabel)
         items.append("ReductionPercent,[0,100]")
         items.append("RefreshStats")

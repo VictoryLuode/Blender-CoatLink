@@ -160,11 +160,14 @@ def main():
         check("the bar adds nothing on the left side", (coat_ui.topbar_drawer(_Self(), _context("LEFT")),
                                                         len(entries))[1] == 1, entries)
 
-    # ---- the menu itself: scope, the two actions, then the settings ----
+    # ---- the menu itself: the two actions, then the options and settings ----
     drawn = []
     boxed_labels = []
 
     class _MenuLayout(object):
+        def row(self, align=False):
+            return _MenuColumn()
+
         def column(self, align=False):
             return _MenuColumn()
 
@@ -207,23 +210,26 @@ def main():
         layout = _MenuLayout()
 
     coat_ui.COATLINK_PT_menu.draw(_MenuSelf(), bpy.context)
-    check("the menu starts with the Send options heading",
-          drawn[0] == ("label", "Send options"), drawn[:3])
+    check("the menu opens on the two actions",
+          drawn[:2] == [("operator", "coatlink.send", "Send"),
+                        ("operator", "coatlink.pull", "Pull")], drawn[:3])
+    check("then the Send options heading, so the options read as one block",
+          drawn[2] == ("separator", None) and drawn[3] == ("label", "Send options"),
+          drawn[:5])
     check("under it the scope, then the import mode",
-          drawn[1] == ("prop", "scope", "Scope")
-          and drawn[2] == ("prop", "mode", "Import as"), drawn[:4])
+          drawn.index(("prop", "scope", "Scope")) < drawn.index(("prop", "mode", "Import as")),
+          drawn[:8])
+    check("and both sit right under that heading",
+          drawn.index(("label", "Send options"))
+          < drawn.index(("prop", "scope", "Scope"))
+          < drawn.index(("prop", "mode", "Import as")), drawn[:8])
     check("then the two actions, named like the 3D-Coat panel's",
           ("operator", "coatlink.send", "Send") in drawn
           and ("operator", "coatlink.pull", "Pull") in drawn, drawn[:4])
-    check("in that order: scope, import as, Send, Pull",
-          drawn.index(("prop", "scope", "Scope"))
-          < drawn.index(("prop", "mode", "Import as"))
-          < drawn.index(("operator", "coatlink.send", "Send"))
-          < drawn.index(("operator", "coatlink.pull", "Pull")), drawn[:5])
     check("Send to origin sits with the other send options",
           drawn.index(("prop", "mode", "Import as"))
           < drawn.index(("prop", "send_origin", "Send to origin"))
-          < drawn.index(("operator", "coatlink.send", "Send")), drawn[:6])
+          < drawn.index(("label", "Return")), drawn[:10])
 
     folded = [item[1] for item in drawn if item[0] == "prop" and item[1] == "show_advanced"]
     check("nothing is hidden behind a fold-out", not folded, folded)
@@ -240,7 +246,7 @@ def main():
     divider_positions = [index for index, item in enumerate(drawn) if item[0] == "separator"]
     heading_positions = [index for index, item in enumerate(drawn) if item[0] == "label"]
     check("there is one divider per section boundary",
-          len(divider_positions) == 3, divider_positions)
+          len(divider_positions) == 4, divider_positions)
     check("every divider introduces a section heading",
           all(drawn[index + 1][0] == "label" for index in divider_positions),
           [(drawn[i], drawn[i + 1]) for i in divider_positions])
@@ -248,11 +254,16 @@ def main():
           all(drawn[index + 1] == ("label", None) or drawn[index + 1][0] == "label"
               for index in divider_positions), divider_positions)
     check("the four sections are all present in order",
-          [drawn[index + 1][1] for index in divider_positions] == ["Return", "Setup", "Status"],
+          [drawn[index + 1][1] for index in divider_positions]
+          == ["Send options", "Return", "Setup", "Status"],
           [drawn[index + 1] for index in divider_positions])
-    check("only the remesh sub-group is framed, so no section is boxed",
+    check("only the remesh settings are framed, so no section is boxed",
           [item for item in drawn if item[0] == "box"] == [("box", None)]
           and boxed_labels == [], boxed_labels)
+    check("the remesh switch sits on its own line, above the box it greys out",
+          drawn.index(("prop", "remesh", "Remesh on send"))
+          < drawn.index(("box", None))
+          < drawn.index(("prop", "remesh_voxel", "Voxel size (0 = auto)")), drawn[:16])
     check("Status is a section like the others, with the readout under it",
           drawn.index(("label", "Status")) < drawn.index(("operator", "coatlink.copy_details", "Copy details")),
           drawn[-6:])

@@ -178,26 +178,31 @@ class COATLINK_PT_menu(bpy.types.Panel):
             layout.label(text="Preferences unavailable", icon="ERROR")
             return
 
-        # Same order and wording as the 3D-Coat panel: the options, the two actions,
-        # the return settings, then Setup.  Nothing behind a fold-out, but grouped so
-        # it can be read at a glance: the remesh settings sit in a box of their own
-        # because they belong together, and same-kind rows share a line.
+        # The two actions lead, so the panel opens on the thing the add-on is for.  The
+        # options that shape them follow, then the remaining sections - same sections,
+        # same order, same words as the 3D-Coat panel (which opens on its two buttons
+        # too).  Nothing sits behind a fold-out: tidiness comes from grouping - the
+        # remesh settings get a box of their own, same-kind switches share a line, and
+        # anything with a droplist keeps a line to itself so its text is not cut off.
+        row = layout.row(align=True)
+        row.scale_y = 1.6
+        row.operator("coatlink.send", text="Send", icon="EXPORT")
+        row.operator("coatlink.pull", text="Pull", icon="IMPORT")
+
         column = layout.column(align=True)
+        column.separator()
         column.label(text="Send options")
         column.prop(p, "scope", text="Scope")
         column.prop(p, "mode", text="Import as")
         column.prop(p, "send_origin", text="Send to origin")
+        column.prop(p, "remesh", text="Remesh on send")
+        # The box frames the remesh settings themselves - they are one idea, and they
+        # grey out as a block while the switch right above them is off.
         box = column.box()
-        box.prop(p, "remesh", text="Remesh on send")
         settings = box.column(align=True)
         settings.enabled = p.remesh     # always drawn, greyed when it does nothing
         settings.prop(p, "remesh_voxel", text="Voxel size (0 = auto)")
         settings.prop(p, "remesh_adaptivity", text="Adaptivity")
-        # the two actions, given the room the point of the add-on deserves
-        row = column.row(align=True)
-        row.scale_y = 1.4
-        row.operator("coatlink.send", text="Send", icon="EXPORT")
-        row.operator("coatlink.pull", text="Pull", icon="IMPORT")
         column.separator()
         column.label(text="Return")
         row = column.row(align=True)
