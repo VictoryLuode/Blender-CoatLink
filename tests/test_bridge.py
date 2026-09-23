@@ -344,6 +344,42 @@ def main():
           "C:" not in helper_text and "Users" not in helper_text, helper_text[:200])
     check("the helper would compile inside 3D-Coat",
           bool(compile(helper_text, helper, "exec")))
+
+    # ---- and the import.py 3D-Coat runs by itself -------------------------------
+    # The job file names the helper with [pythonfile ...], but that line is read without
+    # being executed on 2025.17.  What 3D-Coat does run is a file named import.py beside
+    # the job, so the same work is handed over twice.  The unparenting cannot be checked
+    # without a 3D-Coat tree, but this file has to exist, compile, name the helper
+    # absolutely (its own __file__ is not guaranteed) and reach both notes when run.
+    shim = applink.import_shim_path(EXCHANGE)
+    check("send writes the import.py 3D-Coat runs itself", os.path.isfile(shim), shim)
+    shim_text = read(shim)
+    check("it compiles", bool(compile(shim_text, shim, "exec")))
+    check("it names the helper and its own note by absolute path",
+          repr(helper) in shim_text and repr(applink.import_shim_marker(EXCHANGE)) in shim_text,
+          shim_text.splitlines()[:4])
+    check("it says it ran before it runs the helper",
+          shim_text.index("import.py ran") < shim_text.index("exec(compile("), shim_text[:120])
+
+    shim_note = applink.import_shim_marker(EXCHANGE)
+    helper_note = applink.after_import_marker(EXCHANGE)
+    for stale in (shim_note, helper_note):
+        if os.path.isfile(stale):
+            os.remove(stale)
+    os.environ["COATLINK_DOCS"] = tempfile.mkdtemp(prefix="shim_docs.")
+    try:
+        exec(compile(shim_text, shim, "exec"), {"__name__": "__main__"})
+    finally:
+        del os.environ["COATLINK_DOCS"]
+    check("running it leaves its own note", os.path.isfile(shim_note), shim_note)
+    check("with a date in it", read(shim_note)[:4].isdigit(), read(shim_note))
+    check("and it reaches the helper, which notes itself too",
+          os.path.isfile(helper_note), helper_note)
+    # leave the exchange root as it was found: a fresh note here would look like evidence
+    # to the detail-line checks further down
+    for written in (shim_note, helper_note):
+        if os.path.isfile(written):
+            os.remove(written)
     check("import.txt: posix paths only", "\\" not in "".join(lines), lines)
 
     # a mode that is not voxel must leave the helper exactly as the add-on ships it

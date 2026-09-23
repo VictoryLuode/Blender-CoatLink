@@ -5,16 +5,23 @@
 """Drop the parent node 3D-Coat puts around an imported model.
 
 3D-Coat groups an imported file under a node named after it (`bridge.obj` ->
-"bridge"), and Blender has no equivalent: a Send of Hull and Turret arrives as
-`bridge > Hull, Turret` instead of `Hull, Turret`.  This script - which import.txt
-hands to 3D-Coat with `[pythonfile ...]`, so it runs right after the import - moves
-the imported objects up to the sculpt root and removes the parent that is left
-empty, and the sculpt tree ends up looking like the Blender outliner.
+`bridge`), and Blender has no equivalent: a Send of Hull and Turret arrives as
+`bridge > Hull, Turret` instead of `Hull, Turret`.  This script moves the imported
+objects up to the sculpt root and removes the parent that is left empty, and the
+sculpt tree ends up looking like the Blender outliner.
 
-Nothing is deleted except that empty parent, and every step is guarded: a failure
-is written to the shared log and never interrupts the import.  This file is copied
-into the exchange folder by the Blender side, so it has to work on its own - no
-imports from the add-on.
+It is started in two ways, because one of them is not enough:
+
+  * `<root>/import.py` - the file 3D-Coat runs itself when it finds it beside the job
+    file, and deletes once the import is through (see IMPORT_SHIM).  This is the
+    documented mechanism and the one that works.
+  * `<root>/...` + `[pythonfile ...]` in the job file - the line is read (3D-Coat
+    prints it in its log) but not executed on 2025.17, so it is kept only as a spare.
+
+Nothing is deleted except that empty parent, and every step is guarded: a failure is
+written to the shared log and never interrupts the import.  This file is copied into
+the exchange folder by the Blender side, so it has to work on its own - no imports
+from the add-on.
 """
 
 import os
@@ -34,6 +41,53 @@ VOXELIZE = False
 
 #: same file the 3D-Coat side writes, so both halves of a trip land in one log
 LOG_NAME = "CoatBridge.log"
+
+#: 3D-Coat runs a file with this name when it finds one beside the job file, and deletes
+#: it - with the job file - once the import is through.  It is the documented way to run
+#: a script after an AppLink import, and the only one that works: the `[pythonfile ...]`
+#: line the job file also carries is read but not executed on 2025.17.
+IMPORT_SHIM_NAME = "import.py"
+
+#: The generated import.py.  @HELPER@ / @MARKER@ are replaced with absolute paths: it is
+#: not known whether 3D-Coat gives this file a `__file__`, and baking the paths in cannot
+#: be wrong.  It says it ran before it does anything, because "3D-Coat did not run it"
+#: and "it ran and stopped at once" have to be told apart.  The helper is run by hand
+#: rather than by its `__name__` guard, so a job file that starts this either as a script
+#: or as a module still runs it exactly once.
+IMPORT_SHIM = '''\
+# Written by CoatLink for one job: 3D-Coat runs a file of this name when it finds it
+# beside import.txt, then deletes it together with the job file.
+HELPER = @HELPER@
+MARKER = @MARKER@
+
+import time
+
+try:
+    with open(MARKER, "w", encoding="utf-8", newline="\\n") as handle:
+        handle.write("%s | import.py ran\\n" % time.strftime("%Y-%m-%d %H:%M:%S"))
+except Exception:
+    pass
+
+try:
+    with open(HELPER, "r", encoding="utf-8") as handle:
+        source = handle.read()
+    namespace = {"__name__": "coatlink_after_import", "__file__": HELPER}
+    exec(compile(source, HELPER, "exec"), namespace)
+    namespace["main"]()
+except Exception as exc:
+    try:
+        with open(MARKER, "a", encoding="utf-8", newline="\\n") as handle:
+            handle.write("import.py could not run the helper: %r\\n" % (exc,))
+    except Exception:
+        pass
+'''
+
+
+def import_shim_source(helper_path, marker_path):
+    """The text of the import.py job's own script, with both paths baked in."""
+    return (IMPORT_SHIM
+            .replace("@HELPER@", repr(helper_path))
+            .replace("@MARKER@", repr(marker_path)))
 
 
 def documents_folder():

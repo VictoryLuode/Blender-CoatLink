@@ -10,8 +10,10 @@ Documents/AppLinks/3D-Coat/Exchange/     <- the job file goes here (3D-Coat poll
         bridge.obj                              the model, both ways: every send and every return overwrites it
         export.txt                              3D-Coat writes it when it hands a model back
         pull-history.json                       what we already imported, so a restart does not re-import it
-    CoatLink_AfterImport.py                  run by 3D-Coat after the import: unparents the objects
-    CoatLink_AfterImport.py.ran              the helper's own note that it ran: dated, written first
+    CoatLink_AfterImport.py                  the script that unparents the import: dropped in by the add-on
+    CoatLink_AfterImport.py.ran              its own note that it started: dated, written before anything else
+    import.py                                the file 3D-Coat runs itself after an import: runs the script above
+    import.py.ran                            and the note that it got that far
 
 Documents/3DCoat/Exchange/               <- 3D-Coat's own root: watched, never written to
     BlenderBridge/                           a return from an older session can still be sitting here
@@ -58,11 +60,14 @@ leaves the other side reading a stale axis/unit record, which is exactly what th
   percentage means *removed*, not *kept*.
 * **Textures.**  A droplist: let 3D-Coat decide, force on, force off.
 * **No leftover parent node.**  3D-Coat wraps an imported file in a node named after it
-  (`bridge.obj` → "bridge"), which Blender has no equivalent of.  The job file carries
-  `[pythonfile CoatLink_AfterImport.py]`, so 3D-Coat runs a short script right after the
-  import: the objects move up to the sculpt root and the empty wrapper is deleted - only that
-  wrapper, and only if it belongs to this model.  A Pull made from the panel does the same in
-  code.  The sculpt tree then matches the Blender outliner.
+  (`bridge.obj` → "bridge"), which Blender has no equivalent of.  The unparenting is handed
+  over twice, because one handover is not enough: the job file names the script with
+  `[pythonfile CoatLink_AfterImport.py]`, and the same script is dropped in beside the job as
+  `import.py` - the file 3D-Coat runs by itself when it finds it there, and the only one of
+  the two that actually runs (on 2025.17 the directive is read - 3D-Coat prints it in its log
+  - but never executed).  Either way the objects move up to the sculpt root and the empty
+  wrapper is deleted - only that wrapper, and only if it belongs to this model.  A Pull made
+  from the panel does the same in code.  The sculpt tree then matches the Blender outliner.
 * **Selection, not the scene.**  `Send` exports `Scene.current()` with
   `with_subtree=True, all_selected=False`, so sculpting in progress cannot leak into Blender,
   and a return that loses its object groups is refused rather than merged.

@@ -42,6 +42,8 @@ import os
 import platform
 import subprocess
 
+from . import after_import
+
 # Folder name that shows up in 3D-Coat's File > Export To menu.  Kept separate
 # from the official AppLink folder ("Blender") so both add-ons can coexist.
 APP_FOLDER = "BlenderBridge"
@@ -283,9 +285,30 @@ def after_import_marker(root):
 
     The helper writes this before it touches anything, so it works even when the
     shared log cannot be reached from inside 3D-Coat - and its *absence* is not proof
-    the step never ran, only a dated one from this trip is proof that it did.
+    the step never ran, only a dated one from this trip is proof that it did.  See
+    after_import_markers() for every note a trip can leave.
     """
     return after_import_path(root) + ".ran"
+
+
+def import_shim_path(root):
+    """The job's own import.py: the file 3D-Coat runs when it finds it there."""
+    return os.path.join(root, after_import.IMPORT_SHIM_NAME)
+
+
+def import_shim_marker(root):
+    """Where that file says it started: beside itself, like the helper's own note."""
+    return import_shim_path(root) + ".ran"
+
+
+def after_import_markers(root):
+    """Every note that says the after-import step started, in one list.
+
+    Two files can leave one: the helper itself, and the job's ``import.py`` - which is
+    the file 3D-Coat actually runs, and on some builds the only one that gets a chance
+    to.  A note proves the step started, never that it worked.
+    """
+    return [after_import_marker(root), import_shim_marker(root)]
 
 
 def write_after_import(root, voxelize=False):
@@ -312,15 +335,37 @@ def write_after_import(root, voxelize=False):
     return target
 
 
+def write_import_shim(root):
+    """Drop the import.py 3D-Coat runs itself; returns its path (or "" on failure).
+
+    This is the working half of the after-import step.  The job file still names the
+    helper with `[pythonfile ...]`, but that line is read without being executed on
+    2025.17, so the unparenting rides on this file instead - the mechanism the shipped
+    AppLinks spec describes, and the one 3D-Coat's own log shows it running.
+
+    Written before import.txt: that file's appearance is what starts the import.
+    """
+    helper = after_import_path(root)
+    if not os.path.isfile(helper):
+        return ""
+    script = after_import.import_shim_source(helper, import_shim_marker(root))
+    target = import_shim_path(root)
+    tmp = target + ".tmp"
+    _write(tmp, script)
+    os.replace(tmp, target)
+    return target
+
+
 def write_import_txt(root, load_path, return_path, mode, skip_dialogs=True):
     """Write the job file.  Must be the LAST file created: its appearance is
     what makes 3D-Coat start the import.
 
     [SkipImport]/[SkipExport] let 3D-Coat load and send back the model with its
-    current settings instead of stopping at a dialog every time.  The last line
-    hands 3D-Coat the script that unparents the imported objects (see
-    AFTER_IMPORT_SOURCE): it runs after the import, which is exactly when the
-    parent node exists.
+    current settings instead of stopping at a dialog every time.  The last line hands
+    3D-Coat the script that unparents the imported objects (see AFTER_IMPORT_SOURCE):
+    it names the file for the engine's own directive, and the same script is dropped in
+    beside the job as import.py, which is the file 3D-Coat runs by itself - the
+    directive on its own does not run anything on 2025.17.
 
     """
     lines = [_slash(load_path), _slash(return_path), "[%s]" % mode]
@@ -330,6 +375,7 @@ def write_import_txt(root, load_path, return_path, mode, skip_dialogs=True):
     helper = write_after_import(root, voxelize=(mode == "vox"))
     if helper:
         lines.append("[pythonfile %s]" % _slash(helper))
+        write_import_shim(root)
     target = import_txt(root)
     tmp = target + ".tmp"
     _write(tmp, "\n".join(lines) + "\n")

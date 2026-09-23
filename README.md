@@ -123,10 +123,10 @@ from the official AppLink: [docs/protocol.md](docs/protocol.md).
 
 Blender 4.2+ (developed on 5.2 LTS) · 3D-Coat **2025.12 or newer** (tested against 2025 and
 2026) · **Windows** - the installers, the exchange layout and both test suites assume it.
-The `[pythonfile]` step the return trip relies on was added in 3D-Coat 2025.12, so older
-builds are not supported; 3D-Coat 2026 keeps its own Python and user data in versioned
-folders and both halves look those up rather than assuming a name.  3D-Coat ships the Python
-its half needs, so nothing else has to be installed.
+The unparenting step after an import - 3D-Coat runs the script the add-on drops beside the job -
+needs 3D-Coat 2025.12, so older builds are not supported; 3D-Coat 2026 keeps its own Python and
+user data in versioned folders and both halves look those up rather than assuming a name.
+3D-Coat ships the Python its half needs, so nothing else has to be installed.
 
 ## Known limitations
 
@@ -163,7 +163,7 @@ script and exchange folders, and the 3D-Coat tests run against a stand-in `coat`
 3D-Coat's own Python.  The scripts pick the newest Blender build and 3D-Coat's bundled Python
 themselves; `BLENDER=`, `COAT_PYTHON=` and `COAT_DIR=` override.
 
-Current counts: Blender main suite **196/196** plus every regression script and both installer
+Current counts: Blender main suite **205/205** plus every regression script and both installer
 smoke tests; 3D-Coat logic **166/166**, tools **29/29**, tree report **12/12**, installer
 checks, API stub check, idle-redraw check and probe dry run.
 

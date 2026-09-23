@@ -198,12 +198,12 @@ def after_import_seen(roots=None):
     if not sent:
         return None
     for root in roots or []:
-        marker = applink.after_import_marker(root)
-        try:
-            if os.path.isfile(marker) and os.path.getmtime(marker) >= sent - 1.0:
-                return True
-        except OSError:
-            continue
+        for marker in applink.after_import_markers(root):
+            try:
+                if os.path.isfile(marker) and os.path.getmtime(marker) >= sent - 1.0:
+                    return True
+            except OSError:
+                continue
     try:
         with open(applink.shared_log_path(), "rb") as handle:
             handle.seek(0, os.SEEK_END)

@@ -21,17 +21,18 @@ so.  The short version is on the [README](../README.md).
   that make the trip silent (3D-Coat documents `[SkipImport]` as "skip the import dialog,
   default options will be used", and the official Blender AppLink never adds it), and the
   `[pythonfile …]` line.  **`To voxels` in the panel is the reliable route** - see below.
-* **`[pythonfile …]` execution is not confirmed.**  It is what unparents the imported objects
-  and what the optional voxel conversion of an import rides on.  The panel's detail lines now
-  report it as evidence: a dated, microsecond-resolution record means 3D-Coat ran the helper,
-  while a missing, unreadable, undated or old record only means **not confirmed** - never proof
-  that it did not run.  A record also does not say the conversion succeeded.  On the live trip
-  of 2026-09-23 (3D-Coat 2025.17) the job file carried the line and 3D-Coat's log shows it
-  reading the file, but no line and no marker appeared - so the helper is now believed **not to
-  have run**, and that trip's imported objects stayed under their import parent.  To tell
-  "never ran" from "ran with nowhere to write", the helper writes a dated marker beside itself
-  in the exchange root (`CoatLink_AfterImport.py.ran`) as its first action, before it touches
-  3D-Coat's API or any other folder; the panel reads it as the same evidence as a log line.
+* **`[pythonfile …]` is not executed on 2025.17, and the unparenting no longer depends on it.**
+  A live trip on 2026-09-23 (Blender 5.2, 3D-Coat 2025.17) settled it: the job file carried the
+  line, 3D-Coat's own log printed it as part of the job, and nothing ran - no `PyImportFile`
+  line for the helper, no marker, no log line.  The unparenting now rides on `import.py`, which
+  is what that log shows being run and what the shipped AppLinks spec describes: a file with
+  that name beside the job is executed by 3D-Coat itself, and deleted with the job when the
+  import is through.  The `[pythonfile …]` line is kept as a spare for builds that do run it.
+  **Not yet confirmed on a live pair:** that 3D-Coat runs *our* `import.py` (it also has a file
+  of that name of its own), so the panel reports the step as evidence, not as a guarantee.  Two
+  dated notes are accepted as that evidence - the job's `import.py.ran` and the helper's
+  `CoatLink_AfterImport.py.ran` - and a note says the step started, never that the voxel
+  conversion or the unparenting then succeeded.
 * **The selected-node export has not been through a live round trip.**  The API calls are the
   documented ones (`Scene.current()`, `fromVolume`, `fromReducedVolume`, `Mesh.Write`), the OBJ
   it produces is validated line by line, and everything that could go wrong has a test - but
@@ -73,11 +74,12 @@ so.  The short version is on the [README](../README.md).
   logs it when it replaces a job that was not its own, and it never imports or deletes a job
   that points outside its own `BlenderBridge` folder - earlier releases did, which could take
   the official add-on's queued model with it.
-* **3D-Coat 2025.12 or newer.**  The `[pythonfile …]` line that unparents an imported model is
-  documented for 2025.12 and later (and `[scriptfile]` stopped working in that release), so
-  older builds do not get the unparenting step and may not import at all.  Nothing here has
-  been run against 4.8.x/2024, whose user data folders are named differently again
-  (`3D-CoatV48`, with the `Scripts` folder directly under it).
+* **3D-Coat 2025.12 or newer.**  The two handovers that unparent an imported model - the
+  `[pythonfile …]` line and the job's `import.py` - are both documented for 2025.12 and later
+  (`[scriptfile]` stopped working in that release), so older builds do not get the unparenting
+  step and may not import at all.  Nothing here has been run against 4.8.x/2024, whose user
+  data folders are named differently again (`3D-CoatV48`, with the `Scripts` folder directly
+  under it).
 * **Button icons need an elevated run** when 3D-Coat lives under `C:\Program Files`; they are
   skipped and reported otherwise, and the buttons use their default icons.
 * **No `.3dcpack` is shipped, and that is measured, not assumed.**  A pack is a zip whose

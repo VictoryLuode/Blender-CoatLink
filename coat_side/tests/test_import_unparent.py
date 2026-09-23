@@ -156,6 +156,33 @@ def main():
     check("dated, and saying it started rather than that it worked",
           marker_text[:4].isdigit() and "helper started" in marker_text, marker_text)
 
+    # ---- and the import.py 3D-Coat runs by itself ------------------------------
+    # The job file names the helper with [pythonfile ...], but that line is read without
+    # being executed on 2025.17; what 3D-Coat does run is a file named import.py sitting
+    # beside the job.  Generate the one the Blender side writes and run it against this
+    # fake 3D-Coat: the tree has to come out unparented, and both notes have to appear.
+    shim_path = os.path.join(tmp, "import.py")
+    shim_marker = shim_path + ".ran"
+    with open(shim_path, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(helper.import_shim_source(helper_copy, shim_marker))
+    coat.root.children.clear()
+    coat.moves.clear()
+    coat.removed.clear()
+    bridge_imported_tree(coat, children=("Hull", "Turret"))
+    shim_text = open(shim_path, "r", encoding="utf-8").read()
+    check("the generated import.py compiles inside 3D-Coat",
+          bool(compile(shim_text, shim_path, "exec")))
+    check("it names the helper by absolute path, so it needs no __file__ of its own",
+          repr(helper_copy) in shim_text and os.path.isabs(helper_copy),
+          shim_text.splitlines()[:6])
+    exec(compile(shim_text, shim_path, "exec"), {"__name__": "__main__"})
+    names = [node.name() for node in coat.root.children]
+    check("running it unparents the import the way the helper does", names == ["Hull", "Turret"], names)
+    check("the empty wrapper is gone", "bridge" in coat.removed, coat.removed)
+    check("it says it ran before it did anything", os.path.isfile(shim_marker), shim_marker)
+    check("and the helper behind it says so too",
+          os.path.isfile(helper.marker_path()), helper.marker_path())
+
     # ---- our own Pull button: the same result through code --------------------
     coat.root.children.clear()
     coat.moves.clear()
