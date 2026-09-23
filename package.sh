@@ -49,8 +49,11 @@ if [ -z "$PYTHON" ]; then
 else
     STAGE="$(mktemp -d)"
     trap 'rm -rf "$STAGE"' EXIT
-    "${ARCHIVE[@]}" "$REF:coat_side" | tar -x -C "$STAGE"
-    "$PYTHON" "$STAGE/tools/pack_3dcpack.py" "$STAGE" "$PACK" >/dev/null
+    # git archive writes a zip here; unpack it with unzip, not tar
+    "${ARCHIVE[@]}" "$REF:coat_side" -o "$STAGE/coat_side.zip" || exit 1
+    unzip -q "$STAGE/coat_side.zip" -d "$STAGE" || exit 1
+    rm -f "$STAGE/coat_side.zip"
+    "$PYTHON" "$STAGE/tools/pack_3dcpack.py" "$STAGE" "$PACK" >/dev/null || exit 1
 fi
 
 echo
