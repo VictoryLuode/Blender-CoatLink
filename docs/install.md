@@ -1,22 +1,22 @@
 # The installation doors, installing by hand, and explicit paths
 
-Every door runs the same installer; they differ only in what they fetch and how they start:
+The 3D-Coat half is installed by 3D-Coat itself, from its own package format; the Blender half is
+installed by Blender.  Both also have a command-line door, for when that is easier:
 
 | Door | What the user does | Needs |
 | --- | --- | --- |
-| `CoatLink-Setup.cmd` | downloads it, double-clicks | Windows, `curl` (built in since Windows 10) |
+| `CoatLink-<version>.3dcpack` | **Scripts > Install Extension** in 3D-Coat, then tick **CoatLink** once under **Windows > Panels > Extensions** and restart | 3D-Coat alone: nothing to unzip, no shell, no elevation |
 | `install.cmd` | unzips the release, double-clicks | Windows |
-| `CoatLink-Setup.py` | downloads it, pastes one line into **Scripts > Show Python console** | nothing else - 3D-Coat's own Python runs it |
-| one console line | pastes the URL line from the [README](../README.md) | an internet connection |
 | `install.sh` / `install.ps1` | runs it in a shell (PowerShell does both halves) | bash, or Windows PowerShell |
 
-**Why there is no `.3dcpack`:** 3D-Coat's own extension packs are the neatest idea, and they were
-measured rather than guessed at.  A pack installs files relative to 3D-Coat's user folder, but
+**Why the pack needs that one tick:** a pack installs files relative to 3D-Coat's user folder, but
 every `ExtraMenuItems` XML needs an **absolute** script path - `%USERPROFILE%\…`, `~/…` and even
 `Scripts/…` relative to the user folder all fail in a live 3D-Coat - and a pack cannot register an
-extension either, because a `cExtension` folder that is not listed in
-`cExtensions/startup.txt` is not loaded, and a pack can only replace that file.  A pack would
-therefore end with "now run this script once": one step *more* than `CoatLink-Setup.cmd`.
+extension either: a `cExtension` folder that is not listed in `cExtensions/startup.txt` is not
+loaded, and a pack can only replace that file, never add a line to it.  So the extension writes
+its own two XML files the first time 3D-Coat starts it, and the tick in the Extensions panel is the
+one step no package can do on your behalf.  Every door ends in the same folder, so switching
+between them changes nothing.
 
 The rest of this page is for the case where you would rather place the files yourself, or where
 automatic detection needs help.
@@ -30,10 +30,9 @@ it ships) moves with it.
 | What | From | To |
 | --- | --- | --- |
 | Blender add-on | `coatlink\` (8 `.py` files) | `%APPDATA%\Blender Foundation\Blender\<ver>\scripts\addons\coatlink\` |
-| 3D-Coat scripts | `coat_side\CoatLink*.py` (6 files: the library, the receipts helper, the scoped-export helper and the three entries) | `<Documents>\3DCoat\UserPrefs\Scripts\CoatLink\` |
-| Tool buttons | `coat_side\tools\CoatLinkTools.xml.in` | `…\Scripts\ExtraMenuItems\CoatLinkTools.xml`, with every `__SCRIPT_DIR__` replaced by the `CoatLink` folder above, forward slashes (`C:/Users/…/CoatLink`) |
-| Scripts menu entry | the block below | `…\Scripts\ExtraMenuItems\CoatLink.xml` |
-| Button icons (optional) | `coat_side\icon\*.png` (4 files) | `<3D-Coat program folder>\data\Textures\icons64\` |
+| 3D-Coat extension | `coat_side\CoatLink.py`, `CoatLinkLib.py`, `CoatLinkMenu.py`, `CoatLinkReceipts.py`, `CoatLinkScopedExport.py` and the three entry scripts (8 files - exactly what `SCRIPT_FILES` lists, and what the `.3dcpack` carries) | `<Documents>\3DCoat\UserPrefs\Scripts\cExtensions\CoatLink\` |
+| The startup line | - | `…\Scripts\cExtensions\startup.txt`, one added line: `CoatLink` (a copy of the original is kept as `startup.txt.bak`) |
+| Menu entry and tool buttons | - | `…\Scripts\ExtraMenuItems\CoatLink.xml` and `CoatLinkTools.xml`, written by the extension itself on its first start: the `Command` entries carry absolute paths, so they cannot be shipped |
 
 An earlier build called everything `CoatBridge` / `coat_bridge`: the add-on folder, the 3D-Coat
 scripts folder (now `Scripts\CoatLink`), the exchange folder (now `<exchange>\CoatLink`), the

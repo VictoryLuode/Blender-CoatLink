@@ -87,23 +87,24 @@ so.  The short version is on the [README](../README.md).
   step and may not import at all.  Nothing here has been run against 4.8.x/2024, whose user
   data folders are named differently again (`3D-CoatV48`, with the `Scripts` folder directly
   under it).
-* **Button icons need an elevated run** when 3D-Coat lives under `C:\Program Files`; they are
-  skipped and reported otherwise, and the buttons use their default icons.
-* **No `.3dcpack` is shipped, and that is measured, not assumed.**  A pack is a zip whose
-  entries land relative to 3D-Coat's user folder, so it *could* carry the scripts - but nothing
-  in it can create a working menu entry, and the experiment that showed this was:
+* **The tool buttons have no icon of their own, by choice.**  A button icon has to live in
+  3D-Coat's program folder (`data/Textures/icons64`), which needs administrator rights, so the
+  buttons use 3D-Coat's default icon and nothing outside 3D-Coat's user folder is ever written.
+  That is also why the `.3dcpack` installs with no elevation prompt at all.
+* **The `.3dcpack` needs one tick before it runs, and that is 3D-Coat's design, not ours.**  The
+  package carries the scripts (into `UserPrefs/Scripts/cExtensions/CoatLink/…`), but:
   1. every `ExtraMenuItems` XML that exists (ours, LKS's, CoatMenu's, 3D-Coat's own template)
-     carries an **absolute** script path, and
-  2. a pack cannot know the absolute path of the machine it lands on: `%USERPROFILE%\…`,
-     `%USERPROFILE%/…`, `~/…` and a path relative to the user folder (`Scripts/…`) were all
-     tried in a live 3D-Coat and all failed with "file not found" - only the absolute path
-     worked, and
-  3. a pack cannot self-register either: a `cExtension` folder that is not listed in
-     `cExtensions/startup.txt` is **not loaded**, and a pack can only replace that file, not add
-     a line to it (which would drop the user's other extensions).
-  So a pack would still end with "and now run this script once" - one step more than
-  `CoatLink-Setup.cmd`, which is verified working.  The extension-pack door stays closed until
-  one of those three facts changes.
+     carries an **absolute** script path, and a pack cannot know the absolute path of the machine
+     it lands on: `%USERPROFILE%\…`, `%USERPROFILE%/…`, `~/…` and a path relative to the user
+     folder (`Scripts/…`) were all tried in a live 3D-Coat and all failed with "file not found" -
+     only the absolute path worked, and
+  2. a pack cannot self-register either: a `cExtension` folder that is not listed in
+     `cExtensions/startup.txt` is **not loaded**, and a pack can only replace that file, not add a
+     line to it (which would drop the user's other extensions).
+  The extension deals with the first one itself: on its first start it writes both XML files with
+  **this** machine's paths, and moves an install of an older build out of the way at the same
+  time.  The second is why 3D-Coat's Extensions panel has to be used once - and why the
+  installation ends with "restart 3D-Coat".  After that, nothing runs by hand.
 * **Subtree-scoped export** (only the current node plus its children instead of the whole sculpt
   tree) exists on the `parked/subtree-scoped-panel` branch and is **not** in the released code,
   because the grouping, positions and units of its output were never verified on a live round

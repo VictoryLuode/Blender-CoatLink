@@ -1,324 +1,146 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""One installer, several doors - and it must not touch anything that is not ours.
+"""The 3D-Coat installer, now that it installs the half as an extension.
 
-Checks, on plain Python with no 3D-Coat present:
+What it has to get right: the files land in ``Scripts/cExtensions/CoatLink``, the
+name goes into ``cExtensions/startup.txt`` (once, with a backup of the original),
+nothing is written outside 3D-Coat's user folder any more, and taking it back out
+leaves other extensions and other people's menu files alone.
 
-  * the single file in dist/ carries exactly the same files as the checkout
-  * installing with either one produces byte-identical trees
-  * the generated menu XMLs hold this machine's paths, with no placeholder left
-  * running twice changes nothing, and stale layouts are cleared out
-  * unrelated files in the same folders survive install and uninstall
-  * an unwritable icon folder is reported, not fatal
+    python coat_side/tests/test_coatlink_install.py
 """
 
 import importlib.util
-import io
-import json
 import os
 import shutil
 import sys
 import tempfile
-import xml.etree.ElementTree as etree
-from contextlib import redirect_stdout
-from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-COAT_SIDE = HERE.parent
-ROOT = COAT_SIDE.parent
-sys.path.insert(0, str(COAT_SIDE))
-sys.path.insert(0, str(HERE))
-
-import CoatLinkInstall as checkout                       # noqa: E402
-from tools import build_standalone                       # noqa: E402
-
-FAILURES = []
+HERE = os.path.dirname(os.path.abspath(__file__))
+INSTALLER = os.path.join(HERE, "..", "CoatLinkInstall.py")
+RESULTS = []
 
 
-def check(name, ok, detail=None):
-    print(("PASS " if ok else "FAIL ") + name + ("" if ok else "  -> %r" % (detail,)))
-    if not ok:
-        FAILURES.append(name)
+def check(name, condition, detail=""):
+    RESULTS.append((name, bool(condition), detail))
+    print("%-4s %s%s" % ("PASS" if condition else "FAIL", name,
+                         "" if condition else "   <- %s" % (detail,)))
 
 
-def load(path, name):
-    spec = importlib.util.spec_from_file_location(name, path)
+def load_installer():
+    spec = importlib.util.spec_from_file_location("coatlink_install", INSTALLER)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
+def fresh(tmp, name):
+    """A 3D-Coat user folder with the folders it always has, plus an extension."""
+    root = os.path.join(tmp, name)
+    scripts = os.path.join(root, "UserPrefs", "Scripts")
+    os.makedirs(os.path.join(scripts, "ExtraMenuItems"))
+    os.makedirs(os.path.join(scripts, "cExtensions"))
+    with open(os.path.join(scripts, "cExtensions", "startup.txt"), "w", encoding="utf-8") as h:
+        h.write("debugger\nQT\n")
+    with open(os.path.join(scripts, "ExtraMenuItems", "CoatMenu.xml"), "w", encoding="utf-8") as h:
+        h.write("x\n")
+    return root, scripts
+
+
+def read(path):
+    with open(path, "r", encoding="utf-8") as handle:
+        return handle.read()
+
+
 def tree(root):
-    """Every file under root: relative path (forward slashes) -> bytes."""
-    return {str(p.relative_to(root)).replace("\\", "/"): p.read_bytes()
-            for p in sorted(Path(root).rglob("*")) if p.is_file()}
-
-
-def normalise(blob, root):
-    """Erase one install root from a file's contents.
-
-    The menu XMLs hold the absolute path of the folder they point at - that is the
-    whole reason they are generated - so two installs in different folders can
-    only be compared after that one difference is normalised away.
-    """
-    for form in (str(root), str(root).replace("\\", "/"), str(root).replace("/", "\\")):
-        blob = blob.replace(form.encode("utf-8"), b"<ROOT>")
-    return blob
-
-
-def comparable(root):
-    return {name: normalise(blob, root) for name, blob in tree(root).items()}
-
-
-def fresh(tmp):
-    # the real nesting: <user>/Documents/3DCoat/UserPrefs/Scripts, because the
-    # launcher record we keep lives one level above UserPrefs
-    scripts = Path(tmp) / "Documents" / "3DCoat" / "UserPrefs" / "Scripts"
-    coat = Path(tmp) / "Program" / "3DCoat"
-    (coat / "data" / "Textures" / "icons64").mkdir(parents=True)
-    scripts.mkdir(parents=True)
-    return scripts, coat
+    found = []
+    for base, _dirs, files in os.walk(root):
+        for name in files:
+            found.append(os.path.relpath(os.path.join(base, name), root).replace("\\", "/"))
+    return sorted(found)
 
 
 def main():
-    tmp = Path(tempfile.mkdtemp(prefix="coatlink_install."))
+    tmp = tempfile.mkdtemp(prefix="coatlink_install_test.")
+    checkout = load_installer()
+    root, scripts = fresh(tmp, "a")
+    target = os.path.join(scripts, "cExtensions", "CoatLink")
+    startup = os.path.join(scripts, "cExtensions", "startup.txt")
 
-    # ---- the single file carries the same payload ------------------------------
-    standalone_path = Path(tmp) / "built" / "CoatLink-Setup.py"
-    build_standalone.build(standalone_path)
-    standalone = load(standalone_path, "coatlink_standalone")
+    report = checkout.install(scripts)
 
-    same = checkout.read_payload()
-    other = standalone.read_payload()
-    check("embedded payload matches the checkout payload",
-          same["scripts"] == other["scripts"] and same["icons"] == other["icons"]
-          and same["tools_xml"] == other["tools_xml"],
-          sorted(same["scripts"]))
+    check("the extension folder is created", os.path.isdir(target), tree(root))
+    missing = [name for name in checkout.SCRIPT_FILES
+               if not os.path.isfile(os.path.join(target, name))]
+    check("every file of the 3D-Coat half is installed", not missing, missing)
+    check("the extension entry point is one of them",
+          "CoatLink.py" in checkout.SCRIPT_FILES
+          and os.path.isfile(os.path.join(target, "CoatLink.py")))
+    check("startup.txt lists the extension", "CoatLink" in read(startup).split(), read(startup))
+    check("a backup of the original startup.txt is kept",
+          os.path.isfile(startup + ".bak") and read(startup + ".bak") == "debugger\nQT\n")
+    check("installing again adds no second line",
+          checkout.install(scripts) is not None and read(startup).count("CoatLink") == 1, read(startup))
+    check("nothing is written outside 3D-Coat's user folder",
+          all(name.startswith("UserPrefs/") for name in tree(root)), tree(root))
+    check("no icon is installed any more", not any(name.endswith(".png") for name in tree(root)))
+    check("the report says where it went",
+          any("cExtensions" in note for note in report.notes), report.notes)
 
-    # ---- installing with either one gives the same tree ------------------------
-    a_scripts, a_coat = fresh(tmp / "a")
-    b_scripts, b_coat = fresh(tmp / "b")
-    checkout.install(a_scripts, a_coat, payload=same)
-    standalone.install(b_scripts, b_coat, payload=other)
-    left, right = comparable(tmp / "a"), comparable(tmp / "b")
-    check("both installers write an identical tree",
-          left == right,
-          sorted(set(left) ^ set(right))
-          or [k for k in left if left[k] != right.get(k)])
+    # an install of the older build, straight in Scripts, is moved aside - by the
+    # extension on its first start; the installer leaves it alone so nothing is lost
+    classic = os.path.join(scripts, "CoatLink")
+    os.makedirs(classic)
+    with open(os.path.join(classic, "CoatLinkLib.py"), "w", encoding="utf-8") as h:
+        h.write("old\n")
+    checkout.install(scripts)
+    check("a hand install is left for the extension to move aside",
+          os.path.isdir(classic) and os.path.isdir(target))
 
-    # ---- the scripts really are the project's files ---------------------------
-    written = a_scripts / "CoatLink"
-    for name in checkout.SCRIPT_FILES:
-        source = COAT_SIDE / name
-        check("%s is byte-identical to the source" % name,
-              (written / name).read_bytes() == source.read_bytes())
 
-    # ---- menu XMLs: real paths, no placeholder --------------------------------
-    menu = a_scripts / "ExtraMenuItems"
-    expected = str(written).replace("\\", "/")
-    script_xml = (menu / "CoatLink.xml").read_text(encoding="utf-8")
-    tools_xml = (menu / "CoatLinkTools.xml").read_text(encoding="utf-8")
-    check("the Scripts entry points at this machine's path",
-          ("script:%s/CoatLink_Setup.py" % expected) in script_xml, script_xml[:120])
-    check("the tool buttons point at this machine's path",
-          tools_xml.count("script:%s/" % expected) == 6, tools_xml.count("script:"))
-    check("no placeholder survives",
-          checkout.PLACEHOLDER not in script_xml and checkout.PLACEHOLDER not in tools_xml)
-    check("both rooms get all three buttons",
-          tools_xml.count("<inRoom>Voxels</inRoom>") == 3
-          and tools_xml.count("<inRoom>Paint</inRoom>") == 3)
+    # ---- uninstall ----
+    menu_dir = os.path.join(scripts, "ExtraMenuItems")
+    for name in ("CoatLink.xml", "CoatLinkTools.xml", "CoatLink_Old.xml",
+                 "CoatBridge.xml", "CoatBridgeTools.xml"):
+        with open(os.path.join(menu_dir, name), "w", encoding="utf-8") as h:
+            h.write("x\n")
 
-    # ---- a folder with & in its name must not void the menu files -------------
-    # & is legal in a Windows user name, and one unescaped & makes 3D-Coat read
-    # none of the file: the menu never appears, and nothing says why.
-    amp_root = Path(tempfile.mkdtemp(prefix="coatlink_amp."))
-    amp_scripts = amp_root / "Am&Co" / "Scripts"
-    amp_scripts.mkdir(parents=True)
-    standalone.install(amp_scripts, a_coat, payload=same)
-    amp_xml = (amp_scripts / "ExtraMenuItems" / "CoatLink.xml").read_text(encoding="utf-8")
-    check("an & in the path is escaped on the way into the XML",
-          "Am&amp;Co" in amp_xml and "Am&Co" not in amp_xml.replace("Am&amp;Co", ""),
-          amp_xml[:200])
-    try:
-        amp_command = next(etree.fromstring(amp_xml).iter("Command")).text
-    except Exception as exc:                    # a file 3D-Coat cannot read at all
-        amp_command = "unparsable: %s" % exc
-    check("and it still parses back to the real folder",
-          "/Am&Co/Scripts/CoatLink/CoatLink_Setup.py" in amp_command, amp_command)
-    shutil.rmtree(amp_root, ignore_errors=True)
+    checkout.uninstall(scripts)
 
-    # ---- icons land beside 3D-Coat's own --------------------------------------
-    for name in checkout.ICON_FILES:
-        check("icon %s installed" % name,
-              (a_coat / "data" / "Textures" / "icons64" / name).read_bytes()
-              == (COAT_SIDE / "icon" / name).read_bytes())
+    check("uninstall removes the extension folder", not os.path.isdir(target), tree(root))
+    check("and our line from startup.txt", "CoatLink" not in read(startup).split(), read(startup))
+    check("other extensions stay listed", read(startup).split() == ["debugger", "QT"], read(startup))
+    check("our menu files are gone",
+          not os.path.exists(os.path.join(menu_dir, "CoatLink.xml"))
+          and not os.path.exists(os.path.join(menu_dir, "CoatLinkTools.xml")))
+    check("3D-Coat's insertion file for our id is gone",
+          not os.path.exists(os.path.join(menu_dir, "CoatLink_Old.xml")))
+    check("the pre-rename menu files are gone",
+          not os.path.exists(os.path.join(menu_dir, "CoatBridge.xml"))
+          and not os.path.exists(os.path.join(menu_dir, "CoatBridgeTools.xml")))
+    check("somebody else's menu file is left alone",
+          os.path.isfile(os.path.join(menu_dir, "CoatMenu.xml")))
 
-    # ---- other people's files stay put ----------------------------------------
-    theirs_script = a_scripts / "CoatLink" / "SomebodyElses.py"
-    theirs_menu = a_scripts / "ExtraMenuItems" / "SomebodyElses.xml"
-    theirs_script.write_bytes(b"mine\n")
-    theirs_menu.write_bytes(b"mine\n")
+    # ---- a full round trip on a second machine ----
+    root2, scripts2 = fresh(tmp, "b")
+    startup2 = os.path.join(scripts2, "cExtensions", "startup.txt")
+    checkout.install(scripts2)
+    checkout.uninstall(scripts2)
+    check("a round trip leaves the user folder as it was",
+          tree(root2) == ["UserPrefs/Scripts/ExtraMenuItems/CoatMenu.xml",
+                          "UserPrefs/Scripts/cExtensions/startup.txt",
+                          "UserPrefs/Scripts/cExtensions/startup.txt.bak"],
+          tree(root2))
+    check("and startup.txt is back to its two lines",
+          read(startup2).split() == ["debugger", "QT"], read(startup2))
 
-    # ---- stale layouts are cleared --------------------------------------------
-    for stale in ("CoatLinkQt.py", "CoatLink.py", "CoatLinkDialog.py"):
-        (a_scripts / "CoatLink" / stale).write_text("old\n", encoding="utf-8")
-    before = tree(a_scripts)
-    report = checkout.install(a_scripts, a_coat, payload=same)
-    after = tree(a_scripts)
-    check("a second install is harmless and still reports ok", report.verified)
-    check("stale files from earlier layouts are gone",
-          not any(k.endswith("CoatLinkQt.py") or k.endswith("CoatLinkDialog.py")
-                  for k in after), sorted(k for k in after if "Coat" in k))
-    check("unrelated files survive an install",
-          after["CoatLink/SomebodyElses.py"] == b"mine\n"
-          and after["ExtraMenuItems/SomebodyElses.xml"] == b"mine\n")
-    check("only our files differ between the first and the second install",
-          set(before) - set(after) <= {"CoatLink/" + name
-                                       for name in checkout.STALE_FILES},
-          sorted(set(before) - set(after)))
-
-    # ---- the 3D-Coat program folder is found, or overridden ------------------
-    found = checkout.program_dir()
-    check("the 3D-Coat program folder is found on this machine",
-          bool(found) and (Path(found) / "data").is_dir(), found)
-    override = tmp / "overridden_coat"
-    (override / "data" / "Textures" / "icons64").mkdir(parents=True)
-    os.environ["COATLINK_COAT_DIR"] = str(override)
-    try:
-        check("COATLINK_COAT_DIR overrides the search",
-              Path(checkout.program_dir()) == override, checkout.program_dir())
-        checkout.install(a_scripts, checkout.program_dir(), payload=same)
-        check("icons land in the folder that was found",
-              (override / "data" / "Textures" / "icons64" / "CoatLink.png").is_file())
-    finally:
-        del os.environ["COATLINK_COAT_DIR"]
-
-    # ---- unwritable icon folder is reported, not fatal ------------------------
-    no_icons = Path(tmp) / "no_coat_here"
-    quiet_report = checkout.install(a_scripts, no_icons, payload=same)
-    check("a missing 3D-Coat folder only skips the icons",
-          quiet_report.verified and any("icons skipped" in note for note in quiet_report.notes),
-          quiet_report.notes)
-
-    # ---- uninstall removes ours and nothing else -----------------------------
-    removed = checkout.uninstall(a_scripts, a_coat)
-    left = sorted(tree(a_scripts))
-    expected = sorted([str(theirs_script.relative_to(a_scripts)).replace("\\", "/"),
-                       str(theirs_menu.relative_to(a_scripts)).replace("\\", "/")])
-    check("our scripts and menus are gone", left == expected, left)
-    check("unrelated files are still there", left == expected, left)
-    check("uninstall reports what it removed",
-          any(str(p).endswith("CoatLinkLib.py") for p in removed.removed))
-    check("the icons are gone too",
-          not any((a_coat / "data" / "Textures" / "icons64" / n).exists()
-                  for n in checkout.ICON_FILES))
-
-    # ---- uninstalling must also forget what we registered at run time ---------
-    # The menu/tool entries live for one 3D-Coat session, but the record that says
-    # they were registered is kept in the state file: leaving it behind makes the
-    # next install skip inserting them, so a reinstall would come back without the
-    # Windows-menu entry.
-    state = checkout.launcher_state_path(a_scripts)
-    check("the launcher record sits next to UserPrefs",
-          state == a_scripts.parent.parent / "CoatLink.json", state)
-    state.write_text(json.dumps({"format": "FBX", "reduction": 40,
-                                 "menus": ["Scripts", "Windows"], "tools": ["Voxels"]}),
-                     encoding="utf-8")
-    checkout.uninstall(a_scripts, a_coat)
-    after = json.loads(state.read_text(encoding="utf-8"))
-    check("the launcher record is cleared", after.get("menus") == [] and after.get("tools") == [],
-          after)
-    check("the user's own settings in that file survive",
-          after.get("reduction") == 40 and after.get("format") == "FBX", after)
-    state.write_text(json.dumps({"menus": ["Windows"], "tools": []}), encoding="utf-8")
-    announced = checkout.uninstall(a_scripts, a_coat)
-    check("clearing the record is reported",
-          any("launcher record" in note for note in announced.notes), announced.notes)
-    state.write_text("not json at all", encoding="utf-8")
-    broken = checkout.uninstall(a_scripts, a_coat)
-    check("a corrupt launcher record does not stop an uninstall",
-          broken is not None and state.read_text(encoding="utf-8") == "not json at all")
-    state.unlink()
-    check("a missing launcher record is not an error", checkout.uninstall(a_scripts, a_coat) is not None)
-
-    # ---- the one-click downloader stays a thin, honest wrapper ----------------
-    downloader = Path(checkout.HERE).parent / "CoatLink-Setup.cmd"
-    check("the one-click downloader is in the repository", downloader.is_file(), downloader)
-    if downloader.is_file():
-        text = downloader.read_text(encoding="utf-8", errors="replace")
-        check("it points at the latest release asset by URL",
-              "releases/latest/download/CoatLink-Setup.py" in text)
-        check("it ships no absolute path of anyone's machine",
-              "C:\\Users" not in text and "/Users/" not in text, [l for l in text.splitlines()
-                                                                    if "Users" in l][:2])
-        check("it installs nothing by itself: it runs the shared installer",
-              "CoatLink-Setup.py" in text and "coat_side/CoatLinkInstall.py" in text)
-
-    # ---- the command line works, and says what it did ------------------------
-    c_scripts, c_coat = fresh(tmp / "c")
-    buffer = io.StringIO()
-    with redirect_stdout(buffer):
-        code = checkout.main(["--scripts", str(c_scripts), "--coat", str(c_coat)])
-    printed = buffer.getvalue()
-    check("the command line installs and returns 0", code == 0, code)
-    check("it names the Scripts menu and the buttons",
-          "Scripts > CoatLink" in printed and "tool lists" in printed, printed[:200])
-    check("a missing scripts folder is refused", checkout.main(["--scripts", str(Path(tmp) / "nope")]) == 1)
-    buffer = io.StringIO()
-    with redirect_stdout(buffer):
-        code = checkout.main(["--scripts", str(c_scripts), "--coat", str(c_coat), "--uninstall"])
-    check("the command line uninstalls", code == 0 and not (c_scripts / "CoatLink").exists())
-
-    # ---- a pre-rename install is cleared out ----------------------------------
-    # `CoatBridge` was this project's name before the rename.  Its scripts folder, its two
-    # XML files and its icons would otherwise survive as a second set of buttons pointing at
-    # scripts that no longer exist.
-    d_scripts, d_coat = fresh(tmp / "d")
-    legacy_scripts = d_scripts / checkout.LEGACY_APP_DIRNAME
-    legacy_scripts.mkdir(parents=True)
-    (legacy_scripts / "CoatBridgeLib.py").write_text("old\n", encoding="utf-8")
-    (d_scripts / "ExtraMenuItems").mkdir(parents=True, exist_ok=True)
-    legacy_menus = []
-    for name in checkout.LEGACY_MENU_FILES:
-        path = d_scripts / "ExtraMenuItems" / name
-        path.write_text("old\n", encoding="utf-8")
-        legacy_menus.append(path)
-    legacy_icons = []
-    for name in checkout.LEGACY_ICON_FILES:
-        path = d_coat / "data" / "Textures" / "icons64" / name
-        path.write_bytes(b"old\n")
-        legacy_icons.append(path)
-    report = checkout.install(d_scripts, d_coat, payload=same)
-    moved = d_scripts / (checkout.LEGACY_APP_DIRNAME + ".removed")
-    check("a pre-rename scripts folder is moved out of 3D-Coat's way",
-          not legacy_scripts.exists() and (moved / "CoatBridgeLib.py").is_file(),
-          sorted(p.name for p in d_scripts.iterdir()))
-    check("and it is kept, not deleted",
-          (moved / "CoatBridgeLib.py").read_text(encoding="utf-8") == "old\n")
-    check("the pre-rename menu files are gone", not any(p.exists() for p in legacy_menus))
-    check("the pre-rename icons are gone", not any(p.exists() for p in legacy_icons))
-    check("the installer says where the old scripts went",
-          any("moved the older" in note for note in report.notes), report.notes)
-    legacy_scripts.mkdir(parents=True)
-    (legacy_scripts / "CoatBridgeLib.py").write_text("old\n", encoding="utf-8")
-    checkout.uninstall(d_scripts, d_coat)
-    check("uninstall takes a pre-rename install with it",
-          not legacy_scripts.exists()
-          and not any(p.exists() for p in legacy_menus + legacy_icons),
-          sorted(tree(d_scripts)))
-
-    # ---- nothing outside the two folders was touched --------------------------
-    outside = sorted(str(p.relative_to(tmp)).replace("\\", "/")
-                     for p in Path(tmp).rglob("*") if p.is_file())
-    allowed = ("a/", "b/", "c/", "d/", "built/", "overridden_coat/")
-    check("nothing was written outside the script and icon folders",
-          all(name.startswith(allowed) for name in outside),
-          [name for name in outside if not name.startswith(allowed)][:5])
-
-    shutil.rmtree(tmp, ignore_errors=True)
-    print("\nRESULT: %s" % ("installer checks passed" if not FAILURES
-                            else "FAILED: " + ", ".join(FAILURES)))
-    sys.stdout.flush()
-    return 1 if FAILURES else 0
+    failed = [name for name, ok, _detail in RESULTS if not ok]
+    print("")
+    print("RESULT: %d/%d checks passed" % (len(RESULTS) - len(failed), len(RESULTS)))
+    if failed:
+        print("FAILED: " + "; ".join(failed))
+        return 1
+    print("installer checks passed")
+    return 0
 
 
 if __name__ == "__main__":

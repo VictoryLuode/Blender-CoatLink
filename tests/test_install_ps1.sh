@@ -79,11 +79,12 @@ else
     check "every installed file is byte-identical" no "differs:$differed"
 fi
 
-# the XML really points into the tree it was installed into
-grep -q "script:$(cygpath -m "$B/Documents/3DCoat/UserPrefs/Scripts")/CoatLink/CoatLink_Setup.py" \
-    "$B/Documents/3DCoat/UserPrefs/Scripts/ExtraMenuItems/CoatLink.xml" \
-    && check "the XML points at the installed script folder" yes \
-    || check "the XML points at the installed script folder" no "$(cat "$B/Documents/3DCoat/UserPrefs/Scripts/ExtraMenuItems/CoatLink.xml")"
+# 3D-Coat loads an extension by the name listed in its startup.txt; the menu XML is
+# written by the extension itself on its first start (it holds absolute paths)
+grep -qx "CoatLink" "$B/Documents/3DCoat/UserPrefs/Scripts/cExtensions/startup.txt" \
+    && check "the extension is registered with 3D-Coat" yes \
+    || check "the extension is registered with 3D-Coat" no \
+       "$(cat "$B/Documents/3DCoat/UserPrefs/Scripts/cExtensions/startup.txt" 2>/dev/null)"
 
 # idempotent
 MSYS2_ARG_CONV_EXCL='*' "$PS" -NoProfile -ExecutionPolicy Bypass \

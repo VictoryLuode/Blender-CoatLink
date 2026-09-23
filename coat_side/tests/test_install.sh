@@ -19,39 +19,43 @@ SCRIPTS="$TMP/Documents/3DCoat/UserPrefs/Scripts"
 COAT="$TMP/3DCoat-2026"
 mkdir -p "$SCRIPTS" "$COAT/data/Textures/icons64"
 
+PYTHON="$(command -v python3 || command -v python || true)"
+if [ -z "$PYTHON" ]; then echo "no python on PATH"; exit 1; fi
+
 bash "$REPO/coat_side/install.sh" "$SCRIPTS" "$COAT" > "$TMP/install.log" 2>&1
 [ -s "$TMP/install.log" ] && echo "PASS the installer says what it did" || { echo "FAIL installer quiet"; failed=1; }
 grep -q "Traceback\|not found\|No such file" "$TMP/install.log" && { echo "FAIL installer reported a problem"; cat "$TMP/install.log"; failed=1; }
 
-for name in CoatLinkLib.py CoatLink_Send.py CoatLink_Pull.py CoatLink_Setup.py; do
-    [ -f "$SCRIPTS/CoatLink/$name" ] && check "installed $name" yes || check "installed $name" no
+for name in CoatLink.py CoatLinkLib.py CoatLinkMenu.py CoatLink_Send.py CoatLink_Pull.py CoatLink_Setup.py; do
+    [ -f "$SCRIPTS/cExtensions/CoatLink/$name" ] && check "installed $name" yes || check "installed $name" no
 done
-for name in CoatLinkTools.xml CoatLink.xml; do
-    [ -f "$SCRIPTS/ExtraMenuItems/$name" ] && check "installed $name" yes || check "installed $name" no
-done
+grep -qx "CoatLink" "$SCRIPTS/cExtensions/startup.txt" && check "startup.txt lists the extension" yes \
+    || check "startup.txt lists the extension" no
 
-# every script the XMLs point at must exist, and nothing stale may be referenced
-entries=0
-bad=""
-for name in CoatLinkTools.xml CoatLink.xml; do
-    path="$SCRIPTS/ExtraMenuItems/$name"
-    while read -r target; do
-        target="${target#script:}"
-        entries=$((entries + 1))
-        # script:C:/Users/... -> /c/Users/...
-        host="/c${target#C:}"
-        [ -f "$host" ] || bad="$bad $name->$(basename "$target")"
-    done < <(grep -o 'script:[^<]*' "$path" 2>/dev/null)
-    if grep -q "CoatLinkDialog\.py\|CoatLinkQt\.py" "$path" 2>/dev/null; then
-        bad="$bad $name-references-deleted-entry"
-    fi
-done
-if [ -z "$bad" ]; then check "every XML entry points at a real script ($entries entries)" yes
-else check "XML references broken:$bad" no; fi
+# The menu files are the extension's job, not the installer's: they hold this
+# machine's absolute paths, so they are written when 3D-Coat starts the extension
+# (the Python tests cover that writing).  The installer must leave none behind.
+[ -z "$(ls -A "$SCRIPTS/ExtraMenuItems" 2>/dev/null)" ] && echo "PASS the installer writes no menu file" \
+    || { echo "FAIL the installer wrote a menu file"; failed=1; }
 
-# idempotent: a second run must not break anything
+# every script the extension will point at must be installed beside it
+missing=""
+for name in CoatLink_Send.py CoatLink_Pull.py CoatLink_Setup.py; do
+    [ -f "$SCRIPTS/cExtensions/CoatLink/$name" ] || missing="$missing $name"
+done
+if [ -z "$missing" ]; then check "the extension has every script its menu will name" yes
+else check "missing scripts:$missing" no; fi
+
+# idempotent: a second run must not break anything, or list the extension twice
 bash "$REPO/coat_side/install.sh" "$SCRIPTS" "$COAT" > /dev/null 2>&1
-[ -f "$SCRIPTS/CoatLink/CoatLinkLib.py" ] && echo "PASS a second install is harmless" || { echo "FAIL reinstall"; failed=1; }
+[ -f "$SCRIPTS/cExtensions/CoatLink/CoatLinkLib.py" ] && echo "PASS a second install is harmless" || { echo "FAIL reinstall"; failed=1; }
+[ "$(grep -cx "CoatLink" "$SCRIPTS/cExtensions/startup.txt")" = "1" ] && echo "PASS the extension is listed once" \
+    || { echo "FAIL the extension is listed twice"; failed=1; }
+
+# nothing is written into the program folder any more: the tool buttons take
+# 3D-Coat's default icon, so no icon and no Program Files permission is involved
+[ -z "$(ls -A "$COAT/data/Textures/icons64")" ] && echo "PASS the program folder is untouched" \
+    || { echo "FAIL something was written into the program folder"; failed=1; }
 
 if [ "$failed" -eq 0 ]; then echo "\nINSTALL SMOKE TEST PASSED"; else echo "\nINSTALL SMOKE TEST FAILED"; fi
 exit "$failed"

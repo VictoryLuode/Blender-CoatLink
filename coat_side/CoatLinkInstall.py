@@ -4,6 +4,14 @@
 
 """Install (or remove) the 3D-Coat half of CoatLink.
 
+It installs it the way a ``.3dcpack`` does: as an extension, into
+``<scripts>/cExtensions/CoatLink``, with the name added to
+``<scripts>/cExtensions/startup.txt``.  The two ``ExtraMenuItems`` XML files are
+*not* installed - they carry absolute ``script:`` paths, so a package cannot hold
+them - and are written by the extension itself the first time 3D-Coat starts it
+(``coat_side/CoatLinkMenu.py``), which also moves an install of an older build out
+of the way.
+
 Three ways in, one implementation:
 
 * from an unzipped release or a checkout, by double-clicking ``install.cmd``
@@ -13,20 +21,9 @@ Three ways in, one implementation:
 
       exec(open(r"...\\CoatLinkInstall.py", encoding="utf-8").read())
 
-The single file in ``dist/`` is built from this module with the files embedded,
-so everything below is the same code either way.
-
-What it does, and nothing else:
-
-    <scripts>/CoatLink/*.py                     the bridge itself
-    <scripts>/ExtraMenuItems/CoatLink.xml       Scripts > CoatLink entry
-    <scripts>/ExtraMenuItems/CoatLinkTools.xml  the three tool buttons
-    <program>/data/Textures/icons64/*.png         button icons, when that
-                                                  folder is writable
-
-Both folders are worked out on the spot - no path is baked into anything, which
-is exactly why the menu XML is generated here: 3D-Coat needs absolute script
-paths, and the only place that knows the right one is the machine installing it.
+Both folders are worked out on the spot - no path is baked into anything - and
+nothing outside 3D-Coat's user folder is written: the tool buttons take 3D-Coat's
+default icon rather than installing one into the program folder.
 """
 
 import argparse
@@ -41,10 +38,12 @@ HERE = Path(__file__).resolve().parent
 #: the folder our scripts live in, under 3D-Coat's Scripts folder
 APP_DIRNAME = "CoatLink"
 
-#: what we install; the scoped-export module is deliberately absent (nothing
-#: calls it, and shipping dead code in a released install is just confusing)
+#: what we install - the whole 3D-Coat half, entry point included, because a
+#: .3dcpack would carry exactly these files into Scripts/cExtensions/CoatLink
 SCRIPT_FILES = (
+    "CoatLink.py",
     "CoatLinkLib.py",
+    "CoatLinkMenu.py",
     "CoatLinkReceipts.py",
     "CoatLinkScopedExport.py",
     "CoatLink_Send.py",
@@ -420,124 +419,109 @@ def xml_escape(text):
                      .replace(">", "&gt;"))
 
 
-def install(scripts_dir, program=None, payload=None, report=None):
-    """Copy the bridge into 3D-Coat's folders; safe to run repeatedly."""
+def startup_path(scripts_dir):
+    """The file 3D-Coat reads to know which extensions to load."""
+    return Path(scripts_dir) / "cExtensions" / "startup.txt"
+
+
+def extension_dir(scripts_dir):
+    """Where a ``.3dcpack`` would have put these files."""
+    return Path(scripts_dir) / "cExtensions" / APP_DIRNAME
+
+
+def _register_startup(scripts_dir, report):
+    """Add our name to ``startup.txt`` once, keeping a copy of the original."""
+    path = startup_path(scripts_dir)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+        if any(line.strip().lower() == APP_DIRNAME.lower() for line in lines):
+            report.line("%s is already listed in %s" % (APP_DIRNAME, path.name))
+            return
+        backup = path.with_name(path.name + ".bak")
+        if path.is_file() and not backup.exists():
+            backup.write_bytes(path.read_bytes())
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write("\n".join(lines + [APP_DIRNAME]) + "\n")
+        report.line("listed %s in %s" % (APP_DIRNAME, path.name))
+    except OSError as exc:
+        report.skipped.append((str(path), str(exc)))
+
+
+def install(scripts_dir, program=None, report=None):
+    """Install the 3D-Coat half the way a ``.3dcpack`` does: as an extension.
+
+    The files go into ``Scripts/cExtensions/CoatLink`` and the name goes into
+    ``cExtensions/startup.txt``, which is what makes 3D-Coat load them.  The two
+    ``ExtraMenuItems`` XML files are written by the extension itself the first time
+    it starts - they hold absolute paths, so they cannot be shipped - and it moves an
+    install of an older build out of the way at the same time.
+
+    ``program`` is kept for the old command line and is not used any more: the tool
+    buttons take 3D-Coat's default icon, so nothing is written outside 3D-Coat's user
+    folder.
+    """
     report = report or Report()
-    payload = payload or read_payload()
-    scripts_dir = Path(scripts_dir)
-    if not scripts_dir.is_dir():
-        raise SystemExit("no such scripts folder: %s" % scripts_dir)
-
-    app_dir = scripts_dir / APP_DIRNAME
-    app_dir.mkdir(parents=True, exist_ok=True)
-    for name, data in sorted(payload["scripts"].items()):
-        _write(app_dir / name, data, report)
-    for name in STALE_FILES:
-        stale = app_dir / name
-        if stale.exists():
-            stale.unlink()
-            report.removed.append(stale)
-    cache = app_dir / "__pycache__"
-    if cache.is_dir():
-        for byte_code in cache.iterdir():
-            byte_code.unlink()
-        cache.rmdir()
-
-    script_dir = windows_path(app_dir)
-    menu_dir = scripts_dir / "ExtraMenuItems"
-    menu_dir.mkdir(parents=True, exist_ok=True)
-    # escaped on the way in: one & in a folder name would void the whole file
-    xml_dir = xml_escape(script_dir)
-    _write(menu_dir / "CoatLink.xml", MENU_XML.format(script_dir=xml_dir), report)
-    tools = payload["tools_xml"].replace(PLACEHOLDER, xml_dir)
-    if PLACEHOLDER in tools:
-        report.line("the tools template still holds %s" % PLACEHOLDER)
-        report.verified = False
-    _write(menu_dir / "CoatLinkTools.xml", tools, report)
-
-    # A release from before the rename left a second copy under the old name.  Its folder
-    # moves aside - out of the Scripts folder 3D-Coat reads, never deleted - and its XML
-    # goes, so its buttons cannot survive pointing at scripts that are gone.
-    legacy_dir = scripts_dir / LEGACY_APP_DIRNAME
-    if legacy_dir.is_dir():
-        aside = scripts_dir / (LEGACY_APP_DIRNAME + ".removed")
-        index = 1
-        while aside.exists():
-            aside = scripts_dir / ("%s.removed-%d" % (LEGACY_APP_DIRNAME, index))
-            index += 1
-        legacy_dir.rename(aside)
-        report.line("moved the older %s scripts aside -> %s" % (LEGACY_APP_DIRNAME, aside))
-    for name in LEGACY_MENU_FILES:
-        path = menu_dir / name
-        if path.exists():
-            path.unlink()
-            report.removed.append(path)
-
-    icon_dir = Path(program) / "data" / "Textures" / "icons64" if program else None
-    if icon_dir and icon_dir.is_dir():
-        for name, data in sorted(payload["icons"].items()):
-            try:
-                _write(icon_dir / name, data, report)
-            except OSError as exc:
-                report.skipped.append((name, str(exc)))
-        for name in LEGACY_ICON_FILES:
-            path = icon_dir / name
-            if path.exists():
-                try:
-                    path.unlink()
-                    report.removed.append(path)
-                except OSError as exc:
-                    report.skipped.append((name, str(exc)))
-    else:
-        report.line("button icons skipped (%s)" % (icon_dir or "3D-Coat folder not found"))
+    target = extension_dir(scripts_dir)
+    for name in SCRIPT_FILES:
+        _write(target / name, (HERE / name).read_bytes(), report)
+    report.line("installed as an extension: %s" % target)
+    _register_startup(scripts_dir, report)
     return report
+
+def _drop_startup(scripts_dir, report):
+    """Take our line back out of ``startup.txt``; the file itself stays."""
+    path = startup_path(scripts_dir)
+    if not path.is_file():
+        return
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        kept = [line for line in lines if line.strip().lower() != APP_DIRNAME.lower()]
+        if kept == lines:
+            return
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(("\n".join(kept) + "\n") if kept else "")
+        report.removed.append(path)
+    except OSError as exc:
+        report.skipped.append((str(path), str(exc)))
 
 
 def uninstall(scripts_dir, program=None, report=None):
-    """Remove exactly what install() puts there, and nothing else."""
+    """Take the extension back out: its folder, its startup line, its menu files."""
     report = report or Report()
     scripts_dir = Path(scripts_dir)
-    app_dir = scripts_dir / APP_DIRNAME
-    for name in SCRIPT_FILES + STALE_FILES:
-        path = app_dir / name
-        if path.exists():
-            path.unlink()
-            report.removed.append(path)
-    cache = app_dir / "__pycache__"
-    if cache.is_dir():
-        for byte_code in cache.iterdir():
-            byte_code.unlink()
-        cache.rmdir()
-    if app_dir.is_dir() and not any(app_dir.iterdir()):
-        app_dir.rmdir()
-    for name in MENU_FILES + LEGACY_MENU_FILES:
-        path = scripts_dir / "ExtraMenuItems" / name
-        if path.exists():
-            path.unlink()
-            report.removed.append(path)
-    # a release from before the rename left its scripts under the old name too
-    legacy_dir = scripts_dir / LEGACY_APP_DIRNAME
-    if legacy_dir.is_dir():
-        for path in sorted(legacy_dir.iterdir()):
+    target = extension_dir(scripts_dir)
+    for path in sorted(target.rglob("*"), reverse=True):
+        try:
             if path.is_file():
                 path.unlink()
-                report.removed.append(path)
-        if not any(legacy_dir.iterdir()):
-            legacy_dir.rmdir()
-            report.removed.append(legacy_dir)
-    if program:
-        for name in ICON_FILES + LEGACY_ICON_FILES:
-            path = Path(program) / "data" / "Textures" / "icons64" / name
-            if path.exists():
-                try:
-                    path.unlink()
-                except OSError as exc:
-                    report.skipped.append((name, str(exc)))
-                else:
-                    report.removed.append(path)
-    forget_launchers(scripts_dir, report)
-    return report
+            else:
+                path.rmdir()
+            report.removed.append(path)
+        except OSError as exc:
+            report.skipped.append((str(path), str(exc)))
+    if target.is_dir():                      # rglob() never yields the folder itself
+        try:
+            target.rmdir()
+            report.removed.append(target)
+        except OSError as exc:
+            report.skipped.append((str(target), str(exc)))
+    _drop_startup(scripts_dir, report)
 
+    menu_dir = scripts_dir / "ExtraMenuItems"
+    stale = [menu_dir / (APP_DIRNAME + ".xml"), menu_dir / (APP_DIRNAME + "Tools.xml")]
+    if menu_dir.is_dir():
+        for path in sorted(menu_dir.iterdir()):
+            if path.name.startswith(APP_DIRNAME + "_") or path.name.startswith("CoatBridge"):
+                stale.append(path)
+    for path in stale:
+        if path.is_file():
+            try:
+                path.unlink()
+                report.removed.append(path)
+            except OSError as exc:
+                report.skipped.append((str(path), str(exc)))
+    return report
 
 def launcher_state_path(scripts_dir):
     """Where 3D-Coat's copy of our registered menu/tool entries lives.

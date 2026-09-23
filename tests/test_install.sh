@@ -47,11 +47,13 @@ done
     && check "no byte-code cache in the installed add-on" yes \
     || check "no byte-code cache in the installed add-on" no
 
-# both halves are installed by the same command
-[ -f "$SCRIPTS/CoatLink/CoatLinkLib.py" ] \
+# both halves are installed by the same command: the 3D-Coat half as an extension,
+# so what matters is the folder and the startup list - the menu XML files are written
+# by the extension itself the first time 3D-Coat starts it
+[ -f "$SCRIPTS/cExtensions/CoatLink/CoatLinkLib.py" ] \
     && check "installed the 3D-Coat half too" yes || check "installed the 3D-Coat half too" no
-[ -f "$SCRIPTS/ExtraMenuItems/CoatLink.xml" ] \
-    && check "installed the 3D-Coat menu entry" yes || check "installed the 3D-Coat menu entry" no
+grep -qx "CoatLink" "$SCRIPTS/cExtensions/startup.txt" \
+    && check "3D-Coat is told to load it" yes || check "3D-Coat is told to load it" no
 
 # the real proof: Blender boots with that script folder and enables the add-on
 out="$(BLENDER_USER_SCRIPTS="$(cygpath -w "$TMP/blender/5.2/scripts")" \

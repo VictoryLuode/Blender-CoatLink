@@ -128,10 +128,14 @@ def main():
     check("the scale note survives a missing API",
           isinstance(lib.scene_scale_note(), str) and lib.scene_scale_note() != "")
 
-    # ---- the tool-panel XML ----
-    xml_path = os.path.join(COAT_SIDE, "tools", "CoatLinkTools.xml.in")
-    check("the tool XML template exists", os.path.isfile(xml_path))
-    tree = ET.parse(xml_path)
+    # ---- the tool-panel XML, as the extension writes it on its first start ----
+    import CoatLinkMenu
+
+    write_into = os.path.join(lib.user_data_dir(), "UserPrefs", "Scripts", "ExtraMenuItems")
+    os.makedirs(write_into, exist_ok=True)
+    check("the tool file is written", CoatLinkMenu.write_tools_xml() == ["CoatLinkTools.xml"],
+          CoatLinkMenu.extra_menu_dir())
+    tree = ET.parse(os.path.join(write_into, "CoatLinkTools.xml"))
     entries = tree.findall("ExtraMenuItem")
     check("it declares every button in both rooms", len(entries) == 6, len(entries))
     ids = [entry.findtext("MenuItem") for entry in entries]

@@ -485,73 +485,85 @@ def main():
     panel.RefreshStats()
     check("an empty tree claims nothing about modes", panel.ModeLabel == "", panel.ModeLabel)
 
-    # ---- menu registration (the panel entry already ran it) ----
-    bridge.save_state({"menus": [], "tools": []})   # forget the entry's registration
-    coat.menu_inserted = False      # and that 3D-Coat reports the menu missing again
-    coat.inserted = []
-    check("first run registers Scripts and Windows",
-          bridge.register_menu_item() == ["Scripts", "Windows"]
-          and coat.inserted[:2] == [("Scripts", "CoatLink", ""), ("Windows", "CoatLink", "")],
-          (bridge.load_state().get("menus"), coat.inserted))
-    check("registering again adds nothing", bridge.register_menu_item() == [])
-    check("the menu record is kept in the state file",
-          bridge.load_state().get("menus") == ["Scripts", "Windows"], bridge.load_state())
+    # ---- the menu entry: an XML file 3D-Coat reads at every start ----
+    # It used to be inserted at run time.  Only the file survives a restart, and an
+    # id that is in both the file and 3D-Coat's own insertion file is listed twice.
+    scripts = os.path.join(bridge.user_data_dir(), "UserPrefs", "Scripts")
+    extra = os.path.join(scripts, "ExtraMenuItems")
+    # the XML has to name the copy that is running, not the Scripts root
+    where = os.path.dirname(os.path.abspath(bridge.__file__)).replace("\\", "/")
+    os.makedirs(extra, exist_ok=True)
+    menu_xml = os.path.join(extra, "CoatLink.xml")
+    tools_xml = os.path.join(extra, "CoatLinkTools.xml")
 
-    # a fresh state (entries gone) must bring both launchers back.
-    # Write the file directly: save_state() merges on purpose, so it cannot
-    # drop a key - the test has to simulate the file itself.
+    def read(path):
+        with open(path, "r", encoding="utf-8") as handle:
+            return handle.read()
+
+    check("the first run writes the menu file", bridge.register_menu_item() == ["CoatLink.xml"],
+          bridge.register_menu_item())
+    text = read(menu_xml)
+    check("the file carries the Scripts and the Windows entry",
+          text.count("<ExtraMenuItem>") == 2 and "<MenuPath>Windows</MenuPath>" in text, text)
+    check("its command points at this copy's own setup script",
+          "script:%s/CoatLink_Setup.py" % where in text, text)
+    check("writing it again changes nothing", bridge.register_menu_item() == [])
+
+    # the files coming back is the whole repair path: nothing is reinstalled
     import json as _json
 
     def write_state(keys):
         with open(bridge.state_path(), "w", encoding="utf-8", newline="\n") as handle:
             _json.dump(keys, handle)
 
-    coat.inserted = []
+    for path in (menu_xml, tools_xml):
+        if os.path.isfile(path):
+            os.remove(path)
     write_state({"format": "FBX"})
-    check("a fresh state re-registers both menus",
-          bridge.register_menu_item() == ["Scripts", "Windows"] and len(coat.inserted) == 2, coat.inserted)
-
-    # with the shipped XML in place, Scripts is reported as already provided
-    coat.inserted = []
-    coat.menu_inserted = True
-    write_state({"format": "FBX"})
-    check("an existing menu entry is detected instead of duplicated",
-          bridge.register_menu_item() == ["Windows"] and coat.inserted == [("Windows", "CoatLink", "")],
-          coat.inserted)
-
-    # the runtime fallback: a menu file 3D-Coat cannot parse (one & in a path is
-    # enough) leaves no entry at all, and no XML provides the Windows one.  The
-    # panel asks for both whenever it is opened.
-    coat.inserted = []
-    coat.menu_inserted = False
-    write_state({"format": "FBX"})
-    added = bridge.ensure_launcher()
-    check("ensure_launcher puts the entries back when the XML is not read",
-          "Scripts" in added and "Windows" in added and len(coat.inserted) == 2, added)
+    added = sorted(bridge.ensure_launcher())
+    check("a deleted menu file is written again", added == ["CoatLink.xml", "CoatLinkTools.xml"], added)
     check("ensure_launcher is idempotent", bridge.ensure_launcher() == [])
 
-    # ---- room tool button ----
-    write_state({"format": "FBX"})  # fresh: nothing recorded yet
-    added = bridge.register_room_tools()
-    check("the tool button is inserted into the listed rooms", added == ["Voxels"], added)
-    check("insertInToolset is called with the room and our id",
-          ("Voxels", "", "CoatLink") in coat.ui.insertInToolset.calls, coat.ui.insertInToolset.calls)
-    check("tool registration is idempotent", bridge.register_room_tools() == [])
-    check("the room list is recorded", bridge.load_state().get("tools") == ["Voxels"], bridge.load_state())
+    # ---- leftovers of older builds, and of 3D-Coat's run-time insertions ----
+    # An id that is in our XML *and* in one of 3D-Coat's own insertion files is
+    # listed twice, so those files go - and so do the pre-rename ones, which point
+    # at scripts that are no longer there.
+    stale = os.path.join(extra, "CoatLink_Old.xml")
+    prerename = os.path.join(extra, "CoatBridge.xml")
+    theirs = os.path.join(extra, "CoatMenu.xml")
+    for path in (stale, prerename, theirs):
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("x")
+    bridge.ensure_launcher()
+    check("3D-Coat's own insertion file for our id is removed", not os.path.exists(stale))
+    check("the pre-rename menu file is removed", not os.path.exists(prerename))
+    check("somebody else's menu file is left alone", os.path.exists(theirs))
 
-    # Removal takes both launchers back out and clears the record
-    coat.ui.removeCommandFromMenu.calls = []
+    # ---- tool buttons: one entry per button per room, the same file route ----
+    write_state({"format": "FBX"})
+    if os.path.isfile(tools_xml):
+        os.remove(tools_xml)        # ensure_launcher() already wrote it
+    check("the tool file is written", bridge.register_room_tools() == ["CoatLinkTools.xml"],
+          bridge.register_room_tools())
+    tools = read(tools_xml)
+    check("one entry per button per room",
+          tools.count("<ExtraMenuItem>") == len(bridge.TOOL_ROOMS) * len(bridge.TOOL_ACTIONS),
+          tools.count("<ExtraMenuItem>"))
+    check("the buttons name their room and their script",
+          "<inRoom>Paint</inRoom>" in tools
+          and "script:%s/CoatLink_Send.py" % where in tools, tools)
+    check("tool registration is idempotent", bridge.register_room_tools() == [])
+
+    # Removal takes the files back out: the files are what puts the entries there
     panel.RemoveLauncher()
-    check("removal calls the API with our id",
-          coat.ui.removeCommandFromMenu.calls == [("CoatLink",)], coat.ui.removeCommandFromMenu.calls)
-    check("removal clears the records",
-          bridge.load_state().get("tools") == [] and bridge.load_state().get("menus") == [],
-          bridge.load_state())
+    check("removal deletes both files",
+          not os.path.isfile(menu_xml) and not os.path.isfile(tools_xml))
     check("removal reports back", "removed" in panel.status.lower(), panel.status)
 
-    # and a fresh state puts the tool button back
+    # and the next open writes them again
     write_state({"format": "FBX"})
-    check("a fresh state re-inserts the tool button", bridge.register_room_tools() == ["Voxels"])
+    check("the next open writes them again",
+          sorted(bridge.ensure_launcher()) == ["CoatLink.xml", "CoatLinkTools.xml"])
 
     # ---- the size block: read the object, scale it to a target ----
     coat.current_size = [2.0, 1.0, 0.5]

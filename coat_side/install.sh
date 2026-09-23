@@ -4,17 +4,18 @@
 #   coat_side/install.sh [scripts-dir] [3dcoat-install-dir] [--uninstall] [--quiet]
 #
 # A thin wrapper on purpose: the work lives in coat_side/CoatLinkInstall.py, which
-# this script, install.cmd, install.ps1 and the single file in dist/ all run, so
-# the four of them cannot drift apart.
+# this script, install.cmd and install.ps1 all run, so the three of them cannot
+# drift apart.
 #
-# What lands where:
-#   <scripts>/CoatLink/*.py                     the bridge itself
-#   <scripts>/ExtraMenuItems/CoatLink.xml       Scripts > CoatLink entry
-#   <scripts>/ExtraMenuItems/CoatLinkTools.xml  the three tool buttons
-#   <3dcoat>/data/Textures/icons64/*.png          button icons, when writable
+# What lands where (the same files, and in the same place, as a .3dcpack puts them):
+#   <scripts>/cExtensions/CoatLink/*.py          the bridge itself
+#   <scripts>/cExtensions/startup.txt            our name, added once (backed up)
 #
-# Everything else in those folders is left alone, and the two menu XMLs are
-# generated with this machine's paths - 3D-Coat needs absolute script paths.
+# The two ExtraMenuItems XML files are not installed: they hold absolute paths, so
+# the extension writes them itself the first time 3D-Coat starts it, and it moves an
+# older install (a hand install straight in Scripts, or the pre-rename folders) out
+# of the way at the same time.  Nothing is written outside 3D-Coat's user folder -
+# the tool buttons take 3D-Coat's default icon.
 
 set -euo pipefail
 

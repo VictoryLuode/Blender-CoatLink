@@ -92,7 +92,10 @@ STATE_FILE = "CoatLink.json"
 RUN_MARKER = "run.txt"
 MENU_ID = "CoatLink"
 MENU_PATHS = ("Scripts", "Windows")  # launcher lives with the other script/window entries
-TOOL_ROOMS = ("Voxels",)             # rooms whose tool panel gets a CoatLink button
+TOOL_ROOMS = ("Voxels", "Paint")      # rooms whose tool panel gets the CoatLink buttons
+#: one tool button per room per action, in this order; the file names double as the
+#: button ids and as the scripts the XML points at
+TOOL_ACTIONS = ("CoatLink_Send", "CoatLink_Pull", "CoatLink_Setup")
 REOPEN_HINT = "reopen: Scripts > CoatLink"
 
 #: timestamp of the last time the panel was opened, so a double click cannot
@@ -349,7 +352,13 @@ def log_text(limit=200):
         return ""
 
 
-def log(message):
+def log(message, exc=False):
+    if exc:
+        try:
+            import traceback
+            traceback.print_exc()
+        except Exception:
+            pass
     try:
         LINES = 400
         path = log_path()
@@ -744,21 +753,20 @@ def add_translations():
 
 
 def ensure_launcher():
-    """Make sure the panel keeps a menu entry even when the XML files do not work.
+    """Make sure the menu entry and the tool buttons are in place.
 
-    The ``ExtraMenuItems`` XML is how the entry normally appears, but a menu file
-    3D-Coat cannot parse (one ``&`` in a path is enough) leaves no entry at all -
-    and no XML provides the ``Windows`` menu entry.  Both calls keep their own
-    record in the state file, so calling this on every open adds nothing twice.
+    ``CoatLinkMenu`` writes both files and clears out what older builds left
+    behind (its docstring has the reasoning).  This is what the extension calls in
+    ``onStartup``, and calling it again when the panel opens is what repairs a
+    machine where the XML files went missing.
     """
     try:
-        added = register_menu_item() + register_room_tools()
+        import CoatLinkMenu
+        info = CoatLinkMenu.ensure()
     except Exception as exc:
         log("could not register the launcher: %s" % exc)
         return []
-    if added:
-        log("registered at run time: %s" % ", ".join(added))
-    return added
+    return info.get("written", [])
 
 
 def run_action(tool_id):
@@ -1257,18 +1265,32 @@ class CoatLinkPanel(object):
             self._report("Could not start Blender: %s" % exc, exe)
 
     def RemoveLauncher(self):
-        """Take the injected menu entries and tool buttons back out again."""
-        try:
-            coat.ui.removeCommandFromMenu(MENU_ID)
-        except Exception as exc:
-            self._report("Could not remove the launcher: %s" % exc, "")
-            return
-        state = load_state()
-        state["menus"] = []
-        state["tools"] = []
-        save_state(state)
-        self._report("Launcher removed",
-                     "run this script again (Scripts > CoatLink) to put it back")
+        """Take the menu entry and the tool buttons back out again.
+
+        The two files are what put them there, so that is what goes: deleting
+        3D-Coat's own insertion files for the id (written when an older build
+        inserted it at run time) keeps a restart from bringing the entry back.
+        """
+        removed = []
+        import CoatLinkMenu  # imported here: CoatLinkMenu imports this module
+        for name in (CoatLinkMenu.MENU_FILE, CoatLinkMenu.TOOLS_FILE):
+            path = os.path.join(CoatLinkMenu.extra_menu_dir(), name)
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+                    removed.append(name)
+            except OSError as exc:
+                self._report("Could not remove %s" % name, str(exc))
+                return
+        for name in os.listdir(CoatLinkMenu.extra_menu_dir() or "."):
+            if name.startswith(MENU_ID + "_") and name.endswith(".xml"):
+                try:
+                    os.remove(os.path.join(CoatLinkMenu.extra_menu_dir(), name))
+                    removed.append(name)
+                except OSError:
+                    pass
+        self._report("Launcher removed", "removed %s - run this script again "
+                     "(Scripts > CoatLink) to put it back" % ", ".join(removed or ["nothing"]))
 
     # ---- internals --------------------------------------------------------
 
@@ -1373,61 +1395,39 @@ def find_blender_executable():
 # --------------------------------------------------------------------------
 
 def register_menu_item():
-    """Make sure the launcher exists, and report which menus were added to.
+    """Write the menu file 3D-Coat reads at startup, for every menu path.
 
-    Scripts is usually already covered by the shipped XML; Windows is added
-    here so the panel also sits with the other window entries.  The list of
-    menus already handled is kept in the state file, because
-    checkIfMenuItemInserted() cannot tell one menu from another.
+    This used to insert the entry at run time instead.  The XML is the way that
+    survives a restart, and an id that is both in the XML and in 3D-Coat's own
+    insertion file is listed twice - so the file is the only route now, and
+    ``CoatLinkMenu.clean_old_installs()`` removes the older insertion files.
     """
-    state = load_state()
-    done = list(state.get("menus", []))
-    added = []
     try:
         coat.ui.addTranslation(MENU_ID, PANEL_CAPTION)
     except Exception:
         pass
-    for path in MENU_PATHS:
-        if path in done:
-            continue
-        if path == "Scripts" and _menu_present(MENU_ID):
-            done.append(path)  # the shipped XML already provides it
-            continue
-        try:
-            coat.ui.insertInMenu(path, MENU_ID, "")
-            done.append(path)
-            added.append(path)
-        except Exception:
-            pass
-    if done != state.get("menus", []):
-        state["menus"] = sorted(set(done))
-        save_state(state)
-    return added
+    try:
+        import CoatLinkMenu
+        return CoatLinkMenu.write_menu_xml()
+    except Exception as exc:
+        log("could not write the menu entry: %s" % exc)
+        return []
 
 
 def register_room_tools():
-    """Put a CoatLink button into the tool panel of the listed rooms.
+    """Write the tool buttons of the rooms listed in TOOL_ROOMS.
 
-    The tool appears at the end of the room's tool list; the id doubles as the
-    icon name (data/Textures/icons64/<id>.png) and gets its label from the
-    translation added in register_menu_item().
+    Same reasoning as register_menu_item(): one XML file, read at every start, one
+    entry per button per room.  A run-time insert gives every room a single generic
+    button instead, and lists it twice when the XML also carries the id.  The labels
+    come from the translation table filled in by register_menu_item().
     """
-    state = load_state()
-    done = list(state.get("tools", []))
-    added = []
-    for room in TOOL_ROOMS:
-        if room in done:
-            continue
-        try:
-            coat.ui.insertInToolset(room, "", MENU_ID)
-            done.append(room)
-            added.append(room)
-        except Exception:
-            pass
-    if done != state.get("tools", []):
-        state["tools"] = sorted(set(done))
-        save_state(state)
-    return added
+    try:
+        import CoatLinkMenu
+        return CoatLinkMenu.write_tools_xml()
+    except Exception as exc:
+        log("could not write the tool buttons: %s" % exc)
+        return []
 
 
 def _menu_present(menu_id):

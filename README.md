@@ -35,48 +35,41 @@ thing left to do is enable **CoatLink** once and press **Detect**.  Links betwee
 objects and the models they came from survive; the add-on's own settings go back to their
 defaults.
 
-### 3D-Coat - double-click one file
+### 3D-Coat - install it from inside 3D-Coat
 
-Download **`CoatLink-Setup.cmd`** and double-click it.  It fetches the installer from the latest
-release, runs it with the Python 3D-Coat itself ships, and keeps the window open so you can read
-what it did.  Nothing to unzip, no console, no path to edit.  If 3D-Coat sits under
-`C:\Program Files` the button icons need administrator rights, so it asks Windows for elevation
-once and runs the installer again: that single prompt is the whole privilege story, and without it
-everything except the icons still installs.  The file is short enough to read before you run it.
+Download **`CoatLink-<version>.3dcpack`** from the latest release, then in 3D-Coat open
+**Scripts > Install Extension** and pick that file.  It is 3D-Coat's own package format: nothing
+to unzip, no console, no path to edit - and no script Windows has to be persuaded to run.
 
-Already have the release unzipped?  `install.cmd` does the same thing from the files in front of
-it.  It finds both folders on its own, writes the menu entries with **your** paths, clears out
-anything an older layout left behind, and is harmless to run twice.
+3D-Coat then lists it under **Windows > Panels > Extensions**.  Tick **CoatLink** there once and
+**restart** 3D-Coat.  (3D-Coat loads an extension by the name listed in its `cExtensions/startup.txt`
+and only its own install can add that line, so the tick is needed exactly once.)
 
-Both folders are worked out on the spot, wherever 3D-Coat is: the program folder comes from the
-uninstall entries Windows keeps, and its data folder follows **your** Documents folder - which is
-where it is *not* once Documents is redirected to OneDrive.  3D-Coat from a folder of your own, on
-any drive, works too.
+On that first start the extension puts its menu in place with **your** paths - the entries 3D-Coat
+reads carry absolute paths, so they cannot travel inside the package - and it moves whatever an
+older build left behind out of the way.  Look for **Scripts > CoatLink**, and for the three tool
+buttons at the end of the Voxels and Paint tool lists.
 
-Already in the **Scripts > Show Python console**?  Paste this one line - it needs no download
-either (the console is on 3D-Coat's own Python):
+Nothing is written outside 3D-Coat's user folder, and the tool buttons take 3D-Coat's default icon:
+deliberate, because a button icon would mean writing into `C:\Program Files`.
 
-```python
-import urllib.request; exec(urllib.request.urlopen("https://github.com/VictoryLuode/Blender-CoatLink/releases/latest/download/CoatLink-Setup.py").read().decode())
-```
+Prefer a command, or have the release unzipped already?  `install.cmd`, `./install.sh`
+(git-bash/MSYS/WSL) and `.\install.ps1` (PowerShell, both halves) run the same installer and put
+the 3D-Coat half exactly where the package would.  Both folders are worked out on the spot,
+wherever 3D-Coat is: the program folder from the uninstall entries Windows keeps, the data folder
+by following **your** Documents folder - which is where it is *not* once Documents is redirected to
+OneDrive.  3D-Coat from a folder of your own, on any drive, works too.
 
-With git-bash, MSYS or WSL, `./install.sh` does the 3D-Coat half too.  PowerShell does both
-halves in one go:
-
-```powershell
-.\install.ps1
-```
-
-If Windows refuses to run scripts, start it explicitly - normal and safe for a script you
-just downloaded and read:
+If Windows refuses to run scripts, start the PowerShell one explicitly - normal and safe for a
+script you just downloaded and read:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-**Every door runs the same installer** (`coat_side/CoatLinkInstall.py`): the `.cmd` and the
-console line only fetch it.  A test installs with each door into a throwaway tree and compares
-the results file by file, so they cannot drift apart.
+**Every door ends in the same place** (`coat_side/CoatLinkInstall.py`) - which is also where the
+`.3dcpack` puts it.  A test installs with each door into a throwaway tree and compares the results
+file by file, so they cannot drift apart.
 
 Then **restart 3D-Coat** and look for **Scripts > CoatLink**.  Three tool buttons also appear
 at the end of the Sculpt and Paint tool lists.  To take it all back out:
@@ -151,8 +144,8 @@ so:
   file it wrote, which is the evidence the earlier attempts were missing.
 * **The reduction percentage is an estimate**, and `To voxels` accepts the conversion
   dialog's defaults - so one object cannot be skipped mid-run.
-* **Button icons need an elevated run** when 3D-Coat lives under `C:\Program Files`; without
-  it the buttons simply use their default icons, and the installer reports that.
+* **The tool buttons have no icon of their own**: a button icon has to be written into
+  3D-Coat's program folder, which needs administrator rights, so they use 3D-Coat's default.
 * **3D-Coat's "whole scene" export is 3D-Coat's own**, so what it covers is its decision.
 
 The full list, including what is deliberately not shipped:

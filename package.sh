@@ -6,6 +6,8 @@
 #
 #   dist/CoatLink.zip                    the Blender add-on on its own:
 #                                        Edit > Preferences > Add-ons > Install from Disk
+#   dist/CoatLink-<version>.3dcpack      the 3D-Coat half, in 3D-Coat's own package
+#                                        format: Scripts > Install Extension
 #   dist/Blender-CoatLink-<version>.zip  the whole project - sources, both
 #                                        installers, tests - ready to unzip anywhere
 #
@@ -25,8 +27,9 @@ if [ -z "$VERSION" ]; then
 fi
 
 FULL="dist/Blender-CoatLink-$VERSION.zip"
+PACK="dist/CoatLink-$VERSION.3dcpack"
 mkdir -p dist
-rm -f dist/CoatLink.zip "$FULL"
+rm -f dist/CoatLink.zip "$FULL" "$PACK"
 
 # `git archive` asks the checkout configuration what line endings to write, and on a
 # machine whose git defaults to CRLF that produced archives with CRLF while the
@@ -37,17 +40,21 @@ ARCHIVE=(git -c core.autocrlf=false -c core.eol=lf archive --format=zip)
 "${ARCHIVE[@]}" --prefix="coatlink/" "$REF:coatlink" -o dist/CoatLink.zip
 "${ARCHIVE[@]}" --prefix="Blender-CoatLink-$VERSION/" "$REF" -o "$FULL"
 
-# the 3D-Coat half as one file: paste it into 3D-Coat's Python console, or run it
-# with any Python.  Built from the committed sources, like the archives above.
+# the 3D-Coat half as a .3dcpack - 3D-Coat's own package format, installed from its
+# Scripts > Install Extension menu.  Staged from the committed sources like the
+# archives above, so the package holds exactly what the repository holds.
 PYTHON="$(command -v python3 || command -v python || true)"
 if [ -z "$PYTHON" ]; then
-    echo "note: no python found, skipped dist/CoatLink-Setup.py" >&2
+    echo "note: no python found, skipped $PACK" >&2
 else
-    "$PYTHON" coat_side/tools/build_standalone.py >/dev/null
+    STAGE="$(mktemp -d)"
+    trap 'rm -rf "$STAGE"' EXIT
+    "${ARCHIVE[@]}" "$REF:coat_side" | tar -x -C "$STAGE"
+    "$PYTHON" "$STAGE/tools/pack_3dcpack.py" "$STAGE" "$PACK" >/dev/null
 fi
 
 echo
-for archive in dist/CoatLink.zip "$FULL" dist/CoatLink-Setup.py; do
+for archive in dist/CoatLink.zip "$FULL" "$PACK"; do
     [ -f "$archive" ] && printf '%-44s %s\n' "$archive" "$(du -h "$archive" | cut -f1)"
 done
 echo
