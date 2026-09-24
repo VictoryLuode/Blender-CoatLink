@@ -23,6 +23,10 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO"
 
 VERSION="${1:-$(grep -m1 '^## v' CHANGELOG.md | sed 's/^## //')}"
+# the download is CoatLink-<version>, never CoatLink-v<version>: the tag carries the v,
+# the file name does not, and ./package.sh v1.2.3 has to name the file the same way the
+# CHANGELOG's own text does
+VERSION="${VERSION#v}"
 REF="${2:-HEAD}"
 if [ -z "$VERSION" ]; then
     echo "no version found in CHANGELOG.md - pass one: ./package.sh v1.2.3" >&2
