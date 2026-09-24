@@ -1762,6 +1762,35 @@ def main():
           and os.path.basename(normal_image.image.filepath) == os.path.basename(maps["normalmap"])
           and normal_image.image.colorspace_settings.name == "Non-Color",
           (normal_node.type if normal_node else None,))
+    # A material the importer already built under the same name must be rebuilt, not
+    # left alone: the .mtl 3D-Coat writes names no texture slots, so what the importer
+    # makes is wired wrong (roughness through specular, the alpha of a data map into
+    # Alpha) and only the record beside the model knows better.
+    spoiled = bpy.data.materials.new("SpoiltSet")
+    spoiled.use_nodes = True
+    spoiled_nodes = spoiled.node_tree.nodes
+    spoiled_surface = next(n for n in spoiled_nodes if n.type == "BSDF_PRINCIPLED")
+    spoiled_image = spoiled_nodes.new("ShaderNodeTexImage")
+    spoiled_image.image = bpy.data.images.load(maps["roughness"], check_existing=True)
+    spoiled.node_tree.links.new(spoiled_image.outputs["Alpha"], spoiled_surface.inputs["Alpha"])
+    write(applink.paint_map_path(back_path), json.dumps({
+        "objects": ["PaintNode"], "materials": ["SpoiltSet"], "uv_sets": ["UVSet0"]},
+        sort_keys=True))
+    write(signal, back_path + "\n")
+    bridge.pull(bpy.context, force=True)
+    rebuilt = bpy.data.materials.get("SpoiltSet")
+    rebuilt_surface = next((n for n in rebuilt.node_tree.nodes if n.type == "BSDF_PRINCIPLED"),
+                           None) if rebuilt else None
+    check("a material the importer built with the same name is rebuilt, not left alone",
+          rebuilt is not None and rebuilt.get(bridge.PAINT_KEY) == "SpoiltSet"
+          and feeding(rebuilt_surface.inputs["Metallic"]) is not None
+          and not rebuilt_surface.inputs["Alpha"].links,
+          (rebuilt.get(bridge.PAINT_KEY) if rebuilt else None,
+           len(rebuilt.node_tree.nodes) if rebuilt else None))
+    write(applink.paint_map_path(back_path), json.dumps({
+        "objects": ["PaintNode"], "materials": ["PaintSet"], "uv_sets": ["UVSet0"]},
+        sort_keys=True))
+
     shots = len([n for n in material.node_tree.nodes if n.type == "TEX_IMAGE"]) if material else 0
     write(signal, back_path + "\n")
     bridge.pull(bpy.context, force=True)

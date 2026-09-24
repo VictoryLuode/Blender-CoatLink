@@ -1008,18 +1008,30 @@ def _paint_material(name, textures):
     material with a texture missing looks like a texture 3D-Coat never wrote.
     """
     material = bpy.data.materials.get(name)
+    mine = material is not None and bool(material.get(PAINT_KEY))
     if material is None:
         material = bpy.data.materials.new(name)
-        # SHADER_KEY is the marker that a material is this bridge's to replace
-        material[SHADER_KEY] = name
-        material[PAINT_KEY] = name
+    elif not mine:
+        # A material with this name that this bridge did not make: the OBJ importer
+        # builds one from the .mtl 3D-Coat writes, and that file names no texture slot
+        # (it puts the roughness map on the *specular* line) and feeds the alpha of a
+        # data map into Alpha.  Leaving it alone is how an arriving model keeps a
+        # material that is wrong in ways nobody can see.  Only the nodes go: the
+        # material itself, and whatever the user hung on it, stays.
+        tree = material.node_tree
+        if tree is not None:
+            for node in list(tree.nodes):
+                tree.nodes.remove(node)
     material.use_nodes = True
     tree = material.node_tree
     if tree is None:
         return material
     nodes, links = tree.nodes, tree.links
-    if any(node.type == "TEX_IMAGE" for node in nodes):
-        return material                      # already wired; hands off
+    if mine and any(node.type == "TEX_IMAGE" for node in nodes):
+        return material                      # ours, and already wired: hands off
+    # SHADER_KEY is the marker that a material is this bridge's to replace
+    material[SHADER_KEY] = name
+    material[PAINT_KEY] = name
     surface = _paint_surface(nodes, links)
     for index, (slot, socket, linear) in enumerate(PAINT_SLOTS):
         where = textures.get(slot)
