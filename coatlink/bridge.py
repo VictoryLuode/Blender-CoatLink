@@ -417,6 +417,18 @@ def send(context):
     # "Send to origin" (off by default): the model lands on the other end's world
     # origin instead of where it sits here (the shift itself is in the try block below)
     origin = active.matrix_world.translation.copy() if getattr(p, "send_origin", False) else None
+    # Every exporter selects what it writes, and the send itself has already looked at a
+    # different active object than the user left behind.  The user's own selection is not
+    # ours to keep: it is taken here and put back in the same finally that restores the
+    # transforms, so a send leaves the scene exactly as it found it.
+    saved_selection = []
+    for item in context.view_layer.objects:
+        try:
+            saved_selection.append((item.name, item.select_get()))
+        except RuntimeError:
+            continue
+    saved_active = context.view_layer.objects.active
+    saved_active_name = saved_active.name if saved_active is not None else ""
     suspended = []
     shifted = []
     stuck = []
@@ -445,6 +457,7 @@ def send(context):
             for modifier, viewport, render in suspended:
                 modifier.show_viewport = viewport
                 modifier.show_render = render
+            _restore_selection(context, saved_selection, saved_active_name)
     replaced = applink.foreign_job(primary)
     if replaced:
         # one job file is shared with the official Blender AppLink, so a job of
@@ -1224,10 +1237,26 @@ def _shader_material(name, entry):
     Reused by name when it is already in the file: pulling the same model twice must
     not leave a trail of ".001" copies, and a material someone adjusted stays theirs.
     """
-    material = bpy.data.materials.get(name)
-    if material is not None:
-        return material
+    existing = bpy.data.materials.get(name)
+    if existing is not None and existing.get(SHADER_KEY) == name:
+        return existing
     entry = entry if isinstance(entry, dict) else {}
+    # The name is taken by a material this bridge did not make - the user's own Copper,
+    # or one an imported file brought.  Handing that material to the arriving object
+    # would misrepresent the shader *and* write nothing into it, so the shader gets a
+    # name of its own.  The name is derived from the shader, never counted up blindly:
+    # a second pull has to find the same material again, not make another one.
+    qualified = "%s (CoatLink)" % name
+    twin = bpy.data.materials.get(qualified)
+    if twin is not None and twin.get(SHADER_KEY) == qualified:
+        return twin
+    if existing is not None:
+        index = 2
+        while bpy.data.materials.get(qualified) is not None:
+            qualified = "%s (CoatLink %d)" % (name, index)
+            index += 1
+        _log("shader material named %s: '%s' was already taken" % (qualified, name))
+        name = qualified
     material = bpy.data.materials.new(name)
     material.use_nodes = True
     material[SHADER_KEY] = name
@@ -1420,6 +1449,29 @@ def _restore_basis(saved):
             continue
     if saved:
         bpy.context.view_layer.update()
+
+
+def _restore_selection(context, saved, active_name):
+    """Put the user's selection and active object back the way they were.
+
+    Selecting what it writes is what an exporter does, and an object that has since been
+    deleted cannot be selected again - so every step is allowed to fail quietly rather
+    than turn a finished export into an error message about the selection.
+    """
+    view_layer = context.view_layer
+    for name, selected in saved:
+        item = view_layer.objects.get(name)
+        if item is None:
+            continue
+        try:
+            item.select_set(selected)
+        except RuntimeError:
+            continue
+    restored = view_layer.objects.get(active_name) if active_name else None
+    try:
+        view_layer.objects.active = restored
+    except (RuntimeError, TypeError):
+        pass
 
 
 def _restore_placement(obj):

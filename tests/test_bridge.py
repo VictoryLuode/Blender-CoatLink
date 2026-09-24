@@ -1684,6 +1684,54 @@ def main():
     bpy.data.objects.remove(legacy)
 
 
+    # ---- Export leaves the user's selection and active object alone ---------------
+    # Selecting what it writes is what an exporter does, and the send itself has already
+    # picked a possibly different active object.  Neither is ours to keep.
+    room_a = bpy.data.objects.new("SelectA", bpy.data.meshes.new("SelectAMesh"))
+    room_b = bpy.data.objects.new("SelectB", bpy.data.meshes.new("SelectBMesh"))
+    for item in (room_a, room_b):
+        bpy.context.scene.collection.objects.link(item)
+    was_scope = prefs.scope
+    prefs.scope = "scene"
+    bpy.ops.object.select_all(action="DESELECT")
+    room_b.select_set(True)
+    bpy.context.view_layer.objects.active = room_b
+    before_selection = {item.name for item in bpy.context.view_layer.objects if item.select_get()}
+    bridge.send(bpy.context)
+    after_selection = {item.name for item in bpy.context.view_layer.objects if item.select_get()}
+    check("Export puts the user's selection back",
+          after_selection == before_selection, (before_selection, after_selection))
+    check("and the active object with it",
+          bpy.context.view_layer.objects.active is room_b,
+          bpy.context.view_layer.objects.active)
+    prefs.scope = was_scope
+    for item in (room_a, room_b):
+        bpy.data.objects.remove(item, do_unlink=True)
+
+    # ---- a shader whose name the user already used --------------------------------
+    # The material standing for a shader is reused by name, but only when it is one this
+    # bridge made: handing the user's own "Copper" to an arriving object would both
+    # misrepresent the shader and write no parameters into it.
+    theirs = bpy.data.materials.new("Copper")
+    theirs.use_nodes = True
+    theirs_surface = next(node for node in theirs.node_tree.nodes
+                          if node.type == "BSDF_PRINCIPLED")
+    theirs_surface.inputs["Base Color"].default_value = (0.0, 0.5, 0.0, 1.0)
+    ours = bridge._shader_material("Copper", {"Color": 0xFF8E4E, "Metalness": 1.0})
+    check("a shader whose name is taken gets a material of its own",
+          ours is not theirs and ours is not None
+          and ours.get(bridge.SHADER_KEY) is not None
+          and ours.get(bridge.SHADER_KEY) != theirs.get(bridge.SHADER_KEY),
+          (ours.name, theirs.name, ours is theirs,
+           sorted(m.name for m in bpy.data.materials if "Copper" in m.name)))
+    check("and the user's material is left exactly as it was",
+          theirs.get(bridge.SHADER_KEY) is None
+          and theirs.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value[1] == 0.5,
+          theirs.get(bridge.SHADER_KEY))
+    again = bridge._shader_material("Copper", {"Color": 0xFF8E4E, "Metalness": 1.0})
+    check("a second pull finds the same material instead of making another",
+          again is ours, (ours.name, again.name))
+
     # ---- "paint object": the paint room's textures come back wired to a material ----
     # A paint export is the one route that carries textures: 3D-Coat writes them beside
     # the model, and - exactly like the shader map - the names come from the record it
