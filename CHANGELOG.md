@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.2.0
+
+* **The numbering starts again here.**  1.18 counted every internal step, which said more
+  about how often the file changed than about what the build does; this one moves when
+  there is something to move for.
+* **Send / Pull are Export / Import, and both halves say so in the same words in the same
+  order.**  The scope control is `Export range` (`Selected objects` / `Visible objects`),
+  the model kind is `Export type`, and the old `Textures` switch is gone.
+* **A new export type: `paint object`.**  A sculpt export carries shaders (whose names,
+  assignments and preset values come back as materials); a paint export carries the
+  painting room itself - the objects as they are painted, with 3D-Coat's own texture
+  export writing `diffuse`, `roughness`, `metalness`, `normalmap`, `ao`, `displacement`
+  and `emissive` beside the model.  Blender builds the material from those files: base
+  colour, metalness and roughness straight into the Principled inputs, the normal map
+  through a Normal Map node, emissive into Emission Color, and every map read in the
+  colour space it needs (a roughness map read as sRGB is a quiet way to get the wrong
+  surface).  Nothing that 3D-Coat did not paint falls back to a guess: a channel with no
+  image is left unfilled, and a material this bridge did not make is never written into.
+* **The export preset is made for you: `Blender CoatLink`.**  The extension writes it on
+  every start with the paths of the machine it is running on, so the dialog has a preset
+  that exports the geometry *and* the textures into the exchange folder, prefixed with
+  the object's name.
+* **The `Scripts` menu entry is registered while 3D-Coat runs**, so a fresh install finds
+  CoatLink without anyone editing a file by hand.
+* **A batch of fixes where the bridge could damage work around it:** a returned model no
+  longer replaces an object in the scene until it is asked to; a material or a group that
+  belongs to you is never reused, emptied or removed to make room (a shader whose name is
+  taken now gets a material of its own, and only the group the import appended is
+  flattened); `Export` leaves your selection and active object exactly as they were; and
+  pressing `Import` with nothing new in the exchange folder no longer brings your own
+  export back as a duplicate.
+* **The installer no longer fails on an odd drive.**  A drive that cannot be queried (a
+  cloud folder, for instance) is skipped while scanning for the real documents folder
+  instead of ending the install.
+
+Blender 0.2.0, 3D-Coat side 0.2.0.
+
+
 ## v1.18.0
 
 * **The 3D-Coat half is installed by 3D-Coat itself now, from a `.3dcpack`.**  Download
