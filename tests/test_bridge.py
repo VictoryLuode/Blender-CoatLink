@@ -160,9 +160,20 @@ def main():
         check("the bar adds nothing on the left side", (coat_ui.topbar_drawer(_Self(), _context("LEFT")),
                                                         len(entries))[1] == 1, entries)
 
-    # ---- the menu itself: the two actions, then the options and settings ----
+    # ---- the menu itself: the two actions, then the sections and their settings ----
     drawn = []
     boxed_labels = []
+    sections = []          # (id, default_closed) in the order the panel draws them
+    section_items = {}     # id -> every item drawn inside that section, header first
+    unfolded = [False]     # what the recorder pretends the user has opened
+
+    def open_section(idname, default_closed):
+        """What layout.panel() does: a header always, a body only while it is open."""
+        drawn.append(("panel", idname, default_closed))
+        sections.append((idname, default_closed))
+        section_items.setdefault(idname, [])
+        body = None if (default_closed and not unfolded[0]) else _MenuColumn(section=idname)
+        return _MenuColumn(section=idname), body
 
     class _MenuLayout(object):
         def row(self, align=False):
@@ -174,48 +185,94 @@ def main():
         def label(self, **kwargs):
             drawn.append(("label", kwargs.get("text")))
 
+        def panel(self, idname=None, default_closed=False):
+            return open_section(idname, default_closed)
+
     class _Result(object):
         """What an operator call returns: the menu sets properties on it."""
 
     class _MenuColumn(object):
-        def __init__(self, in_box=False):
+        def __init__(self, in_box=False, section=None):
             self.in_box = in_box
+            self.section = section
+
+        def _record(self, item):
+            drawn.append(item)
+            if self.section is not None:
+                section_items[self.section].append(item)
 
         def column(self, align=False):
-            return _MenuColumn(self.in_box)
+            return _MenuColumn(self.in_box, self.section)
 
         def box(self):
-            drawn.append(("box", None))
-            return _MenuColumn(True)
+            self._record(("box", None))
+            return _MenuColumn(True, self.section)
+
+        def panel(self, idname=None, default_closed=False):
+            return open_section(idname, default_closed)
 
         def prop(self, owner, name, **kwargs):
-            drawn.append(("prop", name, kwargs.get("text")))
+            self._record(("prop", name, kwargs.get("text")))
 
         def operator(self, idname, **kwargs):
-            drawn.append(("operator", idname, kwargs.get("text")))
+            self._record(("operator", idname, kwargs.get("text")))
             return _Result()
 
         def label(self, **kwargs):
-            drawn.append(("label", kwargs.get("text")))
+            self._record(("label", kwargs.get("text")))
             if self.in_box:
                 boxed_labels.append(kwargs.get("text"))
 
         def row(self, align=False):
-            return _MenuColumn(self.in_box)
+            return _MenuColumn(self.in_box, self.section)
 
         def separator(self):
-            drawn.append(("separator", None))
+            self._record(("separator", None))
 
     class _MenuSelf(object):
         layout = _MenuLayout()
 
-    coat_ui.COATLINK_PT_menu.draw(_MenuSelf(), bpy.context)
+    def draw_menu():
+        """Draw once, from a clean recorder."""
+        del drawn[:], sections[:]
+        section_items.clear()
+        del boxed_labels[:]
+        coat_ui.COATLINK_PT_menu.draw(_MenuSelf(), bpy.context)
+
+    # first, exactly as it comes up the first time
+    draw_menu()
     check("the menu opens on the two actions",
           drawn[:2] == [("operator", "coatlink.send", "Send"),
                         ("operator", "coatlink.pull", "Pull")], drawn[:3])
-    check("then the Send options heading, so the options read as one block",
-          drawn[2] == ("separator", None) and drawn[3] == ("label", "Send options"),
-          drawn[:5])
+    check("then the Send options section, so the options read as one block",
+          drawn[2] == ("panel", "coatlink_send_options", False), drawn[:5])
+    check("the sections are fold-outs, in the panel's order",
+          [item[1] for item in drawn if item[0] == "panel"]
+          == ["coatlink_send_options", "coatlink_return", "coatlink_setup", "coatlink_status"],
+          sections)
+    check("only Setup starts folded - folding is for the long tail",
+          [item[1] for item in drawn if item[0] == "panel" and item[2]] == ["coatlink_setup"],
+          sections)
+    check("a folded section draws nothing at all",
+          ("prop", "axis_mode", "Axis") not in drawn, drawn[-8:])
+    check("and the readout is never what gets folded away",
+          ("operator", "coatlink.copy_details", "Copy details") in drawn, drawn[-6:])
+
+    # then with every section unfolded, which is what the rest of these checks read
+    unfolded[0] = True
+    draw_menu()
+    check("unfolded, Setup holds its settings again",
+          [item[1] for item in section_items["coatlink_setup"] if item[0] == "prop"]
+          == ["axis_mode", "coat_scale", "match_scale", "apply_modifiers", "skip_dialogs"],
+          section_items["coatlink_setup"])
+    check("the send options sit inside their own section, scope first",
+          section_items["coatlink_send_options"][:3]
+          == [("label", "Send options"), ("prop", "scope", "Scope"), ("prop", "mode", "Import as")],
+          section_items["coatlink_send_options"][:4])
+    check("the Return section holds exactly the switches a return follows",
+          [item[1] for item in section_items["coatlink_return"] if item[0] == "prop"]
+          == ["auto_pull", "strip_materials", "replace_in_place", "shader_materials"],
+          section_items["coatlink_return"])
     check("under it the scope, then the import mode",
           drawn.index(("prop", "scope", "Scope")) < drawn.index(("prop", "mode", "Import as")),
           drawn[:8])
@@ -237,7 +294,8 @@ def main():
           < drawn.index(("label", "Setup")), drawn[:28])
 
     folded = [item[1] for item in drawn if item[0] == "prop" and item[1] == "show_advanced"]
-    check("nothing is hidden behind a fold-out", not folded, folded)
+    check("no checkbox hides content: folding is a section, never a switch",
+          not folded, folded)
     labels = [item[1] for item in drawn if item[0] == "label"]
     for header in ("Send options", "Return", "Setup"):
         check("the menu has a '%s' heading" % header, header in labels, labels)
@@ -247,21 +305,15 @@ def main():
           < drawn.index(("label", "Return"))
           < drawn.index(("label", "Setup"))
           < drawn.index(("prop", "axis_mode", "Axis")), drawn[:8])
-    # Sections must read alike: one divider before each heading, and none elsewhere.
+    # No dividers any more: a section header is its own separation, the way Blender's
+    # own popovers do it, and every section is titled by the header it folds on.
     divider_positions = [index for index, item in enumerate(drawn) if item[0] == "separator"]
-    heading_positions = [index for index, item in enumerate(drawn) if item[0] == "label"]
-    check("there is one divider per section boundary",
-          len(divider_positions) == 4, divider_positions)
-    check("every divider introduces a section heading",
-          all(drawn[index + 1][0] == "label" for index in divider_positions),
-          [(drawn[i], drawn[i + 1]) for i in divider_positions])
-    check("no divider sits in the middle of a section",
-          all(drawn[index + 1] == ("label", None) or drawn[index + 1][0] == "label"
-              for index in divider_positions), divider_positions)
+    check("no divider is drawn: the section headers separate the sections",
+          not divider_positions, divider_positions)
     check("the four sections are all present in order",
-          [drawn[index + 1][1] for index in divider_positions]
+          [drawn[index + 1][1] for index, item in enumerate(drawn) if item[0] == "panel"]
           == ["Send options", "Return", "Setup", "Status"],
-          [drawn[index + 1] for index in divider_positions])
+          [item for item in drawn if item[0] == "panel"])
     check("only the remesh settings are framed, so no section is boxed",
           [item for item in drawn if item[0] == "box"] == [("box", None)]
           and boxed_labels == [], boxed_labels)
@@ -276,11 +328,15 @@ def main():
     check("the remesh settings are framed as one group", ("box", None) in drawn,
           [item for item in drawn if item[0] == "box"])
     for name in ("axis_mode", "coat_scale", "match_scale", "apply_modifiers", "skip_dialogs"):
-        check("the setting '%s' is drawn straight away" % name, name in props, props)
+        check("the setting '%s' lives in the Setup section" % name,
+              name in [item[1] for item in section_items["coatlink_setup"] if item[0] == "prop"],
+              props)
     ids = [item[1] for item in drawn if item[0] == "operator"]
     for name in ("coatlink.detect", "coatlink.open_folder", "coatlink.launch",
                  "coatlink.unlink"):
-        check("the action '%s' is drawn straight away" % name, name in ids, ids)
+        check("the action '%s' lives in the Setup section" % name,
+              name in [item[1] for item in section_items["coatlink_setup"] if item[0] == "operator"],
+              ids)
     check("no sidebar panel left", not hasattr(bpy.types, "COATLINK_PT_main"))
     check("operators registered",
           hasattr(bpy.types, "COATLINK_OT_send") and hasattr(bpy.types, "COATLINK_OT_pull"))

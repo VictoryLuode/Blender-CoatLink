@@ -29,6 +29,13 @@ Autoexport panel uses: `Name,[min,max]` is a number field, `Name,[#a|#b]` a drop
 a checkbox.  Controls are labelled through 3D-Coat's own translation table, so the panel
 reads `Scope`, `Reduction percent`, `Refresh info` rather than the identifiers the code uses.
 
+The Blender menu groups those same sections as **fold-out headers** (Blender's own popovers
+do it this way): a small header per section, and the body drawn only while it is open.
+`Send options`, `Return` and `Status` start open and `Setup` starts folded - folding is for
+putting a long tail away, never for the readout an error has to stay visible in. 3D-Coat's
+panel format has no fold, so that side stays one page with the same headings in the same
+order; folding is not what makes them the same, the words and the order are.
+
 ## Blender menu, entry by entry
 
 | Entry | Meaning |
@@ -61,7 +68,7 @@ reads `Scope`, `Reduction percent`, `Refresh info` rather than the identifiers t
 | To voxels | Convert every visible object in the tree to a voxel volume, using 3D-Coat's own S/V badge |
 | Reduction percent | Removed, not kept; 0 hands the choice back to 3D-Coat's dialog |
 | Refresh info | Read the current object's size, face count, voxel-or-surface state, and how much of the tree is still surface |
-| Textures | Let 3D-Coat decide, force on, force off |
+| Textures | Off out of the box, so the texture files stay out of the exchange folder; `textures on` lets it write them |
 | Detect / Open folder / Start Blender | Exchange folder and Blender lookup |
 | Remove tool buttons | Takes the runtime menu and tool entries back out |
 | Copy details | Full status and paths to the clipboard (local clipboard only) |

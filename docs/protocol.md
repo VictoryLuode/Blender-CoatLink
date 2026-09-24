@@ -78,7 +78,8 @@ leaves the other side reading a stale axis/unit record, which is exactly what th
   dialog is never seen; the selected-node route passes it to
   `fromReducedVolume(volume, reduction_percent, …)`, whose parameter carries that name.  The
   percentage means *removed*, not *kept*.
-* **Textures.**  A droplist: let 3D-Coat decide, force on, force off.
+* **Textures.**  A droplist with two states: off, or on.  Off out of the box, because this
+  bridge carries models.
 * **No leftover parent node.**  3D-Coat wraps an imported file in a node named after it
   (`bridge.obj` → "bridge"), which Blender has no equivalent of.  The unparenting is handed
   over twice, because one handover is not enough: the job file names the script with

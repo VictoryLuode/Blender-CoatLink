@@ -93,8 +93,11 @@ SEND_SCOPE_HINTS = ("the node selected in the Sculpt Tree, plus its children",
 TEXTURES_FIELD = "$ExportOpt::ExportTextures"
 TEXTURES_KEY = "textures"
 
-#: the panel's native droplist: index -> stored value
-TEXTURES_CHOICES = (None, True, False)
+#: the panel's native droplist: index -> stored value.  Off comes first because that is
+#: what this bridge is for - models - so the texture files 3D-Coat's own exporter would
+#: write stay out of the exchange folder.  Turning them on is a decision, not a default.
+TEXTURES_CHOICES = (False, True)
+TEXTURES_LABELS = "#textures off|#textures on"
 
 #: The S/V badge in a sculpt-tree row.  Its own tooltip reads "Press this button to
 #: transform surface to voxel representation", so pressing it is 3D-Coat doing the
@@ -769,8 +772,7 @@ def export_note():
     if percent > 0:
         bits.append("reduction requested %d%% (unverified)" % percent)
     textures = export_textures()
-    if textures is not None:
-        bits.append("textures %s" % ("on" if textures else "off"))
+    bits.append("textures %s" % ("on" if textures else "off"))
     return " (%s)" % ", ".join(bits) if bits else ""
 
 
@@ -796,27 +798,28 @@ def capture_reduction():
 
 
 def export_textures():
-    """True / False when the panel has decided, None while 3D-Coat decides.
+    """True / False as the panel decided.  Off unless someone turned it on.
 
-    Stored as "auto" / "on" / "off" so "3D-Coat decides" is a real third state
-    (a plain bool cannot express it).
+    There used to be a third state - "auto", leaving it to 3D-Coat's own export
+    dialog.  A stored "auto" reads as off now: that is what it meant for anyone who
+    left the setting alone, and this bridge carries models, so textures have to be
+    asked for rather than quietly appearing in the exchange folder.
     """
-    value = load_state().get(TEXTURES_KEY, "auto")
+    value = load_state().get(TEXTURES_KEY, "off")
     if isinstance(value, bool):
         return value
-    return {"on": True, "off": False}.get(str(value).lower())
+    if str(value).lower() == "auto":
+        return False
+    return {"on": True, "off": False}.get(str(value).lower(), False)
 
 
 def set_export_textures(value):
-    stored = "auto" if value is None else ("on" if value else "off")
-    return save_state({TEXTURES_KEY: stored})
+    return save_state({TEXTURES_KEY: "on" if value else "off"})
 
 
 def apply_textures():
-    """Push the texture switch into 3D-Coat's export dialog.  "" when unset."""
+    """Push the texture switch into 3D-Coat's export dialog."""
     value = export_textures()
-    if value is None:
-        return ""
     if CMD is None:
         return "textures: no CMD api in this build"
     try:
@@ -1144,7 +1147,7 @@ class CoatLinkPanel(object):
             getattr(self, "StatsLabel", "Statistics paused; click Refresh info"), 2))
         items.extend(panel_text_rows(self.ModeLabel, 1))
         items.append("##Reduction % = removed; estimate only, export not verified")
-        items.append("Textures,[#from 3D-Coat|#textures on|#textures off]")
+        items.append("Textures,[%s]" % TEXTURES_LABELS)
         items.append("---")
         items.append("#Setup")
         items.append("[1 1]")
@@ -1193,8 +1196,7 @@ class CoatLinkPanel(object):
             values[SEND_SCOPE_KEY] = SEND_SCOPES[scope]
         choice = int(self.Textures)
         if 0 <= choice < len(TEXTURES_CHOICES):
-            value = TEXTURES_CHOICES[choice]
-            values[TEXTURES_KEY] = "auto" if value is None else ("on" if value else "off")
+            values[TEXTURES_KEY] = "on" if TEXTURES_CHOICES[choice] else "off"
         if save_state(values):
             self._saved_controls = current
         return False

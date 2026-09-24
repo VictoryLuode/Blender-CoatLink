@@ -105,6 +105,9 @@ carry textures), and `To voxels` converts everything the tree is showing.  It do
 pressing 3D-Coat's own S/V badge - the conversion you would do by hand - and accepts the
 dialog for you, so a scene converts from one click.
 
+The menu's four sections - `Send options`, `Return`, `Setup`, `Status` - are fold-out headers,
+the way Blender's own popovers group things.  `Setup` starts folded, everything else open.
+
 What every entry does, on both sides: [docs/menus.md](docs/menus.md).
 
 ## How it works

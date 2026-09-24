@@ -695,8 +695,8 @@ def main():
           bridge.CoatLinkPanel().ReductionPercent)
     check("the panel carries a native number field for the percentage",
           "ReductionPercent,[0,100]" in panel.ui(), panel.ui())
-    check("the panel carries a native choice for textures",
-          any(item.startswith("Textures,[") for item in panel.ui()), panel.ui())
+    check("the panel carries a native choice for textures, off first",
+          "Textures,[#textures off|#textures on]" in panel.ui(), panel.ui())
     bridge.set_reduction_percent(40)
     panel.ReductionPercent = 35
     panel.process()
@@ -725,31 +725,41 @@ def main():
     field = bridge.TEXTURES_FIELD
     check("the textures field is 3D-Coat's own", field == "$ExportOpt::ExportTextures", field)
 
-    bridge.set_export_textures(None)
-    check("unset means 3D-Coat decides", bridge.export_textures() is None, bridge.export_textures())
-    cmd.calls = []
-    panel.SendToBlender()
-    check("with nothing set the textures field is untouched",
-          ("bool", field, False) not in cmd.calls, [call for call in cmd.calls if isinstance(call, tuple)])
-
-    panel.Textures = 1
-    panel.process()
-    check("the second entry asks for textures on", bridge.export_textures() is True, bridge.load_state())
-    panel.Textures = 2
-    panel.process()
-    check("the third entry asks for textures off", bridge.export_textures() is False, bridge.load_state())
-    panel.Textures = 0
-    panel.process()
-    check("the first entry hands it back to 3D-Coat", bridge.export_textures() is None, bridge.load_state())
-
+    # one state, not three: this bridge carries models, so its own exports keep the
+    # texture files out of the exchange folder unless someone asks for them
     bridge.set_export_textures(False)
     cmd.calls = []
     panel.SendToBlender()
-    check("textures off is pushed into 3D-Coat's dialog", ("bool", field, False) in cmd.calls,
-          [call for call in cmd.calls if isinstance(call, tuple)])
+    check("textures off is pushed into 3D-Coat's dialog",
+          ("bool", field, False) in cmd.calls, [call for call in cmd.calls if isinstance(call, tuple)])
     check("3D-Coat really holds textures off", cmd.bools.get(field) is False, cmd.bools)
     check("the status line mentions textures", "textures off" in panel.status, panel.status)
-    bridge.set_export_textures(None)
+
+    panel.Textures = 1
+    panel.process()
+    check("the second entry is the only way to ask for textures",
+          bridge.export_textures() is True, bridge.load_state())
+    cmd.calls = []
+    panel.SendToBlender()
+    check("asked for, textures on is pushed too", ("bool", field, True) in cmd.calls,
+          [call for call in cmd.calls if isinstance(call, tuple)])
+
+    panel.Textures = 0
+    panel.process()
+    check("back to the first entry means off again", bridge.export_textures() is False,
+          bridge.load_state())
+
+    # a state file from a build that had the third state still reads as a decision
+    bridge.save_state({bridge.TEXTURES_KEY: "auto"})
+    check("a stored \"auto\" reads as off, not as undefined",
+          bridge.export_textures() is False, bridge.load_state())
+    bridge.save_state({bridge.TEXTURES_KEY: "on"})
+    check("and a stored \"on\" is kept", bridge.export_textures() is True, bridge.load_state())
+
+    # leave the panel and the state file in step for what follows
+    bridge.set_export_textures(False)
+    panel.Textures = 0
+    panel.process()
 
     # ---- the Setup button opens 3D-Coat's own panel, never a Qt window ----
     coat.dialog_log = []

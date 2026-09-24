@@ -179,63 +179,75 @@ class COATLINK_PT_menu(bpy.types.Panel):
             return
 
         # The two actions lead, so the panel opens on the thing the add-on is for.  The
-        # options that shape them follow, then the remaining sections - same sections,
-        # same order, same words as the 3D-Coat panel (which opens on its two buttons
-        # too).  Nothing sits behind a fold-out: tidiness comes from grouping - the
-        # remesh settings get a box of their own, same-kind switches share a line, and
-        # anything with a droplist keeps a line to itself so its text is not cut off.
+        # four sections that follow are the same sections, in the same order, with the
+        # same words as the 3D-Coat panel (which opens on its two buttons too) - drawn
+        # as fold-out sections the way Blender's own popovers group things: a small
+        # header carrying the title, and a body only drawn while the section is open.
+        # All but Setup start open: folding is for putting a long tail away, never for
+        # hiding something a first run needs.  Inside a section, same-kind switches
+        # share a line and anything with longer text keeps a line to itself.
         row = layout.row(align=True)
         row.scale_y = 1.6
         row.operator("coatlink.send", text="Send", icon="EXPORT")
         row.operator("coatlink.pull", text="Pull", icon="IMPORT")
 
-        column = layout.column(align=True)
-        column.separator()
-        column.label(text="Send options")
-        column.prop(p, "scope", text="Scope")
-        column.prop(p, "mode", text="Import as")
-        column.prop(p, "send_origin", text="Send to origin")
-        column.prop(p, "remesh", text="Remesh on send")
-        # The box frames the remesh settings themselves - they are one idea, and they
-        # grey out as a block while the switch right above them is off.
-        box = column.box()
-        settings = box.column(align=True)
-        settings.enabled = p.remesh     # always drawn, greyed when it does nothing
-        settings.prop(p, "remesh_voxel", text="Voxel size (0 = auto)")
-        settings.prop(p, "remesh_adaptivity", text="Adaptivity")
-        column.separator()
-        column.label(text="Return")
-        row = column.row(align=True)
-        row.prop(p, "auto_pull", text="Auto receive")
-        row.prop(p, "strip_materials", text="Without materials")
-        # Two switches to a line: these two are what a return does to the scene, and
-        # "Replace in place" is the one of them that can write over a model by name.
-        row = column.row(align=True)
-        row.prop(p, "replace_in_place", text="Replace in place")
-        row.prop(p, "shader_materials", text="Shaders as materials")
-        column.separator()
-        column.label(text="Setup")
-        column.prop(p, "axis_mode", text="Axis")
-        row = column.row(align=True)
-        row.prop(p, "coat_scale", text="Scale (0 = auto)")
-        row.prop(p, "match_scale", text="Match scale")
-        row = column.row(align=True)
-        row.prop(p, "apply_modifiers", text="Modifiers")
-        row.prop(p, "skip_dialogs", text="Skip dialogs")
-        row = column.row(align=True)
-        row.operator("coatlink.detect", text="Detect", icon="VIEWZOOM")
-        row.operator("coatlink.open_folder", text="Open folder", icon="FILE_FOLDER")
-        row = column.row(align=True)
-        row.operator("coatlink.launch", text="Start 3D-Coat", icon="PLAY")
-        row.operator("coatlink.pull", text="Force re-read", icon="FILE_REFRESH").force = True
-        column.operator("coatlink.unlink", text="Unlink selected", icon="UNLINKED")
-        # A section like the ones above it: the divider introduces the heading, and
-        # only the remesh sub-group is framed, so no section is drawn differently.
-        column.separator()
-        column.label(text="Status")
-        for line in status_lines(bridge.status(context)):
-            column.label(text=line or " ")
-        column.operator("coatlink.copy_details", text="Copy details", icon="COPYDOWN")
+        header, body = layout.panel("coatlink_send_options", default_closed=False)
+        header.label(text="Send options")
+        if body:
+            column = body.column(align=True)
+            column.prop(p, "scope", text="Scope")
+            column.prop(p, "mode", text="Import as")
+            column.prop(p, "send_origin", text="Send to origin")
+            column.prop(p, "remesh", text="Remesh on send")
+            # The box frames the remesh settings themselves - they are one idea, and
+            # they grey out as a block while the switch right above them is off.
+            box = column.box()
+            settings = box.column(align=True)
+            settings.enabled = p.remesh     # always drawn, greyed when it does nothing
+            settings.prop(p, "remesh_voxel", text="Voxel size (0 = auto)")
+            settings.prop(p, "remesh_adaptivity", text="Adaptivity")
+
+        header, body = layout.panel("coatlink_return", default_closed=False)
+        header.label(text="Return")
+        if body:
+            column = body.column(align=True)
+            row = column.row(align=True)
+            row.prop(p, "auto_pull", text="Auto receive")
+            row.prop(p, "strip_materials", text="Without materials")
+            # Two switches to a line: these two are what a return does to the scene, and
+            # "Replace in place" is the one of them that can write over a model by name.
+            row = column.row(align=True)
+            row.prop(p, "replace_in_place", text="Replace in place")
+            row.prop(p, "shader_materials", text="Shaders as materials")
+
+        header, body = layout.panel("coatlink_setup", default_closed=True)
+        header.label(text="Setup")
+        if body:
+            column = body.column(align=True)
+            column.prop(p, "axis_mode", text="Axis")
+            row = column.row(align=True)
+            row.prop(p, "coat_scale", text="Scale (0 = auto)")
+            row.prop(p, "match_scale", text="Match scale")
+            row = column.row(align=True)
+            row.prop(p, "apply_modifiers", text="Modifiers")
+            row.prop(p, "skip_dialogs", text="Skip dialogs")
+            row = column.row(align=True)
+            row.operator("coatlink.detect", text="Detect", icon="VIEWZOOM")
+            row.operator("coatlink.open_folder", text="Open folder", icon="FILE_FOLDER")
+            row = column.row(align=True)
+            row.operator("coatlink.launch", text="Start 3D-Coat", icon="PLAY")
+            row.operator("coatlink.pull", text="Force re-read", icon="FILE_REFRESH").force = True
+            column.operator("coatlink.unlink", text="Unlink selected", icon="UNLINKED")
+
+        # The readout stays open: this is where an error stays visible after the toast
+        # has gone, so folding it away would fold away the failures too.
+        header, body = layout.panel("coatlink_status", default_closed=False)
+        header.label(text="Status")
+        if body:
+            column = body.column(align=True)
+            for line in status_lines(bridge.status(context)):
+                column.label(text=line or " ")
+            column.operator("coatlink.copy_details", text="Copy details", icon="COPYDOWN")
 
 
 CLASSES = (
