@@ -1082,7 +1082,7 @@ def capture_reduction():
 
 #: the export preset this bridge installs into 3D-Coat's own list: the answer to every
 #: question its "Export Objects & Textures" dialog asks a paint export
-EXPORT_PRESET_NAME = "CoatLink"
+EXPORT_PRESET_NAME = "Blender CoatLink"
 
 
 def export_preset_dir():

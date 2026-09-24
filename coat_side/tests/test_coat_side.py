@@ -694,7 +694,7 @@ def main():
     check("tool registration is idempotent", bridge.register_room_tools() == [])
 
     # ---- the export preset: the paint dialog's answers, pre-made ----
-    preset = os.path.join(bridge.user_data_dir(), "UserPrefs", "ExportPresets", "CoatLink.xml")
+    preset = os.path.join(bridge.user_data_dir(), "UserPrefs", "ExportPresets", bridge.EXPORT_PRESET_NAME + ".xml")
     check("the export preset is written into 3D-Coat's own list", os.path.isfile(preset),
           os.listdir(os.path.dirname(preset)) if os.path.isdir(os.path.dirname(preset)) else "no folder")
     text = read(preset)
@@ -707,7 +707,7 @@ def main():
           "<PathForTextures>%s</PathForTextures>"
           % bridge.app_folder(exchange).replace("\\", "/") in text, text[:600])
     check("the preset names itself, so 3D-Coat shows it as the one in use",
-          "<!ExportPreset>CoatLink</!ExportPreset>" in text)
+          "<!ExportPreset>%s</!ExportPreset>" % bridge.EXPORT_PRESET_NAME in text)
     check("and it carries the texture slots the Blender half wires up",
           "<TextureSuffix>diffuse</TextureSuffix>" in text
           and "<TextureSuffix>normalmap</TextureSuffix>" in text)
