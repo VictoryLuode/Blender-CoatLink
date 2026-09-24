@@ -2,6 +2,12 @@
 import os
 import tempfile
 
+#: How many faces may be asked about, one cross-boundary call each, before the check gives
+#: up and refuses the export rather than pretending it passed.  getFaceObject() has no
+#: bulk form, and a mismatch caused by the packaging node - the usual one - never reaches
+#: the scan at all, so this only bounds the genuinely suspicious case.
+FACE_SCAN_BUDGET = 2000000
+
 
 def selected_nodes(coat):
     """The nodes selected in the Sculpt Tree, when the build tells us about them.
@@ -28,13 +34,18 @@ def _is_wrap(label, wrap_name):
     """Is this group the node 3D-Coat wraps a Blender import in ("bridge", "bridge1")?
 
     The name is the exchange model's own name, so it cannot collide with a sculpt object
-    the artist made.  An empty name means the caller does not want the rule at all.
+    the artist made.  The node itself carries the name ("bridge"), and a second import of
+    the same file gets a digit tail ("bridge1") - both are packaging.  An empty name means
+    the caller does not want the rule at all.
     """
     name = str(label or "").strip().lower()
     wanted = str(wrap_name or "").strip().lower()
     if not wanted or not name.startswith(wanted):
         return False
-    return name[len(wanted):].isdigit()
+    rest = name[len(wanted):]
+    # the node itself ("bridge") and the ones 3D-Coat adds for a second import ("bridge1")
+    # are both packaging; only a plain name with a digit tail counts as one
+    return not rest or rest.isdigit()
 
 
 def _drop_groups(path, drop):
@@ -133,18 +144,38 @@ def export_subtree(coat, path, reduction=0, wrap_name=""):
             # different things look like that: a node with no faces of its own (the
             # packaging 3D-Coat wraps the last import in - it goes from the file), and a
             # merge, where a node that does own faces lost its group (refused, because a
-            # merged model cannot carry a material per object).  The mesh says which
-            # objects its faces belong to, so the two can be told apart.
-            owned = set()
-            try:
-                for index in range(mesh.facesCount()):
-                    which = mesh.getFaceObject(index)
-                    if 0 <= which < len(names):
-                        owned.add(names[which])
-            except Exception:
+            # merged model cannot carry a material per object).
+            #
+            # Asking the mesh which object each face belongs to is the only way to tell
+            # them apart, and the only call for it is per face - so it is asked *after*
+            # the packaging nodes are taken out of the question, which is the usual
+            # reason for the mismatch.  A mismatch that is only packaging costs nothing;
+            # a real one costs one scan that stops at the first face it finds, and a
+            # model too large to finish that scan inside the budget is refused rather
+            # than waved through.
+            unaccounted = [label for label in names
+                           if label not in kept and not _is_wrap(label, wrap_name)]
+            if unaccounted:
                 owned = set()
-            if owned and not owned.issubset(set(kept)):
-                raise RuntimeError('OBJ lost object groups; refusing a merged subtree export')
+                budget = FACE_SCAN_BUDGET
+                scanned = 0
+                try:
+                    count = mesh.facesCount()
+                    while scanned < count and scanned < budget:
+                        which = mesh.getFaceObject(scanned)
+                        scanned += 1
+                        if 0 <= which < len(names):
+                            owned.add(names[which])
+                            if not owned.issubset(set(kept)):
+                                break
+                except Exception:
+                    owned = set()
+                    scanned = budget
+                if owned and not owned.issubset(set(kept)):
+                    raise RuntimeError('OBJ lost object groups; refusing a merged subtree export')
+                if scanned >= budget and scanned < mesh.facesCount():
+                    raise RuntimeError(
+                        'model too large to check the lost object groups; export cancelled')
         gone = [label for label in order if label not in kept]
         if gone:
             _drop_groups(temporary, {label.lower() for label in gone})

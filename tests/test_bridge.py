@@ -1718,6 +1718,31 @@ def main():
     for item in (room_a, room_b):
         bpy.data.objects.remove(item, do_unlink=True)
 
+    # ---- an export.txt written in another encoding -----------------------------------
+    # 3D-Coat writes the path itself, and on Windows that can be UTF-16 or the machine's
+    # own code page.  Reading every one of them as UTF-8 does not raise - it produces
+    # mojibake that then looks like a file that is not there.
+    wanted = os.path.normpath(os.path.join(EXCHANGE, "bridge.obj"))
+    utf16_file = os.path.join(EXCHANGE, "export_utf16.txt")
+    with open(utf16_file, "wb") as handle:
+        handle.write((wanted + "\n").encode("utf-16"))
+    check("a UTF-16 export.txt is read for what it is",
+          applink.read_export_paths(utf16_file) == [wanted],
+          applink.read_export_paths(utf16_file))
+    bom_file = os.path.join(EXCHANGE, "export_bom.txt")
+    with open(bom_file, "wb") as handle:
+        handle.write(b"\xef\xbb\xbf" + (wanted + "\n").encode("utf-8"))
+    check("a byte-order mark does not become part of the path",
+          applink.read_export_paths(bom_file) == [wanted],
+          applink.read_export_paths(bom_file))
+    accented = os.path.join(EXCHANGE, "export_cp1252.txt")
+    with open(accented, "wb") as handle:
+        handle.write("C:\\Users\\Ren\u00e9\\bridge.obj\n".encode("cp1252"))
+    check("a path in the machine's own code page survives",
+          applink.read_export_paths(accented)
+          == [os.path.normpath("C:\\Users\\Ren\u00e9\\bridge.obj")],
+          applink.read_export_paths(accented))
+
     # ---- two 3D-Coat data folders: the newest state file is the truth ---------------
     # An older install can leave its own data folder beside the current one, each with a
     # state file.  Reading the first one found reported units and scene scale the running

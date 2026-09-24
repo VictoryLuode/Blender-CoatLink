@@ -500,13 +500,46 @@ def write_import_txt(root, load_path, return_path, mode, skip_dialogs=True):
     return target
 
 
+def read_text_file(path):
+    """The text of a file another program wrote, whatever it wrote it in.
+
+    3D-Coat writes its side of the protocol itself, and on Windows that can mean UTF-8,
+    the machine's own code page (a user folder with an accent in it), or UTF-16 with or
+    without a byte-order mark.  Reading all three as UTF-8 does not raise - it produces
+    mojibake that then looks like a file name that does not exist, so the encoding is
+    worked out from the bytes instead of assumed.
+    """
+    try:
+        with open(path, "rb") as handle:
+            blob = handle.read()
+    except OSError:
+        return ""
+    if blob.startswith(b"\xef\xbb\xbf"):           # UTF-8 with a byte-order mark
+        return blob.decode("utf-8-sig", "replace")
+    if blob.startswith(b"\xff\xfe") or blob.startswith(b"\xfe\xff"):
+        return blob.decode("utf-16", "replace")
+    if b"\x00" in blob[:64]:
+        # UTF-16 with the mark left off: which half the NULs sit in says the byte order
+        order = "utf-16-le" if blob[1:2] == b"\x00" else "utf-16-be"
+        return blob.decode(order, "replace")
+    try:
+        return blob.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    # A path written in the code page the machine runs in.  "mbcs" is that code page, but
+    # on a machine set to UTF-8 worldwide it is UTF-8 again, so the common Western page is
+    # tried on its own and latin-1 - which maps every byte - is the last net.
+    for codec in ("mbcs", "cp1252"):
+        try:
+            return blob.decode(codec)
+        except (LookupError, UnicodeDecodeError):
+            continue
+    return blob.decode("latin-1", "replace")
+
+
 def read_export_paths(path):
     """Model paths listed in an export.txt (one per line and/or ';' separated)."""
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace") as handle:
-            raw = handle.read()
-    except OSError:
-        return []
+    raw = read_text_file(path)
     out = []
     for chunk in raw.replace("\r", "\n").replace(";", "\n").split("\n"):
         chunk = chunk.strip().strip('"')

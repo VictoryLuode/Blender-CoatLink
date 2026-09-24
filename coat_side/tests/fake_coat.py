@@ -185,6 +185,9 @@ class FakeCoat(object):
                 #: which object each face belongs to; None = handed out over the objects
                 #: in turn, the way a real extraction does
                 self.face_objects = None
+                #: how many faces the caller asked about one by one (a cross-boundary
+                #: call each, so the count is the cost of the check)
+                self.face_object_reads = 0
 
             def owner(self, faceIndex):
                 if self.face_objects:
@@ -192,6 +195,7 @@ class FakeCoat(object):
                 return faceIndex % max(1, len(self.names))
 
             def getFaceObject(self, faceIndex):
+                self.face_object_reads += 1
                 return self.owner(faceIndex)
 
             def fromVolume(self, volume, with_subtree=False, all_selected=False):

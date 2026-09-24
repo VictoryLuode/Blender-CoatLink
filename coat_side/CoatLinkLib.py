@@ -1976,8 +1976,16 @@ class CoatLinkPanel(object):
         remove_paint_map(root)          # ditto: this trip is not a paint export
         write_signal(root, path)
         what = "selected node + subtree" if chosen <= 1 else "%d selected nodes + subtrees" % chosen
-        self._report("Exported %s: %s (%s)%s"
-                     % (os.path.basename(path), ", ".join(names), what, reduction_note()),
+        collapsed = ""
+        if chosen > 1 and len(names) <= 1:
+            # The tree said several nodes and the extraction handed back one object: 3D-Coat
+            # merged them, and nothing on this side can un-merge them.  Saying so is the
+            # difference between a merged model and a send that lost objects.
+            collapsed = (" - 3D-Coat's extraction merged the %d selected nodes into one object"
+                         % chosen)
+            log("selected-node export merged %d nodes into %s" % (chosen, ", ".join(names)))
+        self._report("Exported %s: %s (%s)%s%s"
+                     % (os.path.basename(path), ", ".join(names), what, reduction_note(), collapsed),
                      "%d faces | folder: %s" % (faces, app_folder(root)))
 
     def PullFromBlender(self):

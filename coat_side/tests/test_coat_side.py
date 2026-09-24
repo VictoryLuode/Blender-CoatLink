@@ -1087,6 +1087,34 @@ def main():
     check("the status says how many nodes went, when it was more than one",
           "2 selected nodes + subtrees" in panel.status, panel.status)
 
+    # The same shape, this time told which node is the packaging - which is what a real
+    # send passes.  The mismatch is then understood without asking about a single face:
+    # getFaceObject() is a cross-boundary call per face, so on a large model walking all
+    # of them is what used to take minutes.
+    scoped.export_subtree(coat, scoped_path, 0, "bridge")
+    check("a mismatch that is only the packaging node costs no per-face calls",
+          coat.meshes[-1].face_object_reads == 0, coat.meshes[-1].face_object_reads)
+
+    # a node that really does own faces but lost its group is still refused - and the scan
+    # stops at the first such face instead of walking the whole model (getFaceObject has no
+    # bulk form: one cross-boundary call per face, so on a large model this is the check
+    # that used to take minutes)
+    def write_merged(path):
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write("g Volume1\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+        return True
+
+    coat.mesh_template = {"names": ["Volume1", "Volume2"], "faces": 500000,
+                          "face_objects": [1], "write": write_merged}
+    try:
+        scoped.export_subtree(coat, scoped_path, 0)
+        check("a node that lost its group is still refused", False, "no error raised")
+    except RuntimeError as exc:
+        check("a node that lost its group is still refused",
+              "lost object groups" in str(exc), exc)
+    check("and the check stops at the first face, not the whole model",
+          coat.meshes[-1].face_object_reads <= 2, coat.meshes[-1].face_object_reads)
+
     # geometry outside any group at all is refused rather than handed over as a model
     # whose objects nobody can name
     def write_without_groups(path):
