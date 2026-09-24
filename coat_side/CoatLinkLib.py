@@ -1256,7 +1256,7 @@ PANEL_LABELS = {
 ACTION_LABELS = {
     "CoatLink_Send": ("SendToBlender", "Export to Blender"),
     "CoatLink_Pull": ("PullFromBlender", "Import from Blender"),
-    "CoatLink_Setup": ("OpenPanel", "CoatLink: panel"),
+    "CoatLink_Setup": ("OpenPanel", "CoatLink"),
 }
 
 
@@ -1391,8 +1391,9 @@ def ensure_launcher():
         info = CoatLinkMenu.ensure()
     except Exception as exc:
         log("could not register the launcher: %s" % exc)
-        return []
-    return info.get("written", [])
+        info = {}
+    # the entry itself is inserted rather than declared: see register_menu_item()
+    return list(info.get("written", [])) + register_menu_item()
 
 
 def run_action(tool_id):
@@ -2154,12 +2155,15 @@ def find_blender_executable():
 # --------------------------------------------------------------------------
 
 def register_menu_item():
-    """Write the menu file 3D-Coat reads at startup, for every menu path.
+    """Put the Scripts entry into 3D-Coat's own menu list.
 
-    This used to insert the entry at run time instead.  The XML is the way that
-    survives a restart, and an id that is both in the XML and in 3D-Coat's own
-    insertion file is listed twice - so the file is the only route now, and
-    ``CoatLinkMenu.clean_old_installs()`` removes the older insertion files.
+    This used to be an ``ExtraMenuItems`` XML and nothing else.  On the machine this is
+    developed against that file is written, and read at every start, and the entry still
+    never appears - while a run-time ``coat.ui.insertInMenu`` shows up straight away and
+    survives, because 3D-Coat records the insertion itself.  So the insertion is the
+    route now and the XML is retired; the guard matters because an id that is both
+    declared in the XML and inserted at run time is listed *twice*, and because every
+    start would otherwise add another copy.
     """
     try:
         coat.ui.addTranslation(MENU_ID, PANEL_CAPTION)
@@ -2167,10 +2171,22 @@ def register_menu_item():
         pass
     try:
         import CoatLinkMenu
-        return CoatLinkMenu.write_menu_xml()
+        CoatLinkMenu.retire_menu_xml()
     except Exception as exc:
-        log("could not write the menu entry: %s" % exc)
+        log("could not retire the menu file: %s" % exc)
+    if _menu_present(MENU_ID):
+        log("menu entry already in place: %s" % MENU_ID)
         return []
+    # 3D-Coat wants forward slashes here, exactly as in the XML it used to read
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "CoatLink_Setup.py").replace("\\", "/")
+    try:
+        coat.ui.insertInMenu(MENU_PATHS[0], MENU_ID, script)
+    except Exception as exc:
+        log("could not insert the menu entry: %s" % exc)
+        return []
+    log("inserted the menu entry: %s > %s" % (MENU_PATHS[0], MENU_ID))
+    return ["menu"]
 
 
 def register_room_tools():

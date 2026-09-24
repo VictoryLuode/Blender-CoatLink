@@ -9,9 +9,10 @@
 #
 # Two rules decide the shape of this module:
 #
-#   * 3D-Coat reads ``Scripts/ExtraMenuItems/*.xml`` at startup, so the XML is what
-#     makes an entry survive; a run-time insert (``coat.ui.insertInMenu``) writes a
-#     *second* file for the same id and lists the entry twice.
+#   * The Scripts entry is *inserted* at run time (``coat.ui.insertInMenu``), not declared
+#     in ``Scripts/ExtraMenuItems/*.xml``.  The XML route was tried and does not show the
+#     entry on the machine this is developed against, while an insertion does - and an id
+#     that is in both places is listed twice, so the declaration is retired here.
 #   * The XML carries absolute paths, so it cannot be shipped inside the package -
 #     it is generated here, per machine, and only rewritten when it changed.
 
@@ -130,12 +131,24 @@ def _write_extra(name, text):
     return [name] if _write_if_changed(os.path.join(folder, name), text) else []
 
 
-def write_menu_xml():
-    """The Scripts and Windows menu entries - one file, read at every start."""
-    where = lib.xml_escape(windows_path(here()))
-    blocks = "".join(MENU_BLOCK % {"path": path, "id": MENU_ID, "here": where}
-                     for path in MENU_PATHS)
-    return _write_extra(MENU_FILE, MENU_HEAD + blocks + MENU_TAIL)
+def retire_menu_xml():
+    """Delete the Scripts XML: that entry is inserted at run time now.
+
+    A function rather than a deleted file, because a machine upgrading from an older
+    build still has it - and an id that is declared there *and* inserted at run time is
+    listed twice.
+    """
+    folder = extra_menu_dir()
+    if not folder:
+        return []
+    path = os.path.join(folder, MENU_FILE)
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+            return [MENU_FILE]
+    except OSError as exc:
+        log("%s could not be removed: %s" % (MENU_FILE, exc))
+    return []
 
 
 def write_tools_xml():
@@ -263,7 +276,7 @@ def ensure():
         # 3D-Coat has just read for its menu still names the hand-install folder.
         classic = os.path.join(script_dir(), CLASSIC_FOLDER)
         report = clean_old_installs(defer_classic=_menu_files_name(classic))
-        written = write_menu_xml() + write_tools_xml()
+        written = retire_menu_xml() + write_tools_xml()
     except Exception as exc:
         log("registering the launcher failed: %s" % exc)
         return {"cleaned": report, "written": written}

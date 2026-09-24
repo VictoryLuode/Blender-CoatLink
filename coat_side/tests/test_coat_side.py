@@ -612,44 +612,45 @@ def main():
     coat.current_element = UNSET
 
     # ---- the menu entry: an XML file 3D-Coat reads at every start ----
-    # It used to be inserted at run time.  Only the file survives a restart, and an
-    # id that is in both the file and 3D-Coat's own insertion file is listed twice.
+    # The entry is inserted into 3D-Coat's own menu list at run time.  The XML route was
+    # tried first and retired: on the machine this is developed against the file is
+    # written and read at every start and the entry still never appears, while an
+    # insertion shows up at once and survives - and an id that is in both places is
+    # listed twice.
     scripts = os.path.join(bridge.user_data_dir(), "UserPrefs", "Scripts")
     extra = os.path.join(scripts, "ExtraMenuItems")
-    # the XML has to name the copy that is running, not the Scripts root
+    # the path handed over has to name the copy that is running, not the Scripts root
     where = os.path.dirname(os.path.abspath(bridge.__file__)).replace("\\", "/")
     os.makedirs(extra, exist_ok=True)
     menu_xml = os.path.join(extra, "CoatLink.xml")
     tools_xml = os.path.join(extra, "CoatLinkTools.xml")
+    with open(menu_xml, "w", encoding="utf-8") as handle:
+        handle.write("an older build's declaration, which must not survive")
 
-    def read(path):
-        with open(path, "r", encoding="utf-8") as handle:
-            return handle.read()
+    bridge.coat.inserted[:] = []
+    bridge.coat.menu_inserted = False
+    check("the first run inserts the menu entry 3D-Coat has to show",
+          bridge.register_menu_item() == ["menu"] and bridge.coat.inserted
+          and bridge.coat.inserted[-1][:2] == ("Scripts", bridge.MENU_ID),
+          bridge.coat.inserted)
+    check("and hands over this copy's own setup script",
+          bridge.coat.inserted and bridge.coat.inserted[-1][2] == where + "/CoatLink_Setup.py",
+          bridge.coat.inserted[-1][2] if bridge.coat.inserted else None)
+    check("the retired declaration is gone, so the id cannot be listed twice",
+          not os.path.exists(menu_xml))
+    bridge.coat.menu_inserted = True
+    check("a start on a machine that already has the entry inserts nothing",
+          bridge.register_menu_item() == [] and len(bridge.coat.inserted) == 1,
+          bridge.coat.inserted)
+    bridge.coat.menu_inserted = True     # 3D-Coat has recorded the insertion now
 
-    check("the first run writes the menu file", bridge.register_menu_item() == ["CoatLink.xml"],
-          bridge.register_menu_item())
-    text = read(menu_xml)
-    check("the file carries one entry, in the Scripts menu",
-          text.count("<ExtraMenuItem>") == 1 and "<MenuPath>Scripts</MenuPath>" in text
-          and "Windows" not in text,
-          text)
-    check("its command points at this copy's own setup script",
-          "script:%s/CoatLink_Setup.py" % where in text, text)
-    check("writing it again changes nothing", bridge.register_menu_item() == [])
-
-    # the files coming back is the whole repair path: nothing is reinstalled
-    import json as _json
-
-    def write_state(keys):
-        with open(bridge.state_path(), "w", encoding="utf-8", newline="\n") as handle:
-            _json.dump(keys, handle)
-
-    for path in (menu_xml, tools_xml):
+    # the tool buttons are still a file: only the Scripts entry is inserted
+    for path in (tools_xml,):
         if os.path.isfile(path):
             os.remove(path)
-    write_state({"format": "FBX"})
     added = sorted(bridge.ensure_launcher())
-    check("a deleted menu file is written again", added == ["CoatLink.xml", "CoatLinkTools.xml"], added)
+    check("a deleted tool file is written again",
+          added == ["CoatLinkTools.xml"], added)
     check("ensure_launcher is idempotent", bridge.ensure_launcher() == [])
 
     # ---- leftovers of older builds, and of 3D-Coat's run-time insertions ----
@@ -668,6 +669,16 @@ def main():
     check("somebody else's menu file is left alone", os.path.exists(theirs))
 
     # ---- tool buttons: one entry per button per room, the same file route ----
+    import json as _json
+
+    def write_state(keys):
+        with open(bridge.state_path(), "w", encoding="utf-8", newline="\n") as handle:
+            _json.dump(keys, handle)
+
+    def read(path):
+        with open(path, "r", encoding="utf-8") as handle:
+            return handle.read()
+
     write_state({"format": "FBX"})
     if os.path.isfile(tools_xml):
         os.remove(tools_xml)        # ensure_launcher() already wrote it
@@ -690,8 +701,8 @@ def main():
 
     # and the next open writes them again
     write_state({"format": "FBX"})
-    check("the next open writes them again",
-          sorted(bridge.ensure_launcher()) == ["CoatLink.xml", "CoatLinkTools.xml"])
+    check("the next open writes the tool file again (the entry is an insertion)",
+          sorted(bridge.ensure_launcher()) == ["CoatLinkTools.xml"])
 
     # ---- the size block: read the object, scale it to a target ----
     coat.current_size = [2.0, 1.0, 0.5]

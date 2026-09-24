@@ -6,9 +6,9 @@
 # ``UserPrefs/Scripts/cExtensions`` whose name is listed in
 # ``cExtensions/startup.txt`` - and keeps the ``cExtension`` instance alive for the
 # session.  Everything an installer used to do is done in ``onStartup`` below,
-# because a ``.3dcpack`` has no installer to run: the two ``ExtraMenuItems`` XML
-# files are written per machine (they hold absolute paths), and what older builds
-# left behind is cleared away.
+# because a ``.3dcpack`` has no installer to run: the tool-button XML is written per
+# machine (it holds absolute paths), the Scripts entry is inserted into 3D-Coat's own
+# menu list, and what older builds left behind is cleared away.
 #
 # Rules taken from this 3D-Coat install:
 #

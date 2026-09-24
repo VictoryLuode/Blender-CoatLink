@@ -32,7 +32,7 @@ it ships) moves with it.
 | Blender add-on | `coatlink\` (8 `.py` files) | `%APPDATA%\Blender Foundation\Blender\<ver>\scripts\addons\coatlink\` |
 | 3D-Coat extension | `coat_side\CoatLink.py`, `CoatLinkLib.py`, `CoatLinkMenu.py`, `CoatLinkReceipts.py`, `CoatLinkScopedExport.py` and the three entry scripts (8 files - exactly what `SCRIPT_FILES` lists, and what the `.3dcpack` carries) | `<Documents>\3DCoat\UserPrefs\Scripts\cExtensions\CoatLink\` |
 | The startup line | - | `…\Scripts\cExtensions\startup.txt`, one added line: `CoatLink` (a copy of the original is kept as `startup.txt.bak`) |
-| Menu entry and tool buttons | - | `…\Scripts\ExtraMenuItems\CoatLink.xml` and `CoatLinkTools.xml`, written by the extension itself on its first start: the `Command` entries carry absolute paths, so they cannot be shipped |
+| Menu entry and tool buttons | - | the entry is inserted into 3D-Coat's own menu list; `…\Scripts\ExtraMenuItems\CoatLinkTools.xml` (tool buttons), written by the extension itself on its first start: the `Command` entries carry absolute paths, so they cannot be shipped |
 
 An earlier build called everything `CoatBridge` / `coat_bridge`: the add-on folder, the 3D-Coat
 scripts folder (now `Scripts\CoatLink`), the exchange folder (now `<exchange>\CoatLink`), the

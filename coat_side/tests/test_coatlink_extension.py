@@ -111,11 +111,17 @@ def main():
     (instance or module.CoatLinkExtension()).onStartup()
 
     menu = os.path.join(extra, "CoatLink.xml")
-    check("the extension writes the menu file", os.path.isfile(menu))
+    import CoatLinkLib
+    check("the extension inserts the Scripts entry instead of declaring it",
+          not os.path.isfile(menu) and CoatLinkLib.coat.inserted
+          and CoatLinkLib.coat.inserted[-1][:2] == ("Scripts", "CoatLink"),
+          ("declaration present" if os.path.isfile(menu) else "") + str(CoatLinkLib.coat.inserted))
+    check("and hands over the extension's own copy of the setup script",
+          CoatLinkLib.coat.inserted
+          and CoatLinkLib.coat.inserted[-1][2].replace("\\", "/")
+          == target.replace("\\", "/") + "/CoatLink_Setup.py",
+          CoatLinkLib.coat.inserted[-1][2] if CoatLinkLib.coat.inserted else None)
     check("and the tool file", os.path.isfile(os.path.join(extra, "CoatLinkTools.xml")))
-    text = read(menu)
-    check("its command points at the extension's own copy",
-          "script:%s/CoatLink_Setup.py" % target.replace("\\", "/") in text, text)
     check("the older hand install is moved aside, not deleted",
           not os.path.isdir(classic)
           and os.path.isfile(os.path.join(classic + ".removed", "CoatLinkLib.py")))
@@ -156,9 +162,9 @@ def main():
     first.onStartup()
     check("a folder a menu file still names is not moved aside yet",
           os.path.isdir(classic3), "the entry 3D-Coat shows would point at nothing")
-    check("and that menu file is rewritten to the extension's copy",
-          "script:%s/CoatLink_Setup.py" % target3.replace("\\", "/")
-          in read(os.path.join(extra3, "CoatLink.xml")))
+    check("and that menu file is retired, the entry being inserted at run time now",
+          not os.path.exists(os.path.join(extra3, "CoatLink.xml")),
+          os.listdir(extra3))
     first.onStartup()          # the next start: nothing names the old folder now
     check("the next start moves it aside",
           not os.path.isdir(classic3)
@@ -174,8 +180,13 @@ def main():
     module2, target2 = load_half(tmp2, "Documents", "3DCoat", "UserPrefs", "Scripts", "CoatLink")
     module2._extension.onStartup()
     check("the copy itself stays where it was put", os.path.isdir(target2))
-    check("and it writes the menu file for its own folder",
-          os.path.isfile(os.path.join(scripts2, "ExtraMenuItems", "CoatLink.xml")))
+    fresh = sys.modules["CoatLinkLib"]      # this copy's own library, not the first one
+    check("and it inserts the entry for its own copy, with no declaration left behind",
+          not os.path.isfile(os.path.join(scripts2, "ExtraMenuItems", "CoatLink.xml"))
+          and fresh.coat.inserted
+          and fresh.coat.inserted[-1][2].replace("\\", "/")
+          == target2.replace("\\", "/") + "/CoatLink_Setup.py",
+          fresh.coat.inserted[-1] if fresh.coat.inserted else None)
 
     failed = [name for name, ok, _detail in RESULTS if not ok]
     print("")
