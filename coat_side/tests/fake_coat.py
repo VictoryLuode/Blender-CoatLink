@@ -361,6 +361,22 @@ def build_environment(tmp):
 
     cmd.SetBoolField = set_bool_field
     cmd.GetBoolField = lambda name: cmd.bools.get(name)
+
+    # 3D-Coat's volume/shader api: only a name that really is a volume accepts being
+    # made current, so a wrong name can never look like a successful read in a test
+    cmd.volumes = {}
+    cmd.current_volume = ""
+
+    def set_cur_volume(name):
+        cmd.calls.append(("volume", name))
+        if name not in cmd.volumes:
+            return False
+        cmd.current_volume = name
+        return True
+
+    cmd.SetCurVolume = set_cur_volume
+    cmd.GetCurVolume = lambda: cmd.current_volume
+    cmd.GetCurVolumeShader = lambda: cmd.volumes.get(cmd.current_volume, "")
     sys.modules["CMD"] = cmd
     return coat, cmd
 

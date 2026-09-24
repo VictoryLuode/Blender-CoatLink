@@ -30,6 +30,8 @@ try:
     import CoatLinkScopedExport as scoped_export
 except ImportError:  # older install without the helper
     scoped_export = None
+import json
+import re
 import subprocess
 import sys
 import time
@@ -56,6 +58,17 @@ PANEL_CAPTION = "CoatLink"
 #: declaration, an OBJ does not, so mixing the two formats meant the two
 #: directions could never be made to agree.)
 EXPORT_FORMAT = "obj"
+
+#: What the Blender half reads to give every arriving object the material of the
+#: shader it was sent with.  A sculpt shader is 3D-Coat's *display* shading and its
+#: exporters write no material names at all (measured: "usemtl " with nothing after
+#: it, "newmtl " likewise), so the assignment can only travel beside the model.
+#: 3D-Coat writes its own side files as .txt/.xml, so the name is ours.  The Blender
+#: half carries the same constant.
+SHADER_MAP_NAME = "shaders.json"
+#: Where the PBR shader presets live, under the user data folder.  A preset that
+#: cannot be found costs the parameters, never the assignment.
+SHADER_PRESET_PARTS = ("UserPrefs", "Shaders", "PbrShaders")
 
 #: 3D-Coat's own decimation slider.  This is the id the shipped scripts use -
 #: UserPrefs/Scripts/mm_export.as and CoreAPI/Templates/CoreAPI_Export/
@@ -367,6 +380,207 @@ def sent_models(root):
         path = os.path.join(folder, name)
         found.append((os.path.getmtime(path), path))
     return [path for _mtime, path in sorted(found, reverse=True)]
+
+
+# --------------------------------------------------------------------------
+# the shader map: which shader each exported node carries
+# --------------------------------------------------------------------------
+
+def shader_map_path(root):
+    return os.path.join(app_folder(root), SHADER_MAP_NAME)
+
+
+def model_nodes(path):
+    """The object groups an OBJ holds, in file order; [] when it is not an OBJ.
+
+    The scoped export knows the names it wrote; this is for 3D-Coat's own whole-scene
+    export, where the only record of what went out is the file itself.
+    """
+    if not path or not path.lower().endswith(".obj") or not os.path.isfile(path):
+        return []
+    names = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as stream:
+            for line in stream:
+                if line.startswith(("o ", "g ")):
+                    label = line[2:].strip()
+                    if label and label not in names:
+                        names.append(label)
+    except OSError as exc:
+        log("could not read the exported model's node names: %s" % exc)
+    return names
+
+
+def volume_shaders(names):
+    """{node name: shader name}, read from 3D-Coat itself.
+
+    CMD.GetCurVolumeShader reads the *current* volume, so each name is made current
+    in turn and the previous selection is put back afterwards: a send must not leave
+    a different node selected than it found.  Nothing here raises - a build without
+    these commands, or a name that is no longer a volume, costs that node's shader
+    and nothing else.
+    """
+    found = {}
+    if CMD is None or not names:
+        return found
+    try:
+        previous = CMD.GetCurVolume()
+    except Exception:
+        previous = ""
+    try:
+        for name in names:
+            try:
+                if not CMD.SetCurVolume(name):
+                    log("shader map: no volume named %s" % name)
+                    continue
+                shader = (CMD.GetCurVolumeShader() or "").strip()
+            except Exception as exc:
+                log("shader map: shader of %s unreadable: %s" % (name, exc))
+                continue
+            if shader:
+                found[name] = shader
+    finally:
+        if previous:
+            try:
+                CMD.SetCurVolume(previous)
+            except Exception:
+                pass
+    return found
+
+
+def shader_preset_root():
+    """Where the PBR shader presets are: 3D-Coat's own user data folder.
+
+    These scripts only ever run inside a 3D-Coat that has already created that folder,
+    so this is the copy the running 3D-Coat reads its shaders from.  A preset that is
+    not found costs the parameters, never the assignment.
+    """
+    return os.path.join(user_data_dir(), *SHADER_PRESET_PARTS)
+
+
+def preset_folder(shader):
+    """The preset folder a shader name points at, or "".
+
+    What GetCurVolumeShader returns is undocumented, so one tolerant match covers a
+    bare name ("Aluminum"), a category-qualified one ("#Metal/Aluminum" or
+    "Metal/Aluminum") and a full folder path.
+    """
+    wanted = (shader or "").replace("\\", "/").strip("/")
+    root = shader_preset_root()
+    if not wanted or not os.path.isdir(root):
+        return ""
+    tail = wanted.rsplit("/", 1)[-1]
+    for category in sorted(os.listdir(root)):
+        folder = os.path.join(root, category)
+        if not os.path.isdir(folder):
+            continue
+        for preset in sorted(os.listdir(folder)):
+            path = os.path.join(folder, preset)
+            if not os.path.isdir(path):
+                continue
+            if preset == tail or any("%s/%s" % (name, preset) in (wanted, tail)
+                                     for name in (category, category.lstrip("#"))):
+                return path
+    return ""
+
+
+def shader_params(shader):
+    """The stored parameters of a preset: {ID: value}; {} when it is not found.
+
+    These are the values the preset *ships* with: 3D-Coat's per-volume sliders are not
+    readable from outside (CMD offers SetShaderProperty and no getter), so a value
+    dragged in 3D-Coat cannot be read back.  Colour is stored as 8 hex digits, alpha
+    first (A R G B), and a preset whose colour comes from a texture is flagged - there
+    the stored colour is an unused fallback, which the Blender half has to know before
+    it puts it on a material.
+    """
+    folder = preset_folder(shader)
+    path = os.path.join(folder, "ShaderParams.xml") if folder else ""
+    if not path or not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            text = handle.read()
+    except OSError as exc:
+        log("shader preset unreadable (%s): %s" % (shader, exc))
+        return {}
+    params = {}
+    textured_colour = False
+    for block in re.findall(r"<ExShaderParam>(.*?)</ExShaderParam>", text, re.S):
+        fields = dict(re.findall(r"<(ID|Type|Usage|\$Default)>(.*?)</\1>", block, re.S))
+        ident = fields.get("ID", "").strip()
+        kind = fields.get("Type", "").strip()
+        if not ident:
+            continue
+        if kind in ("texture", "method"):
+            if ident == "CustomSampler1" and "USE_COLORTEX" in fields.get("Usage", ""):
+                textured_colour = True
+            continue
+        value = fields.get("$Default", "").strip()
+        if value:
+            params[ident] = value
+    if textured_colour:
+        params["color_from_texture"] = True
+    return params
+
+
+def remove_shader_map(root):
+    """Drop the map: no export is waiting for it any more."""
+    path = shader_map_path(root)
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+            return True
+    except OSError as exc:
+        log("shader map not removable: %s" % exc)
+    return False
+
+
+def write_shader_map(root, names=None, model=""):
+    """Record which shader each exported node carries, beside the model.
+
+    Written after every export and *removed* when nothing could be read, so a stale
+    map can never describe a newer model.  Never raises: refusing to send a model
+    because a shader could not be read would be worse than having no map at all.
+    """
+    if names is None:
+        names = model_nodes(model)
+    names = [name for name in (names or []) if name]
+    found = volume_shaders(names)
+    if not found:
+        remove_shader_map(root)
+        log("shader map: nothing recorded (%d node(s) checked)" % len(names))
+        return {}
+    nodes = {}
+    for name in names:
+        shader = found.get(name)
+        if not shader:
+            continue
+        entry = {"shader": shader}
+        entry.update(shader_params(shader))
+        nodes[name] = entry
+    data = {"generated": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "model": os.path.basename(model or model_path(root, EXPORT_FORMAT)),
+            "nodes": nodes}
+    path = shader_map_path(root)
+    temporary = path + ".tmp"
+    try:
+        ensure_folder(root)
+        with open(temporary, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(data, handle, indent=1, sort_keys=True)
+        os.replace(temporary, path)
+    except OSError as exc:
+        log("shader map not written: %s" % exc)
+        if os.path.exists(temporary):
+            try:
+                os.remove(temporary)
+            except OSError:
+                pass
+        return {}
+    log("shader map: %d of %d node(s): %s"
+        % (len(nodes), len(names),
+           ", ".join("%s=%s" % (name, nodes[name]["shader"]) for name in sorted(nodes)[:6])))
+    return nodes
 
 
 # --------------------------------------------------------------------------
@@ -1182,12 +1396,14 @@ class CoatLinkPanel(object):
 
         exported = self._export_via_applink(path)
         if exported:
+            write_shader_map(root, model=path)
             self._report("Sent to Blender via the AppLink target (whole scene)" + export_note(),
                          "folder: %s" % app_folder(root))
             return
         exported = self._export_direct(path)
         if exported:
             write_signal(root, path)
+            write_shader_map(root, model=path)
             self._report("Sent to Blender: %s (whole scene)%s" % (os.path.basename(path), export_note()),
                          "folder: %s" % app_folder(root))
             return
@@ -1212,6 +1428,7 @@ class CoatLinkPanel(object):
             log("selected-node export refused: %s" % exc)
             return
         write_signal(root, path)
+        write_shader_map(root, names, path)
         self._report("Sent %s: %s (selected node + subtree)%s"
                      % (os.path.basename(path), ", ".join(names), reduction_note()),
                      "%d faces | folder: %s" % (faces, app_folder(root)))

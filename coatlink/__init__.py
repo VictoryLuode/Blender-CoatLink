@@ -133,6 +133,15 @@ class CoatLinkPreferences(bpy.types.AddonPreferences):
         description="Measure the returned model against the sent one and undo a unit mismatch (3D-Coat scene units are not always metres)",
         default=True,
     )
+    shader_materials: BoolProperty(
+        name="Shaders as materials",
+        description="Give every returned object a material named after the 3D-Coat shader it "
+                    "was sent with - one material per shader, so the shader-to-object "
+                    "assignment does not have to be rebuilt by hand.  The values come from the "
+                    "shader preset itself; the look cannot be copied, a sculpt shader is "
+                    "3D-Coat's own display shading",
+        default=True,
+    )
 
     def draw(self, context):
         layout = self.layout

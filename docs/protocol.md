@@ -9,6 +9,7 @@ Documents/AppLinks/3D-Coat/Exchange/     <- the job file goes here (3D-Coat poll
         run.txt                                 empty marker: makes the folder appear in File > Export To
         bridge.obj                              the model, both ways: every send and every return overwrites it
         export.txt                              3D-Coat writes it when it hands a model back
+        shaders.json                            which shader each exported node carries, written with the model
         pull-history.json                       what we already imported, so a restart does not re-import it
     CoatLink_AfterImport.py                  the script that unparents the import: dropped in by the add-on
     CoatLink_AfterImport.py.ran              its own note that it started: dated, written before anything else
@@ -40,6 +41,15 @@ exported".
 The add-on writes `import.txt` at the root, `bridge.obj`, `CoatLink_AfterImport.py` (the script
 `import.txt` points at) and an empty `run.txt`; the two markers are state.  That is the whole
 design.
+
+`shaders.json` is the one file that exists only because of a hole in 3D-Coat's export: a sculpt
+shader is display shading, and its OBJ writer emits `usemtl ` and `newmtl ` with nothing after
+them, so a returned model arrives carrying one nameless material no matter how many shaders the
+scene used.  The 3D-Coat half therefore reads each exported node's shader (make it current, then
+`CMD.GetCurVolumeShader`), copies that shader preset's stored parameters along, and writes the
+map beside the model; the Blender half uses it to name and assign a material per shader.  It is
+written after every export and **deleted** when nothing could be read, and the add-on deletes a
+stale one when it sends, so a map can never describe a model it did not come with.
 
 `bridge.obj` is the model in **both** directions, which is what leaves exactly one axis rule
 and one unit rule to keep straight.

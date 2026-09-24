@@ -452,6 +452,16 @@ def send(context):
         # vanished for no reason
         _log("replaced another AppLink's queued job: %s" % replaced)
     applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
+    # the shader map describes the return that was pulled last, not the trip starting
+    # now, so it goes: a later pull must never apply a shader to a model it does not
+    # describe (3D-Coat writes a fresh one with every export of its own)
+    stale = applink.shader_map_path(out_path)
+    try:
+        if stale and os.path.isfile(stale):
+            os.remove(stale)
+            _log("dropped the previous shader map")
+    except OSError as exc:
+        _log("could not drop the shader map: %s" % exc)
     # the trip is queued now, so the shift this send applied is recorded on the objects
     # themselves: that is what puts a returned model back where it came from, and a
     # later send without the option drops the record again
@@ -778,6 +788,8 @@ def _import_and_link(context, path):
         raise RuntimeError("the import produced nothing we can see")
 
     names = []
+    placements = []
+    imported_materials = set()
     used = set()
     for arriving_name in arriving:
         source = _object(arriving_name)
@@ -812,9 +824,9 @@ def _import_and_link(context, path):
             if spared:
                 _log("replace in place is off: %s arrives as its own object" % arriving_name)
             target = None
-        file_materials = []
+        file_materials = list({slot.material for slot in source.material_slots if slot.material})
+        imported_materials.update(file_materials)
         if _strip_enabled():
-            file_materials = list({slot.material for slot in source.material_slots if slot.material})
             source.data.materials.clear()
         if target is not None:
             target_name = target.name
@@ -828,17 +840,164 @@ def _import_and_link(context, path):
             placement_note = _restore_placement(live)
             material_note = _strip_materials(live, file_materials)
             live["coatlink_file"] = path
+            placements.append((live, arriving_name))
             notes = [part for part in (scale_note, placement_note, material_note) if part]
             names.append(live.name + (" (%s)" % " ".join(notes) if notes else ""))
         else:
             # Keep Blender's collision-safe name; do not rename an unrelated object.
             source["coatlink_file"] = path
             source["coatlink_source_name"] = arriving_name
+            placements.append((source, arriving_name))
             _strip_materials(source, file_materials)
             names.append(source.name + (" (replace is off)" if spared else ""))
             if len(matches) > 1:      # not the same thing as "a match we did not take"
                 _log("ambiguous object association for %s; imported separately" % arriving_name)
+    _apply_shader_materials(path, placements, imported_materials)
     return names
+
+
+#: what a material this bridge made carries: the shader it stands for (which doubles
+#: as the marker that the material is ours to replace) and the preset's parameters
+SHADER_KEY = "coatlink_shader"
+SHADER_PARAMS_KEY = "coatlink_shader_params"
+
+
+def _shader_materials_enabled():
+    p = prefs()
+    return True if p is None else bool(getattr(p, "shader_materials", True))
+
+
+def _without_suffix(name):
+    """Blender's ".001" collision suffix dropped, for looking a node name up."""
+    head, dot, tail = name.rpartition(".")
+    return head if dot and tail.isdigit() else name
+
+
+def _read_shader_map(path):
+    """The {node: entry} map the 3D-Coat half wrote beside the model; {} when none."""
+    where = applink.shader_map_path(path)
+    if not where or not os.path.isfile(where):
+        return {}
+    try:
+        with open(where, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError) as exc:
+        _log("shader map unreadable (%s): %s" % (where, exc))
+        return {}
+    nodes = data.get("nodes") if isinstance(data, dict) else None
+    return nodes if isinstance(nodes, dict) else {}
+
+
+def _shader_colour(value):
+    """(r, g, b) from the preset's "FFE1AE75" - 8 hex digits, alpha first.
+
+    A preset stores the colour as it shows it (display-referred); Blender's base
+    colour is linear, so it is converted - without that every material would come
+    back darker than the shader it stands for.
+    """
+    text = str(value or "").strip().lstrip("#")
+    if len(text) != 8:
+        return None
+    try:
+        channels = [int(text[index:index + 2], 16) / 255.0 for index in (2, 4, 6)]
+    except ValueError:
+        return None
+    return [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+
+
+def _shader_float(value):
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _shader_material(name, entry):
+    """The material standing for one shader.
+
+    Reused by name when it is already in the file: pulling the same model twice must
+    not leave a trail of ".001" copies, and a material someone adjusted stays theirs.
+    """
+    material = bpy.data.materials.get(name)
+    if material is not None:
+        return material
+    entry = entry if isinstance(entry, dict) else {}
+    material = bpy.data.materials.new(name)
+    material.use_nodes = True
+    material[SHADER_KEY] = name
+    material[SHADER_PARAMS_KEY] = json.dumps(entry, sort_keys=True)
+    nodes = material.node_tree.nodes if material.node_tree else []
+    node = next((item for item in nodes if item.type == "BSDF_PRINCIPLED"), None)
+    if node is not None:
+        try:
+            if not entry.get("color_from_texture"):
+                colour = _shader_colour(entry.get("Color"))
+                if colour:
+                    node.inputs["Base Color"].default_value = (colour[0], colour[1], colour[2], 1.0)
+            metalness = _shader_float(entry.get("Metalness"))
+            if metalness is not None:
+                node.inputs["Metallic"].default_value = metalness
+        except (KeyError, TypeError) as exc:
+            _log("shader %s: parameters not applicable: %s" % (name, exc))
+    return material
+
+
+def _assign_shader_material(obj, material, file_materials=()):
+    """Put a shader's material on an object; True when it was assigned.
+
+    The object's own set-up wins: only an empty slot list, slots this bridge filled
+    itself, or materials the imported file brought are written over.  A material
+    someone else made is never touched - the same promise "Replace in place" makes
+    about the mesh.  (Without the file-materials allowance nothing would ever be
+    assigned: 3D-Coat's exporter writes an empty material name for every sculpt
+    volume, so every import arrives carrying its own nameless "Material".)
+    """
+    for slot in obj.material_slots:
+        current = slot.material
+        if current is None or current.get(SHADER_KEY) or current in file_materials:
+            continue
+        return False
+    dropped = [slot.material for slot in obj.material_slots if slot.material]
+    while obj.data.materials:
+        obj.data.materials.pop()
+    for item in dropped:
+        if item in file_materials and item.users == 0:
+            bpy.data.materials.remove(item)
+    obj.data.materials.append(material)
+    return True
+
+
+def _apply_shader_materials(path, placements, file_materials=()):
+    """Give every arriving object the material of the shader it was sent with.
+
+    The map beside the model is the only place the shader survives the trip: a sculpt
+    shader is 3D-Coat's display shading, and its exporters write no material names.
+    """
+    if not placements or not _shader_materials_enabled():
+        return
+    lookup = _read_shader_map(path)
+    if not lookup:
+        return
+    made = {}
+    assigned = []
+    kept = []
+    for obj, arriving in placements:
+        entry = lookup.get(arriving) or lookup.get(_without_suffix(arriving)) or {}
+        shader = str(entry.get("shader") or "").strip() if isinstance(entry, dict) else ""
+        if not shader:
+            continue
+        material = made.get(shader)
+        if material is None:
+            material = _shader_material(shader, entry)
+            made[shader] = material
+        if _assign_shader_material(obj, material, file_materials):
+            assigned.append(obj.name)
+        else:
+            kept.append(obj.name)
+    if assigned or kept:
+        _log("shader materials: %d object(s) -> %s%s"
+             % (len(assigned), ", ".join(sorted(made)) or "nothing",
+                ("; kept the material on %s" % ", ".join(kept[:4])) if kept else ""))
 
 
 def _replace_mesh(target, source):

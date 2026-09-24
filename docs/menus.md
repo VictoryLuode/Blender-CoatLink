@@ -15,7 +15,7 @@ text is not cut off.
 | The menu | the popover inside that button | the panel opened from the tool strip |
 | Actions | the opening row: `Send`, `Pull` | the opening row: `Send`, `Pull`, then `To voxels` |
 | Options | under **Send options**: `Scope`, `Import as` (voxel by default), `Send to origin`, `Remesh on send`, `Voxel size`, `Adaptivity` | the same scope droplist first, then reduction percentage and textures - nothing else, because this half hands out what the scene already holds, so where the model lands is the sending side's business |
-| Return / settings | under **Return**: `Auto receive`, `Without materials`, `Replace in place` | `Refresh info` readout (sizes, faces, voxel-or-surface, how much of the tree is still surface) |
+| Return / settings | under **Return**: `Auto receive`, `Without materials`, `Replace in place`, `Shaders as materials` | `Refresh info` readout (sizes, faces, voxel-or-surface, how much of the tree is still surface) |
 | Below that | under **Setup**: `Axis`, `Scale (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs`, `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read`, `Unlink selected`.  Under **Status**: the readout and `Copy details` | under **Setup**: `Detect`, `Open folder`, `Start Blender`, `Remove tool buttons`.  Then `Copy details` and the queue line |
 | Source | `coatlink/` - Blender add-on, 8 files | `coat_side/CoatLinkLib.py` + three entry scripts + two XML files |
 
@@ -40,6 +40,7 @@ reads `Scope`, `Reduction percent`, `Refresh info` rather than the identifiers t
 | Remesh on send / Voxel size / Adaptivity | Voxel-remesh the export only; the scene is untouched |
 | Auto receive | Watch the exchange folder every 2 s; off = manual **Pull** only |
 | Replace in place | On by default: a return takes the place of the object the send came from - same name, materials and position, new geometry.  Off, it arrives as an object of its own and nothing already in the scene is written over |
+| Shaders as materials | On by default: give each returning object a material named after the 3D-Coat shader it was sent with, filled in from that shader preset's own stored values.  The look cannot come with it - a sculpt shader is 3D-Coat's display shading - and a material you made yourself is never written over |
 | Without materials | A pulled model arrives as bare geometry |
 | Axis / Scale | Read from 3D-Coat, or forced |
 | Match scale | Keep the recorded size when a pulled model comes back at another size |

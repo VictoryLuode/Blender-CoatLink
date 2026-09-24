@@ -230,10 +230,11 @@ def main():
           drawn.index(("prop", "mode", "Import as"))
           < drawn.index(("prop", "send_origin", "Send to origin"))
           < drawn.index(("label", "Return")), drawn[:10])
-    check("Replace in place sits in the Return section, where a return is decided",
+    check("Replace in place and Shaders as materials sit in the Return section",
           drawn.index(("label", "Return"))
           < drawn.index(("prop", "replace_in_place", "Replace in place"))
-          < drawn.index(("label", "Setup")), drawn[:26])
+          < drawn.index(("prop", "shader_materials", "Shaders as materials"))
+          < drawn.index(("label", "Setup")), drawn[:28])
 
     folded = [item[1] for item in drawn if item[0] == "prop" and item[1] == "show_advanced"]
     check("nothing is hidden behind a fold-out", not folded, folded)
@@ -339,6 +340,8 @@ def main():
     check("Send to origin is off out of the box", prefs.send_origin is False, prefs.send_origin)
     check("a return replaces the object it came from out of the box",
           prefs.replace_in_place is True, prefs.replace_in_place)
+    check("shaders become materials out of the box",
+          prefs.shader_materials is True, prefs.shader_materials)
     for gone in ("apply_textures", "preset", "interval", "skip_import", "skip_export"):
         check("no '%s' option left" % gone, not hasattr(prefs, gone))
 
@@ -1410,6 +1413,119 @@ def main():
     bpy.data.objects.remove(spare, do_unlink=True)
     prefs.replace_in_place = was_replace
     prefs.remesh = was_remesh
+
+    # ---- "Shaders as materials": every node keeps the shader it was sent with ----
+    # A sculpt shader is display shading, and 3D-Coat's exporter writes no material
+    # names at all ("usemtl " with nothing after it) - so the mapping arrives as a file
+    # the 3D-Coat half leaves beside the model.  The file's own nameless material must
+    # not block the assignment: without that allowance nothing would ever land, because
+    # that is what every volume comes back carrying.
+    was_shaders, was_strip, was_remesh_return = (prefs.shader_materials, prefs.strip_materials,
+                                                 prefs.remesh)
+    prefs.shader_materials, prefs.strip_materials, prefs.remesh = True, False, False
+    returned = (("ClayNode", "JamaClay1", "FFE1AE75", "0.000000"),
+                ("MetalNode", "Aluminum", "FF030304", "1.000000"))
+    sources = []
+    for index, (node, _shader, _colour, _metalness) in enumerate(returned):
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=8, ring_count=6, radius=0.4 + 0.2 * index)
+        sources.append(bpy.context.active_object)
+        sources[-1].name = node
+        # what 3D-Coat's exporter leaves on every sculpt volume: a material with no name
+        sources[-1].data.materials.append(bpy.data.materials.new("Material"))
+    transfer.export_model(back_path, "obj", sources, apply_modifiers=False)
+    for obj in sources:
+        bpy.data.objects.remove(obj, do_unlink=True)
+    nameless = bpy.data.materials.get("Material")
+    if nameless is not None and nameless.users == 0:
+        bpy.data.materials.remove(nameless)      # the import brings its own copy along
+    before_materials = {material.name for material in bpy.data.materials}
+    write(applink.shader_map_path(back_path), json.dumps({
+        "generated": "2026-09-24 12:00:00",
+        "model": os.path.basename(back_path),
+        "nodes": {returned[0][0]: {"shader": returned[0][1], "Color": returned[0][2],
+                                   "Metalness": returned[0][3]},
+                  returned[1][0]: {"shader": returned[1][1], "Color": returned[1][2],
+                                   "Metalness": returned[1][3],
+                                   "color_from_texture": True}}}, sort_keys=True))
+    write(signal, back_path + "\n")
+    bridge.pull(bpy.context, force=True)
+
+    def slot_of(name):
+        obj = bpy.data.objects.get(name)
+        if obj is None or not obj.material_slots or not obj.material_slots[0].material:
+            return ""
+        return obj.material_slots[0].material.name
+
+    clay, metal = bpy.data.materials.get(returned[0][1]), bpy.data.materials.get(returned[1][1])
+    check("a material is named after each shader the nodes came with",
+          clay is not None and metal is not None,
+          [material.name for material in bpy.data.materials])
+    check("and each node carries its own shader's material",
+          slot_of(returned[0][0]) == returned[0][1] and slot_of(returned[1][0]) == returned[1][1],
+          (slot_of(returned[0][0]), slot_of(returned[1][0])))
+    check("the material records which shader it stands for",
+          clay.get(bridge.SHADER_KEY) == returned[0][1], clay.get(bridge.SHADER_KEY))
+    shaded = next(node for node in clay.node_tree.nodes if node.type == "BSDF_PRINCIPLED")
+    linear = bridge._shader_colour(returned[0][2])
+    check("the preset's colour lands on the Principled node, converted for Blender",
+          abs(shaded.inputs["Base Color"].default_value[0] - linear[0]) < 1e-5,
+          (list(shaded.inputs["Base Color"].default_value), linear))
+    metallic = next(node for node in metal.node_tree.nodes if node.type == "BSDF_PRINCIPLED")
+    check("metallic comes from the preset",
+          abs(metallic.inputs["Metallic"].default_value - 1.0) < 1e-5,
+          metallic.inputs["Metallic"].default_value)
+    check("a texture-driven shader keeps its unused stored colour off the material",
+          abs(metallic.inputs["Base Color"].default_value[0] - 0.8) < 1e-3,
+          list(metallic.inputs["Base Color"].default_value))
+    left_behind = ({material.name for material in bpy.data.materials}
+                   - before_materials - {returned[0][1], returned[1][1]})
+    check("the file's own nameless material is dropped, not left as an orphan",
+          not left_behind, sorted(left_behind))
+
+    # someone's own material on a node the bridge already touched stays theirs
+    own = bpy.data.materials.new("MyOwn")
+    clay_node = bpy.data.objects.get(returned[0][0])
+    clay_node.data.materials.clear()
+    clay_node.data.materials.append(own)
+    write(applink.shader_map_path(back_path), json.dumps({"nodes": {
+        returned[0][0]: {"shader": "Copper"},
+        returned[1][0]: {"shader": returned[1][1]}}}, sort_keys=True))
+    write(signal, back_path + "\n")
+    bridge.pull(bpy.context, force=True)
+    check("a material someone made themselves is never written over",
+          slot_of(returned[0][0]) == "MyOwn", slot_of(returned[0][0]))
+    check("and the log says which material it left alone",
+          "kept the material" in read(applink.shared_log_path()),
+          read(applink.shared_log_path()).splitlines()[-2:])
+    check("the same shader pulled twice reuses one material, no .001 copies",
+          bpy.data.materials.get("%s.001" % returned[1][1]) is None,
+          [material.name for material in bpy.data.materials])
+
+    prefs.shader_materials = False
+    write(applink.shader_map_path(back_path), json.dumps({"nodes": {
+        returned[1][0]: {"shader": "Chrome"}}}, sort_keys=True))
+    write(signal, back_path + "\n")
+    bridge.pull(bpy.context, force=True)
+    check("with the switch off nothing is added or replaced",
+          bpy.data.materials.get("Chrome") is None and slot_of(returned[1][0]) == returned[1][1],
+          [material.name for material in bpy.data.materials])
+
+    write(applink.shader_map_path(out_path), json.dumps({"nodes": {}}))
+    bpy.ops.mesh.primitive_cube_add()
+    aim_at(bpy.context.active_object)
+    bridge.send(bpy.context)
+    check("a send drops the shader map of the trip before it",
+          not os.path.isfile(applink.shader_map_path(out_path)),
+          applink.shader_map_path(out_path))
+
+    for _node, _shader, _colour, _metalness in returned:
+        gone = bpy.data.objects.get(_node)
+        if gone is not None:
+            bpy.data.objects.remove(gone, do_unlink=True)
+    bpy.data.materials.remove(own)
+    prefs.shader_materials = was_shaders
+    prefs.strip_materials = was_strip
+    prefs.remesh = was_remesh_return
 
     # ---- links written by an earlier build keep working ----
     # Until the module was renamed to `coatlink`, these keys were `coat_bridge_*`.  A

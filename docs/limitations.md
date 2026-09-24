@@ -67,6 +67,14 @@ so.  The short version is on the [README](../README.md).
   written over.  It is Blender-side only - the 3D-Coat panel has nothing that could act on it -
   and with it off the two corrections that need the object the send came from (`Match scale`,
   and the position a `Send to origin` recorded) have no target to apply to.
+* **A shader travels as its name and its preset's stored values, never as its look.**
+  `Shaders as materials` gives each returned object a material named after the 3D-Coat shader it
+  was sent with and fills in that preset's own base colour and metallic; everything else stays
+  Blender's default.  The look itself cannot come along: a sculpt shader is a custom GPU shader
+  (GLSL plus its own sampler textures) with no Blender equivalent, a per-volume slider someone
+  moved is not readable from outside 3D-Coat (its Python API offers `SetShaderProperty` and no
+  getter), and a shader that paints its colour from a texture ships an unused stored colour,
+  which is deliberately left off the material.
 * **3D-Coat's "whole scene" export is 3D-Coat's own**, so what it covers is its decision (it can
   include hidden volumes).  Sending only the *visible* tree objects from 3D-Coat would need one
   of 3D-Coat's own commands (`Export Selected Objects`, or the decimate-and-export-all-visible

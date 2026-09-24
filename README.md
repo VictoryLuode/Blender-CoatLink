@@ -93,7 +93,11 @@ Copying the files by hand, explicit install paths and the XML 3D-Coat needs:
    With **Auto receive** on, the model is imported within ~2 s and merged into the object it
    came from: same name, same materials, same place in the outliner, new geometry.  **Replace in
    place** (on by default) is what does that: switched off, a return arrives as an object of its
-   own and nothing already in the scene is written over.
+   own and nothing already in the scene is written over.  **Shaders as materials** (also on by
+   default) gives each returning object a material named after the 3D-Coat shader it was sent
+   with - a sculpt shader is display shading that 3D-Coat's exporters never write, so the
+   assignment is carried beside the model instead.  The values come from the shader preset
+   itself; the look it gives in 3D-Coat cannot be copied.
 
 From the 3D-Coat side, `Send` hands over **the node selected in the Sculpt Tree plus its
 children** (`Scope: whole scene` uses 3D-Coat's own export instead - the only route that can

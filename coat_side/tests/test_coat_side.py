@@ -765,6 +765,76 @@ def main():
           bridge.CoatLinkPanel().ui())
     check("Setup reports back", bool(status), status)
 
+    # ---- the shader map: what each exported node carries ----
+    # A sculpt shader is display shading, and 3D-Coat's own export writes no material
+    # names at all, so the Blender half can only learn the assignment from a file we
+    # leave beside the model.  Reading it means making each volume current in turn -
+    # which must not leave someone else's selection behind.
+    preset = os.path.join(bridge.user_data_dir(), "UserPrefs", "Shaders", "PbrShaders",
+                          "#Metal", "Aluminum")
+    os.makedirs(preset, exist_ok=True)
+    with open(os.path.join(preset, "ShaderParams.xml"), "w", encoding="utf-8") as handle:
+        handle.write(
+            "<VoxShaderParams>\n"
+            " <ExParams>\n"
+            "  <ExShaderParam><Usage></Usage><ID>Color</ID><Type>float4</Type>"
+            "<$Default>FFE1AE75</$Default></ExShaderParam>\n"
+            "  <ExShaderParam><Usage></Usage><ID>Metalness</ID><Type>slider01</Type>"
+            "<$Default>1.000000</$Default></ExShaderParam>\n"
+            "  <ExShaderParam><Usage>USE_COLORTEX</Usage><ID>CustomSampler1</ID>"
+            "<Type>texture</Type></ExShaderParam>\n"
+            " </ExParams>\n"
+            "</VoxShaderParams>\n")
+
+    check("the preset's stored parameters are read back",
+          bridge.shader_params("#Metal/Aluminum").get("Color") == "FFE1AE75"
+          and bridge.shader_params("Aluminum").get("Metalness") == "1.000000",
+          bridge.shader_params("#Metal/Aluminum"))
+    check("a shader that paints its colour from a texture is flagged",
+          bridge.shader_params("Aluminum").get("color_from_texture") is True,
+          bridge.shader_params("Aluminum"))
+    check("a shader with no preset brings no parameters", bridge.shader_params("Nope") == {},
+          bridge.shader_params("Nope"))
+
+    cmd.volumes = {"Volume1": "#Metal/Aluminum", "Volume2": "NothingLikeThis"}
+    cmd.current_volume = "Volume2"
+    nodes = bridge.write_shader_map(own_root, ["Volume1", "Volume2"],
+                                    bridge.model_path(own_root, "obj"))
+    check("the map names the shader every node carries",
+          nodes.get("Volume1", {}).get("shader") == "#Metal/Aluminum"
+          and nodes.get("Volume2", {}).get("shader") == "NothingLikeThis", nodes)
+    check("a node whose shader has no preset still gets its name recorded",
+          nodes.get("Volume2") == {"shader": "NothingLikeThis"}, nodes.get("Volume2"))
+    check("reading each volume's shader puts the previous selection back",
+          cmd.current_volume == "Volume2", cmd.current_volume)
+    written = json.load(open(bridge.shader_map_path(own_root), encoding="utf-8"))
+    check("the map sits beside the model and says which model it describes",
+          written.get("model") == "bridge.obj" and sorted(written["nodes"]) == ["Volume1", "Volume2"],
+          written)
+
+    # nothing readable: the old map goes, so it can never describe a newer model
+    cmd.volumes = {}
+    bridge.write_shader_map(own_root, ["Volume1"], bridge.model_path(own_root, "obj"))
+    check("a map that cannot be filled is removed instead of left stale",
+          not os.path.isfile(bridge.shader_map_path(own_root)), bridge.shader_map_path(own_root))
+
+    # a whole-scene send has no name list of its own: the exported file says what went out
+    def obj_with_groups(path):
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write("# exported by 3D-Coat\n"
+                         "g Clay\nv 0 0 0\nf 1 1 1\n"
+                         "g Metal\nv 1 1 1\nf 2 2 2\n")
+
+    coat.applink_present = False
+    coat.direct_export = obj_with_groups
+    cmd.volumes = {"Clay": "NothingLikeThis", "Metal": "#Metal/Aluminum"}
+    use_scope("scene")
+    panel.SendToBlender()
+    sent = json.load(open(bridge.shader_map_path(bridge.primary_root()), encoding="utf-8"))["nodes"]
+    check("a whole-scene send reads the nodes out of the export itself",
+          sorted(sent) == ["Clay", "Metal"], sent)
+    check("and that send still reports normally", "Sent to Blender" in panel.status, panel.status)
+
     # ---- blender lookup ----
     check("no Blender found -> empty path", bridge.find_blender_executable() == "")
 

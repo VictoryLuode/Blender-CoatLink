@@ -56,6 +56,13 @@ APP_FOLDER = "CoatLinkBridge"
 #: leaves the menu only once that marker is gone - see retire_legacy_app_folders().
 LEGACY_APP_FOLDERS = ("CoatLink",)
 
+#: What the 3D-Coat half writes beside the model: which shader each exported node
+#: carries.  A sculpt shader is 3D-Coat's *display* shading, its exporters write no
+#: material names at all ("usemtl " with nothing after it), so this file is the only
+#: place the shader-to-object assignment survives the trip.  The 3D-Coat half
+#: (coat_side/CoatLinkLib.py) carries the same constant.
+SHADER_MAP_NAME = "shaders.json"
+
 _MODEL_NAME = "bridge"
 _COAT_EXE = "3DCoatGL64.exe"
 
@@ -279,6 +286,14 @@ def model_path(root, extension=None, name=_MODEL_NAME):
     """Single, fixed name inside the app folder - no per-send file names."""
     stem = name if not extension else "%s.%s" % (name, extension.lstrip("."))
     return os.path.join(app_folder(root), stem)
+
+
+def shader_map_path(model):
+    """The shader map beside a model file, "" when the model has no folder yet."""
+    folder = os.path.dirname(model or "")
+    if not folder:
+        return ""
+    return os.path.join(folder, SHADER_MAP_NAME)
 
 
 def ensure_app_folder(root):
