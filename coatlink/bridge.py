@@ -454,14 +454,17 @@ def send(context):
     applink.write_import_txt(primary, out_path, back_path, p.mode, p.skip_dialogs)
     # the shader map describes the return that was pulled last, not the trip starting
     # now, so it goes: a later pull must never apply a shader to a model it does not
-    # describe (3D-Coat writes a fresh one with every export of its own)
-    stale = applink.shader_map_path(out_path)
-    try:
-        if stale and os.path.isfile(stale):
-            os.remove(stale)
-            _log("dropped the previous shader map")
-    except OSError as exc:
-        _log("could not drop the shader map: %s" % exc)
+    # describe (3D-Coat writes a fresh one with every export of its own).  The paint
+    # record goes with it for the same reason - and because a stale one would dress a
+    # sculpt return in textures it never had
+    for stale, kind in ((applink.shader_map_path(out_path), "shader"),
+                        (applink.paint_map_path(out_path), "paint")):
+        try:
+            if stale and os.path.isfile(stale):
+                os.remove(stale)
+                _log("dropped the previous %s map" % kind)
+        except OSError as exc:
+            _log("could not drop the %s map: %s" % (kind, exc))
     # the trip is queued now, so the shift this send applied is recorded on the objects
     # themselves: that is what puts a returned model back where it came from, and a
     # later send without the option drops the record again
@@ -868,6 +871,7 @@ def _import_and_link(context, path):
             if len(matches) > 1:      # not the same thing as "a match we did not take"
                 _log("ambiguous object association for %s; imported separately" % arriving_name)
     _apply_shader_materials(path, placements, imported_materials)
+    _apply_paint_materials(path, placements, imported_materials)
     return names
 
 
@@ -875,6 +879,176 @@ def _import_and_link(context, path):
 #: as the marker that the material is ours to replace) and the preset's parameters
 SHADER_KEY = "coatlink_shader"
 SHADER_PARAMS_KEY = "coatlink_shader_params"
+
+#: what a material built from a *paint* export carries: the texture set it stands for.
+#: SHADER_KEY is set on it too, because that key is also the marker that a material is
+#: this bridge's to replace - a paint material adjusted by hand between pulls has to
+#: survive the next pull exactly like a shader material does.
+PAINT_KEY = "coatlink_paint"
+
+#: what a texture 3D-Coat writes can be (the preset decides: PNG, TGA or TIF)
+IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".tga", ".tif", ".tiff", ".bmp", ".exr")
+
+
+def _read_paint_map(path):
+    """What the 3D-Coat half recorded about its painting room, beside the model."""
+    where = applink.paint_map_path(path)
+    if not where or not os.path.isfile(where):
+        return {}
+    try:
+        with open(where, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError) as exc:
+        _log("paint map unreadable (%s): %s" % (where, exc))
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _paint_textures(path, hints):
+    """The texture files beside the model, told apart by the names they carry.
+
+    Nothing in the export says which file is colour and which is a normal map: 3D-Coat
+    writes them the way the layer tree names them.  So the split is made on those names -
+    "normal"/"nrm"/"bump" for a normal map, the material's own name or "color"/"albedo"
+    for the rest - and reported in the log, because a guess that is written down can be
+    checked against what the user sees, while one that is not cannot.
+    """
+    folder = os.path.dirname(os.path.abspath(path))
+    found = {"color": "", "normal": ""}
+    wanted = [str(hint).strip().lower() for hint in hints if str(hint).strip()]
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        return found
+    images = [name for name in names if os.path.splitext(name)[1].lower() in IMAGE_SUFFIXES]
+
+    def pick(matches):
+        for name in images:
+            if matches(name.lower()):
+                return os.path.join(folder, name)
+        return ""
+
+    found["normal"] = pick(lambda name: "normal" in name or "nrm" in name or "bump" in name
+                           or "displace" in name)
+    found["color"] = pick(lambda name: any(hint in name for hint in wanted)
+                          or "color" in name or "colour" in name or "albedo" in name
+                          or "diffuse" in name or "base" in name)
+    if not found["color"]:
+        left = [name for name in images if os.path.join(folder, name) != found["normal"]]
+        if len(left) == 1:                 # exactly one file left: that is the colour map
+            found["color"] = os.path.join(folder, left[0])
+    return found
+
+
+def _paint_image(path, linear=False):
+    """A texture file as a Blender image, or None when it cannot be read."""
+    try:
+        image = bpy.data.images.load(path, check_existing=True)
+    except (RuntimeError, OSError) as exc:
+        _log("paint texture unreadable (%s): %s" % (path, exc))
+        return None
+    try:
+        # A normal map is data, not a picture: read as sRGB its values would be shifted.
+        image.colorspace_settings.name = "Non-Color" if linear else "sRGB"
+    except (TypeError, AttributeError):
+        pass
+    return image
+
+
+def _paint_material(name, textures):
+    """The material standing for one paint-room texture set.
+
+    Reused by name, so pulling the same paint object twice leaves no ".001" copies, and a
+    material already wired is left exactly as it is - the nodes are only built the first
+    time, which is what keeps a hand adjustment from being undone by the next pull.
+    """
+    material = bpy.data.materials.get(name)
+    if material is None:
+        material = bpy.data.materials.new(name)
+        material[SHADER_KEY] = name         # "this material is the bridge's to replace"
+    material[PAINT_KEY] = name
+    material.use_nodes = True
+    tree = material.node_tree
+    if tree is None:
+        return material
+    nodes, links = tree.nodes, tree.links
+    if any(node.type == "TEX_IMAGE" for node in nodes):
+        return material                      # already built: hands off
+    surface = next((node for node in nodes if node.type == "BSDF_PRINCIPLED"), None)
+    if surface is None:
+        surface = nodes.new("ShaderNodeBsdfPrincipled")
+        output = next((node for node in nodes if node.type == "OUTPUT_MATERIAL"), None)
+        if output is None:
+            output = nodes.new("ShaderNodeOutputMaterial")
+        links.new(surface.outputs["BSDF"], output.inputs["Surface"])
+    colour = textures.get("color")
+    image = _paint_image(colour) if colour else None
+    if image is not None:
+        node = nodes.new("ShaderNodeTexImage")
+        node.image = image
+        node.label = os.path.basename(colour)
+        node.location = (surface.location.x - 420, surface.location.y + 140)
+        links.new(node.outputs["Color"], surface.inputs["Base Color"])
+    normal = textures.get("normal")
+    image = _paint_image(normal, linear=True) if normal else None
+    if image is not None:
+        node = nodes.new("ShaderNodeTexImage")
+        node.image = image
+        node.label = os.path.basename(normal)
+        node.location = (surface.location.x - 420, surface.location.y - 240)
+        bump = nodes.new("ShaderNodeNormalMap")
+        bump.location = (surface.location.x - 200, surface.location.y - 240)
+        links.new(node.outputs["Color"], bump.inputs["Color"])
+        links.new(bump.outputs["Normal"], surface.inputs["Normal"])
+    return material
+
+
+def _apply_paint_materials(path, placements, file_materials=()):
+    """Give every arriving object a material holding the painting room's textures.
+
+    A paint export does carry UVs and those texture files, but no material names - the
+    .mtl 3D-Coat writes names nothing - so the record beside the model is again the only
+    thing that says what to build.  Unlike a sculpt shader (a display preset), this is an
+    image set-up, and it is applied whatever the "Shaders as materials" preference says:
+    choosing "paint object" *is* asking for the textures.
+    """
+    recorded = _read_paint_map(path)
+    if not recorded or not placements:
+        return
+    materials = [str(name).strip() for name in recorded.get("materials") or [] if str(name).strip()]
+    objects = [str(name).strip() for name in recorded.get("objects") or [] if str(name).strip()]
+    sets = [str(name).strip() for name in recorded.get("uv_sets") or [] if str(name).strip()]
+    if not (materials or objects):
+        return
+    made = {}
+    assigned = []
+    for index, (obj, arriving) in enumerate(placements):
+        # The record holds the two lists, not their pairing - 3D-Coat's API exposes the
+        # names, not which object wears which material - so: by name where they line up,
+        # otherwise in the order 3D-Coat lists them, and the log says what was picked.
+        wanted = ""
+        for candidate in (arriving, obj.name, _without_suffix(arriving)):
+            if candidate and candidate in materials:
+                wanted = candidate
+                break
+        if not wanted:
+            wanted = materials[index] if index < len(materials) else (
+                materials[0] if len(placements) == 1 and materials else "")
+        if not wanted:
+            wanted = arriving or obj.name
+        material = made.get(wanted)
+        if material is None:
+            textures = _paint_textures(path, [wanted, obj.name] + sets)
+            material = _paint_material(wanted, textures)
+            made[wanted] = material
+            _log("paint material %s: colour %s, normal %s"
+                 % (wanted, os.path.basename(textures["color"]) or "none",
+                    os.path.basename(textures["normal"]) or "none"))
+        if _assign_shader_material(obj, material, file_materials):
+            assigned.append(obj.name)
+    if assigned:
+        _log("paint materials: %d object(s) -> %s"
+             % (len(assigned), ", ".join(sorted(made))))
 
 
 def _shader_materials_enabled():

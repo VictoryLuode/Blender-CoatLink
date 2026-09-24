@@ -1831,12 +1831,14 @@ class CoatLinkPanel(object):
         exported = self._export_via_applink(path)
         if exported:
             write_shader_map(root, model=path)
+            remove_paint_map(root)      # a paint record must not outlive the paint export
             self._report("Exported to Blender via the AppLink target (visible objects)" + export_note(),
                          "folder: %s" % app_folder(root))
             return
         exported = self._export_direct(path)
         if exported:
-            write_shader_map(root, model=path)   # before the signal: see _export_selected
+            write_shader_map(root, model=path)
+            remove_paint_map(root)      # a paint record must not outlive the paint export   # before the signal: see _export_selected
             write_signal(root, path)
             self._report("Exported to Blender: %s (visible objects)%s" % (os.path.basename(path), export_note()),
                          "folder: %s" % app_folder(root))
@@ -1865,6 +1867,7 @@ class CoatLinkPanel(object):
         # the map goes down before the signal: Blender polls the signal every couple of
         # seconds, and a signal that arrives before the map would arrive with no materials
         write_shader_map(root, names, path)
+        remove_paint_map(root)          # ditto: this trip is not a paint export
         write_signal(root, path)
         what = "selected node + subtree" if chosen <= 1 else "%d selected nodes + subtrees" % chosen
         self._report("Exported %s: %s (%s)%s"
@@ -2057,6 +2060,9 @@ class CoatLinkPanel(object):
             log("paint export: 3D-Coat wrote nothing to %s" % os.path.basename(path))
             self._report("Export failed", "no paint model was written - see the log")
             return False
+        # a shader map describes a sculpt export; this trip is a paint one, so a stale
+        # map must go or the returning model would be given a display shader as well
+        remove_shader_map(root)
         recorded = write_paint_map(root, model=path)   # before the signal: see _export_selected
         write_signal(root, path)
         self._report("Exported paint objects to Blender: %s%s"

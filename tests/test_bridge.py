@@ -16,6 +16,7 @@ import tempfile
 import time
 
 import bpy
+import base64
 
 
 def _arg(name, default=""):
@@ -29,6 +30,10 @@ def _arg(name, default=""):
 
 EXCHANGE = _arg("--exchange")
 OTHER_ROOT = EXCHANGE + "_other"
+#: a real 1x1 PNG, so a texture test loads an image Blender accepts
+TINY_PNG = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==")
+
+
 REPORT = _arg("--report")
 RESULTS = []
 
@@ -1678,6 +1683,83 @@ def main():
     check("unlink clears an old-build link too", _unlink_clears(legacy))
     bpy.data.objects.remove(legacy)
 
+
+    # ---- "paint object": the paint room's textures come back wired to a material ----
+    # A paint export is the one route that carries textures: 3D-Coat writes them beside
+    # the model, and - exactly like the shader map - the names come from the record it
+    # leaves there, because the .mtl it writes names nothing.  Nothing in the export says
+    # which file is colour and which is a normal map, so the split is made on names and
+    # the log has to say what it chose.
+    was_paint_shaders = prefs.shader_materials
+    prefs.shader_materials = False        # a paint pull brings its material regardless
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=8, ring_count=6, radius=0.5)
+    painted = bpy.context.active_object
+    painted.name = "PaintNode"
+    painted.data.materials.append(bpy.data.materials.new("Material"))
+    transfer.export_model(back_path, "obj", [painted], apply_modifiers=False)
+    for obj in list(bpy.context.scene.objects):
+        bpy.data.objects.remove(obj, do_unlink=True)
+    leftover = bpy.data.materials.get("Material")
+    if leftover is not None and leftover.users == 0:
+        bpy.data.materials.remove(leftover)
+    folder = os.path.dirname(os.path.abspath(back_path))
+    colour_file = os.path.join(folder, "PaintNode_color.png")
+    normal_file = os.path.join(folder, "PaintNode_normal.png")
+    for target in (colour_file, normal_file):
+        with open(target, "wb") as handle:
+            handle.write(base64.b64decode(TINY_PNG))
+    write(applink.paint_map_path(back_path), json.dumps({
+        "generated": "2026-09-25 12:00:00",
+        "model": os.path.basename(back_path),
+        "objects": ["PaintNode"],
+        "materials": ["PaintSet"],
+        "uv_sets": ["UVSet0"]}, sort_keys=True))
+    write(signal, back_path + "\n")
+    bridge.pull(bpy.context, force=True)
+
+    def linked(socket):
+        """The node feeding this input, or None."""
+        return socket.links[0].from_node if socket.links else None
+
+    material = bpy.data.materials.get("PaintSet")
+    arrived = bpy.data.objects.get("PaintNode")
+    check("a paint pull builds the material the record names",
+          material is not None and arrived is not None and arrived.material_slots
+          and arrived.material_slots[0].material is material,
+          (material, arrived, [m.name for m in bpy.data.materials]))
+    check("and marks it as the bridge's to replace, like a shader material",
+          material is not None and material.get(bridge.PAINT_KEY) == "PaintSet"
+          and material.get(bridge.SHADER_KEY) == "PaintSet",
+          material.get(bridge.PAINT_KEY) if material else None)
+    surface = next((n for n in material.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None) \
+        if material else None
+    base = linked(surface.inputs["Base Color"]) if surface else None
+    check("the colour texture is wired into Base Color",
+          base is not None and base.type == "TEX_IMAGE"
+          and os.path.basename(base.image.filepath) == os.path.basename(colour_file),
+          (base, getattr(getattr(base, "image", None), "filepath", None)))
+    check("and read as colour, not as data",
+          base is not None and base.image.colorspace_settings.name == "sRGB",
+          base.image.colorspace_settings.name if base else None)
+    normal_node = linked(surface.inputs["Normal"]) if surface else None
+    normal_image = linked(normal_node.inputs["Color"]) if normal_node and normal_node.type == "NORMAL_MAP" else None
+    check("the normal map goes through a Normal Map node",
+          normal_node is not None and normal_node.type == "NORMAL_MAP",
+          normal_node.type if normal_node else None)
+    check("and its texture is the one named like a normal map, read as data",
+          normal_image is not None and normal_image.type == "TEX_IMAGE"
+          and os.path.basename(normal_image.image.filepath) == os.path.basename(normal_file)
+          and normal_image.image.colorspace_settings.name == "Non-Color",
+          (getattr(normal_image, "image", None), ))
+    shots = len([n for n in material.node_tree.nodes if n.type == "TEX_IMAGE"]) if material else 0
+    write(signal, back_path + "\n")
+    bridge.pull(bpy.context, force=True)
+    again = bpy.data.materials.get("PaintSet")
+    check("pulling again reuses the material instead of making a copy",
+          again is material and bpy.data.materials.get("PaintSet.001") is None
+          and len([n for n in again.node_tree.nodes if n.type == "TEX_IMAGE"]) == shots,
+          [m.name for m in bpy.data.materials])
+    prefs.shader_materials = was_paint_shaders
 
 def _unlink_clears(cube):
     from coatlink import bridge  # main()'s import is local to main()

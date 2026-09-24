@@ -5,6 +5,19 @@ so.  The short version is on the [README](../README.md).
 
 ## Verified incompletely or not at all
 
+* **`Export type: paint object` has never been run on a real pair.**  The 3D-Coat half's
+  panel row and export call are unit-tested against the fake 3D-Coat only, and the Blender
+  half's material build is unit-tested against a fabricated `paint.json` and two 1×1 PNGs.
+  What is *not* measured, and cannot be until someone exports a real paint room: where
+  `PathForTextures` actually puts the files and what it names them, whether 3D-Coat exports
+  only the current paint object or all of them, whether the OBJ then carries UVs, and whether
+  its texture names are the ones this side matches on.  Until that run, treat the texture
+  wiring as an expectation with a log line, not a promise.
+* **The paint texture split is made from file names** (`normal`/`nrm`/`bump` for a normal
+  map, the material's name or `color`/`albedo` otherwise, and "the only file left" as a
+  fallback) because the export names nothing and 3D-Coat's API does not expose the pairing of
+  object to material either.  Both choices go in the log; neither is guaranteed.
+
 * **A live round trip has been run once**, on Blender 5.2 and 3D-Coat 2025.17 (2026-09-23).
   3D-Coat's own log shows it reading the job file this side wrote - `[vox]`, `[SkipImport]`,
   `[SkipExport]`, `[pythonfile …]` - and importing the OBJ (its `Model info:` line counted the

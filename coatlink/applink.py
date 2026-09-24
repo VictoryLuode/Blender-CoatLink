@@ -62,6 +62,9 @@ LEGACY_APP_FOLDERS = ("CoatLink",)
 #: place the shader-to-object assignment survives the trip.  The 3D-Coat half
 #: (coat_side/CoatLinkLib.py) carries the same constant.
 SHADER_MAP_NAME = "shaders.json"
+#: what the 3D-Coat half writes beside a *paint* export: the painting room's own object
+#: and material names and its texture sets - none of which the exported model carries
+PAINT_MAP_NAME = "paint.json"
 
 _MODEL_NAME = "bridge"
 _COAT_EXE = "3DCoatGL64.exe"
@@ -294,6 +297,14 @@ def shader_map_path(model):
     if not folder:
         return ""
     return os.path.join(folder, SHADER_MAP_NAME)
+
+
+def paint_map_path(model):
+    """The paint-room record beside a model file, "" when it has no folder yet."""
+    folder = os.path.dirname(model or "")
+    if not folder:
+        return ""
+    return os.path.join(folder, PAINT_MAP_NAME)
 
 
 def ensure_app_folder(root):

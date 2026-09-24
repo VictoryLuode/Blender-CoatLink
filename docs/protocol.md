@@ -10,6 +10,8 @@ Documents/AppLinks/3D-Coat/Exchange/     <- the job file goes here (3D-Coat poll
         bridge.obj                              the model, both ways: every send and every return overwrites it
         export.txt                              3D-Coat writes it when it hands a model back
         shaders.json                            which shader each exported node carries, written with the model
+        paint.json                              the painting room's own object, material and texture-set names,
+                                                written with a paint export (the model itself carries none of them)
         pull-history.json                       what we already imported, so a restart does not re-import it
     CoatLink_AfterImport.py                  the script that unparents the import: dropped in by the add-on
     CoatLink_AfterImport.py.ran              its own note that it started: dated, written before anything else
@@ -50,6 +52,20 @@ scene used.  The 3D-Coat half therefore reads each exported node's shader (make 
 map beside the model; the Blender half uses it to name and assign a material per shader.  It is
 written after every export and **deleted** when nothing could be read, and the add-on deletes a
 stale one when it sends, so a map can never describe a model it did not come with.
+
+`paint.json` exists for the same reason and a second one.  `Export type: paint object` hands over
+the painting room's mesh **with its textures**, and 3D-Coat's exporter names nothing in the `.mtl`
+there either, so the material a returning model should wear is not in the file.  The 3D-Coat half
+therefore reads the painting room's own lists - `Scene.PaintObjectsCount` / `PaintObjectName`,
+`PaintMaterialCount` / `PaintMaterialName`, `PaintUVSetsCount` / `PaintUVSetName` - and writes
+them beside the model, and the Blender half builds one material per named set, wiring the colour
+texture into **Base Color** and a normal map through a **Normal Map** node, each read in the colour
+space its slot needs (`sRGB` for colour, `Non-Color` for normal).  Two things the record does *not*
+carry, because 3D-Coat's API does not expose them: **which object wears which material** (matched
+by name where the names line up, otherwise by the order 3D-Coat lists them) and **which texture file
+is which** (decided from the file names - `normal`/`nrm`/`bump` for the normal map, the material's
+name or `color`/`albedo` otherwise).  Both decisions are written to the log, so a wrong guess can be
+seen rather than guessed at.  A `paint.json` describing nothing is removed, like the shader map.
 
 **What `CMD.GetCurVolumeShader` answers with** (measured on 3D-Coat 2025): `PbrShaders/Gold2/mcubes`
 - the shader's place in 3D-Coat's own library.  Its last part names the shader *file* inside the
