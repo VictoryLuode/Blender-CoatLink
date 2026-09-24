@@ -1261,7 +1261,13 @@ def paint_objects():
 
 
 def paint_map_path(root):
-    return os.path.join(root, PAINT_MAP_FILE)
+    """The record beside the model, in our own folder.
+
+    Beside the model, not beside the exchange root: the Blender half looks for it where
+    the model is, exactly as it does for the shader map, and a record one folder up is
+    a record nobody reads.
+    """
+    return os.path.join(app_folder(root), PAINT_MAP_FILE)
 
 
 def remove_paint_map(root):

@@ -1687,9 +1687,10 @@ def main():
     # ---- "paint object": the paint room's textures come back wired to a material ----
     # A paint export is the one route that carries textures: 3D-Coat writes them beside
     # the model, and - exactly like the shader map - the names come from the record it
-    # leaves there, because the .mtl it writes names nothing.  Nothing in the export says
-    # which file is colour and which is a normal map, so the split is made on names and
-    # the log has to say what it chose.
+    # leaves there, because the .mtl it writes names nothing useful (it puts roughness on
+    # the specular line).  Nothing in the export says which file is which, so the split is
+    # made from the file names and the log has to say what it chose; every slot that has a
+    # file is wired, each read in the colour space its slot needs.
     was_paint_shaders = prefs.shader_materials
     prefs.shader_materials = False        # a paint pull brings its material regardless
     bpy.ops.mesh.primitive_uv_sphere_add(segments=8, ring_count=6, radius=0.5)
@@ -1703,11 +1704,12 @@ def main():
     if leftover is not None and leftover.users == 0:
         bpy.data.materials.remove(leftover)
     folder = os.path.dirname(os.path.abspath(back_path))
-    colour_file = os.path.join(folder, "PaintNode_color.png")
-    normal_file = os.path.join(folder, "PaintNode_normal.png")
-    for target in (colour_file, normal_file):
-        with open(target, "wb") as handle:
+    maps = {}
+    for slot in ("diffuse", "roughness", "metalness", "normalmap"):
+        where = os.path.join(folder, "PaintNode_%s.png" % slot)
+        with open(where, "wb") as handle:
             handle.write(base64.b64decode(TINY_PNG))
+        maps[slot] = where
     write(applink.paint_map_path(back_path), json.dumps({
         "generated": "2026-09-25 12:00:00",
         "model": os.path.basename(back_path),
@@ -1721,6 +1723,14 @@ def main():
         """The node feeding this input, or None."""
         return socket.links[0].from_node if socket.links else None
 
+
+    def feeding(socket):
+        """The image node behind an input: single image, or one through a Normal Map."""
+        node = linked(socket)
+        if node is not None and node.type == "NORMAL_MAP":
+            node = linked(node.inputs["Color"])
+        return node if node is not None and node.type == "TEX_IMAGE" else None
+
     material = bpy.data.materials.get("PaintSet")
     arrived = bpy.data.objects.get("PaintNode")
     check("a paint pull builds the material the record names",
@@ -1733,24 +1743,25 @@ def main():
           material.get(bridge.PAINT_KEY) if material else None)
     surface = next((n for n in material.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None) \
         if material else None
-    base = linked(surface.inputs["Base Color"]) if surface else None
-    check("the colour texture is wired into Base Color",
-          base is not None and base.type == "TEX_IMAGE"
-          and os.path.basename(base.image.filepath) == os.path.basename(colour_file),
-          (base, getattr(getattr(base, "image", None), "filepath", None)))
-    check("and read as colour, not as data",
-          base is not None and base.image.colorspace_settings.name == "sRGB",
-          base.image.colorspace_settings.name if base else None)
+    for slot, socket, space in (("diffuse", "Base Color", "sRGB"),
+                                ("roughness", "Roughness", "Non-Color"),
+                                ("metalness", "Metallic", "Non-Color")):
+        node = feeding(surface.inputs[socket]) if surface else None
+        check("the %s texture is wired into %s" % (slot, socket),
+              node is not None
+              and os.path.basename(node.image.filepath) == os.path.basename(maps[slot]),
+              (getattr(getattr(node, "image", None), "filepath", None), maps[slot]))
+        check("and read in the colour space %s needs" % socket,
+              node is not None and node.image.colorspace_settings.name == space,
+              node.image.colorspace_settings.name if node else None)
     normal_node = linked(surface.inputs["Normal"]) if surface else None
-    normal_image = linked(normal_node.inputs["Color"]) if normal_node and normal_node.type == "NORMAL_MAP" else None
-    check("the normal map goes through a Normal Map node",
-          normal_node is not None and normal_node.type == "NORMAL_MAP",
-          normal_node.type if normal_node else None)
-    check("and its texture is the one named like a normal map, read as data",
-          normal_image is not None and normal_image.type == "TEX_IMAGE"
-          and os.path.basename(normal_image.image.filepath) == os.path.basename(normal_file)
+    normal_image = feeding(surface.inputs["Normal"]) if surface else None
+    check("the normal map goes through a Normal Map node, read as data",
+          normal_node is not None and normal_node.type == "NORMAL_MAP"
+          and normal_image is not None
+          and os.path.basename(normal_image.image.filepath) == os.path.basename(maps["normalmap"])
           and normal_image.image.colorspace_settings.name == "Non-Color",
-          (getattr(normal_image, "image", None), ))
+          (normal_node.type if normal_node else None,))
     shots = len([n for n in material.node_tree.nodes if n.type == "TEX_IMAGE"]) if material else 0
     write(signal, back_path + "\n")
     bridge.pull(bpy.context, force=True)

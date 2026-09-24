@@ -904,100 +904,142 @@ def _read_paint_map(path):
     return data if isinstance(data, dict) else {}
 
 
-def _paint_textures(path, hints):
-    """The texture files beside the model, told apart by the names they carry.
+#: which texture file is which slot, by what its name says.  3D-Coat names its exports
+#: after the texture set (``…_diffuse.png``, ``…_roughness.png``…), and the order here
+#: matters: "metalness" contains neither "color" nor "normal", but a careless matcher
+#: would hand it to the colour slot.
+TEXTURE_SLOTS = (("normal", ("normalmap", "normal", "nrm", "bump")),
+                 ("metalness", ("metalness", "metallic", "metal")),
+                 ("roughness", ("roughness", "rough", "gloss")),
+                 ("color", ("diffuse", "color", "colour", "albedo", "base")))
 
-    Nothing in the export says which file is colour and which is a normal map: 3D-Coat
-    writes them the way the layer tree names them.  So the split is made on those names -
-    "normal"/"nrm"/"bump" for a normal map, the material's own name or "color"/"albedo"
-    for the rest - and reported in the log, because a guess that is written down can be
-    checked against what the user sees, while one that is not cannot.
+#: the slots a Principled BSDF has an input for, in the order they are wired, with the
+#: colour space each file has to be read in.  Colour is a picture (sRGB); roughness and
+#: metalness are data (Non-Color) - reading a roughness map as sRGB is a quiet way to
+#: get the wrong surface, and it is what Blender's own OBJ importer does with the .mtl
+#: 3D-Coat writes, which is why this is not left to the importer.
+PAINT_SLOTS = (("color", "Base Color", False),
+               ("metalness", "Metallic", True),
+               ("roughness", "Roughness", True))
+
+
+def _paint_textures(path, hints):
+    """The files beside the model, sorted into the slots a Principled BSDF has.
+
+    Nothing in the export says which file is which: 3D-Coat writes them all beside the
+    model with no mapping, so the split is made from the names it does use and reported
+    in the log - a guess that is written down can be checked.  A slot with no file is
+    left out rather than guessed at, except for the colour map: when nothing matches it
+    and exactly one file is left unclaimed, that file is the colour.
     """
     folder = os.path.dirname(os.path.abspath(path))
-    found = {"color": "", "normal": ""}
-    wanted = [str(hint).strip().lower() for hint in hints if str(hint).strip()]
+    found = {}
+    wanted = [str(hint).lower() for hint in hints if str(hint).strip()]
     try:
         names = sorted(os.listdir(folder))
     except OSError:
         return found
-    images = [name for name in names if os.path.splitext(name)[1].lower() in IMAGE_SUFFIXES]
-
-    def pick(matches):
+    images = [name for name in names
+              if os.path.splitext(name)[1].lower() in IMAGE_SUFFIXES]
+    taken = set()
+    for slot, words in TEXTURE_SLOTS:
         for name in images:
-            if matches(name.lower()):
-                return os.path.join(folder, name)
-        return ""
-
-    found["normal"] = pick(lambda name: "normal" in name or "nrm" in name or "bump" in name
-                           or "displace" in name)
-    found["color"] = pick(lambda name: any(hint in name for hint in wanted)
-                          or "color" in name or "colour" in name or "albedo" in name
-                          or "diffuse" in name or "base" in name)
-    if not found["color"]:
-        left = [name for name in images if os.path.join(folder, name) != found["normal"]]
-        if len(left) == 1:                 # exactly one file left: that is the colour map
+            if name in taken:
+                continue
+            if any(word in name.lower() for word in words):
+                found[slot] = os.path.join(folder, name)
+                taken.add(name)
+                break
+    if "color" not in found:
+        # the material's or object's own name is the next best hint, then the last file
+        for name in images:
+            if name in taken:
+                continue
+            if any(hint and hint in name.lower() for hint in wanted):
+                found["color"] = os.path.join(folder, name)
+                taken.add(name)
+                break
+    if "color" not in found:
+        left = [name for name in images if name not in taken]
+        if len(left) == 1:
             found["color"] = os.path.join(folder, left[0])
     return found
 
 
 def _paint_image(path, linear=False):
-    """A texture file as a Blender image, or None when it cannot be read."""
+    """Load a texture file into this file's images; None when it cannot be read.
+
+    ``linear`` says the file is data rather than a picture: a roughness or normal map
+    read as sRGB comes out with the wrong values, which is a quiet way to get the wrong
+    surface rather than an error anybody notices.
+    """
     try:
         image = bpy.data.images.load(path, check_existing=True)
     except (RuntimeError, OSError) as exc:
         _log("paint texture unreadable (%s): %s" % (path, exc))
         return None
     try:
-        # A normal map is data, not a picture: read as sRGB its values would be shifted.
         image.colorspace_settings.name = "Non-Color" if linear else "sRGB"
     except (TypeError, AttributeError):
         pass
     return image
 
 
+def _paint_surface(nodes, links):
+    """The Principled BSDF to wire into, made when the material has none."""
+    surface = next((node for node in nodes if node.type == "BSDF_PRINCIPLED"), None)
+    if surface is not None:
+        return surface
+    surface = nodes.new("ShaderNodeBsdfPrincipled")
+    output = next((node for node in nodes if node.type == "OUTPUT_MATERIAL"), None)
+    if output is None:
+        output = nodes.new("ShaderNodeOutputMaterial")
+    links.new(surface.outputs["BSDF"], output.inputs["Surface"])
+    return surface
+
+
 def _paint_material(name, textures):
     """The material standing for one paint-room texture set.
 
-    Reused by name, so pulling the same paint object twice leaves no ".001" copies, and a
-    material already wired is left exactly as it is - the nodes are only built the first
-    time, which is what keeps a hand adjustment from being undone by the next pull.
+    Reused by name, so pulling the same paint object twice leaves no ".001" copies
+    behind and a material adjusted by hand between pulls stays adjusted: the nodes are
+    only wired the first time.  Every slot that has a file is wired - base colour,
+    metalness, roughness, and the normal map through a Normal Map node - because a
+    material with a texture missing looks like a texture 3D-Coat never wrote.
     """
     material = bpy.data.materials.get(name)
     if material is None:
         material = bpy.data.materials.new(name)
-        material[SHADER_KEY] = name         # "this material is the bridge's to replace"
-    material[PAINT_KEY] = name
+        # SHADER_KEY is the marker that a material is this bridge's to replace
+        material[SHADER_KEY] = name
+        material[PAINT_KEY] = name
     material.use_nodes = True
     tree = material.node_tree
     if tree is None:
         return material
     nodes, links = tree.nodes, tree.links
     if any(node.type == "TEX_IMAGE" for node in nodes):
-        return material                      # already built: hands off
-    surface = next((node for node in nodes if node.type == "BSDF_PRINCIPLED"), None)
-    if surface is None:
-        surface = nodes.new("ShaderNodeBsdfPrincipled")
-        output = next((node for node in nodes if node.type == "OUTPUT_MATERIAL"), None)
-        if output is None:
-            output = nodes.new("ShaderNodeOutputMaterial")
-        links.new(surface.outputs["BSDF"], output.inputs["Surface"])
-    colour = textures.get("color")
-    image = _paint_image(colour) if colour else None
-    if image is not None:
+        return material                      # already wired; hands off
+    surface = _paint_surface(nodes, links)
+    for index, (slot, socket, linear) in enumerate(PAINT_SLOTS):
+        where = textures.get(slot)
+        image = _paint_image(where, linear=linear) if where else None
+        if image is None or socket not in surface.inputs:
+            continue
         node = nodes.new("ShaderNodeTexImage")
         node.image = image
-        node.label = os.path.basename(colour)
-        node.location = (surface.location.x - 420, surface.location.y + 140)
-        links.new(node.outputs["Color"], surface.inputs["Base Color"])
+        node.label = os.path.basename(where)
+        node.location = (surface.location.x - 420, surface.location.y + 140 - index * 260)
+        links.new(node.outputs["Color"], surface.inputs[socket])
     normal = textures.get("normal")
     image = _paint_image(normal, linear=True) if normal else None
     if image is not None:
         node = nodes.new("ShaderNodeTexImage")
         node.image = image
         node.label = os.path.basename(normal)
-        node.location = (surface.location.x - 420, surface.location.y - 240)
+        node.location = (surface.location.x - 620, surface.location.y - 380)
         bump = nodes.new("ShaderNodeNormalMap")
-        bump.location = (surface.location.x - 200, surface.location.y - 240)
+        bump.location = (surface.location.x - 300, surface.location.y - 380)
         links.new(node.outputs["Color"], bump.inputs["Color"])
         links.new(bump.outputs["Normal"], surface.inputs["Normal"])
     return material
@@ -1041,9 +1083,9 @@ def _apply_paint_materials(path, placements, file_materials=()):
             textures = _paint_textures(path, [wanted, obj.name] + sets)
             material = _paint_material(wanted, textures)
             made[wanted] = material
-            _log("paint material %s: colour %s, normal %s"
-                 % (wanted, os.path.basename(textures["color"]) or "none",
-                    os.path.basename(textures["normal"]) or "none"))
+            _log("paint material %s: %s" % (wanted, ", ".join(
+                "%s %s" % (slot, os.path.basename(textures[slot]) or "none")
+                for slot in ("color", "metalness", "roughness", "normal"))))
         if _assign_shader_material(obj, material, file_materials):
             assigned.append(obj.name)
     if assigned:
