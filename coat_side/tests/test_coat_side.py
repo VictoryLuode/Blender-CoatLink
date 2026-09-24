@@ -306,10 +306,11 @@ def main():
     scope_index = next(index for index, item in enumerate(items)
                        if item.startswith("SendScope,[#"))
     check("the scope is the first thing inside the Send options block, like Blender's",
-          items.index("#Send options") < scope_index < items.index("ReductionPercent,[0,100]"),
+          items.index("#Send options") < scope_index
+          < items.index("Textures,[%s]" % bridge.TEXTURES_LABELS),
           items[:8])
     check("and nothing explains it in fine print",
-          items[scope_index + 1] == "ReductionPercent,[0,100]",
+          items[scope_index + 1] == "Textures,[%s]" % bridge.TEXTURES_LABELS,
           items[scope_index:scope_index + 3])
     check("with the sections headed like the Blender menu's",
           "Send options" in [item[1:] for item in items if item.startswith("#")]

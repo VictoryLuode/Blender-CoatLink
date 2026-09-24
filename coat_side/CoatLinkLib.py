@@ -1403,8 +1403,8 @@ class CoatLinkPanel(object):
         # under the controls - the labels say what they do.
         items.append("#Send options")
         items.append("SendScope,[%s]" % SEND_SCOPE_LABELS)
-        items.append("ReductionPercent,[0,100]")
         items.append("Textures,[%s]" % TEXTURES_LABELS)
+        items.append("ReductionPercent,[0,100]")
         items.append("---")
         items.append("#Return")
         items.append("[1]")
