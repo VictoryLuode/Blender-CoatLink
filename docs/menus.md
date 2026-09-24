@@ -64,7 +64,7 @@ order; folding is not what makes them the same, the words and the order are.
 | Entry | Meaning |
 | --- | --- |
 | Send / Pull | The opening row: hand a model to Blender / import the model Blender queued |
-| Scope | `Selected` = the node selected in the Sculpt Tree plus its children; `whole scene` = 3D-Coat's own export |
+| Scope | `Selected` = the nodes selected in the Sculpt Tree plus their children; `whole scene` = 3D-Coat's own export |
 | To voxels | Convert every visible object in the tree to a voxel volume, using 3D-Coat's own S/V badge |
 | Reduction percent | Removed, not kept; 0 hands the choice back to 3D-Coat's dialog |
 | Refresh info | Read the current object's size, face count, voxel-or-surface state, and how much of the tree is still surface |

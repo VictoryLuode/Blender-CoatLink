@@ -1082,6 +1082,33 @@ def main():
     os.remove(fbx_path)
     write_coat_state({"scene_scale": 1.0, "scene_units": "CENTIMETERS", "swap_yz": False})
 
+    # ---- an arriving object with no geometry at all is not left in the Outliner ----
+    # 3D-Coat writes a group for every node it walked, and the node it wraps a Blender
+    # import in carries no faces of its own.  Whatever the importer makes of that, an
+    # object with nothing in it has no business in the artist's scene.
+    real_import = transfer.import_model
+
+    def import_with_an_empty_group(path, fmt, overrides=None):
+        objects, dropped = real_import(path, fmt, overrides)
+        wrapper = bpy.data.objects.new("bridge", bpy.data.meshes.new("bridge"))
+        bpy.context.scene.collection.objects.link(wrapper)
+        return objects + [wrapper], dropped
+
+    transfer.import_model = import_with_an_empty_group
+    transfer.export_model(back_path, "obj", [cube], apply_modifiers=False)
+    write(signal, back_path + "\n")
+    bridge.pull(bpy.context, force=True)
+    transfer.import_model = real_import
+    check("an arriving object with no geometry is not left in the Outliner",
+          bpy.data.objects.get("bridge") is None,
+          sorted(obj.name for obj in bpy.data.objects))
+    try:
+        with open(applink.shared_log_path(), encoding="utf-8") as handle:
+            log_text = handle.read()
+    except OSError:
+        log_text = ""
+    check("and the log says why it went", "dropped an empty group" in log_text, log_text[-160:])
+
 # ---- a return 3D-Coat wrote into its own AppLink pool is still this trip's ----
     pool = os.path.join(OTHER_ROOT, "..", "3DC2Blender", "ApplinkObjects")
     os.makedirs(pool, exist_ok=True)

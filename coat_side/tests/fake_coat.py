@@ -81,6 +81,39 @@ class FakeDialog(object):
 UNSET = object()
 
 
+class _Box(object):
+    """The AABB coat hands back; module level so tree nodes can be used on their own."""
+
+    def __init__(self, size):
+        self.size = size
+
+    def GetSizeX(self):
+        return self.size[0]
+
+    def GetSizeY(self):
+        return self.size[1]
+
+    def GetSizeZ(self):
+        return self.size[2]
+
+    def GetCenter(self):
+        return types.SimpleNamespace(x=0.0, y=0.0, z=0.0)
+
+
+class _Volume(object):
+    """coat.Volume for a node of the fake tree; module level for the same reason."""
+
+    def __init__(self, size):
+        self.size = size
+        self.polycount = 1000
+
+    def calcWorldSpaceAABB(self):
+        return _Box(self.size)
+
+    def getPolycount(self):
+        return int(self.polycount)
+
+
 class FakeCoat(object):
     def __init__(self):
         self.dialog_log = []
@@ -135,33 +168,6 @@ class FakeCoat(object):
         self.current_size = [2.0, 1.0, 0.5]     # what 3D-Coat measures
         self.transforms = []
 
-        class _Box(object):
-            def __init__(self, size):
-                self.size = size
-
-            def GetSizeX(self):
-                return self.size[0]
-
-            def GetSizeY(self):
-                return self.size[1]
-
-            def GetSizeZ(self):
-                return self.size[2]
-
-            def GetCenter(self):
-                return types.SimpleNamespace(x=0.0, y=0.0, z=0.0)
-
-        class _Volume(object):
-            def __init__(self, size):
-                self.size = size
-                self.polycount = 1000
-
-            def calcWorldSpaceAABB(self):
-                return _Box(self.size)
-
-            def getPolycount(self):
-                return int(self.polycount)
-
         self.polycount = 1000
 
         class _Mesh(object):
@@ -176,6 +182,17 @@ class FakeCoat(object):
                 self.names = ["Volume1"]
                 self.faces = 12
                 self.written = None
+                #: which object each face belongs to; None = handed out over the objects
+                #: in turn, the way a real extraction does
+                self.face_objects = None
+
+            def owner(self, faceIndex):
+                if self.face_objects:
+                    return self.face_objects[faceIndex % len(self.face_objects)]
+                return faceIndex % max(1, len(self.names))
+
+            def getFaceObject(self, faceIndex):
+                return self.owner(faceIndex)
 
             def fromVolume(self, volume, with_subtree=False, all_selected=False):
                 self.calls.append(("fromVolume", bool(with_subtree), bool(all_selected)))
@@ -201,10 +218,18 @@ class FakeCoat(object):
 
             def Write(self, path):
                 self.written = path
-                body = "".join("g %s\n" % name for name in self.names)
-                body += "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n"
+                lines = []
+                for index, name in enumerate(self.names):
+                    base = index * 3 + 1
+                    lines.append("g %s" % name)
+                    lines.extend(["v %d 0 0" % base,
+                                  "v %d 1 0" % (base + 1),
+                                  "v %d 2 0" % (base + 2)])
+                    for face in range(self.faces):
+                        if self.owner(face) == index:
+                            lines.append("f %d %d %d" % (base, base + 1, base + 2))
                 with open(path, "w", encoding="utf-8", newline="\n") as handle:
-                    handle.write(body)
+                    handle.write("\n".join(lines) + "\n")
                 return True
 
         self.meshes = []
@@ -219,6 +244,8 @@ class FakeCoat(object):
                 mesh.names = list(template["names"])
             if "faces" in template:
                 mesh.faces = template["faces"]
+            if "face_objects" in template:
+                mesh.face_objects = list(template["face_objects"])
             if "write" in template:
                 mesh.Write = template["write"]
             self.meshes.append(mesh)
@@ -294,6 +321,24 @@ class TreeNode(object):
         if self.parent_node is not None and self in self.parent_node.children:
             self.parent_node.children.remove(self)
         self.fake.removed.append(self._name)
+
+    # the tree's own selection: 3D-Coat reports what the artist picked, and a Send takes
+    # all of it (all_selected) rather than only the current node
+    picked = False
+
+    def select(self):
+        self.picked = True
+
+    def unselectAll(self):
+        self.picked = False
+        for node in self.children:
+            node.unselectAll()
+
+    def collectSelected(self):
+        found = [self] if self.picked else []
+        for node in self.children:
+            found.extend(node.collectSelected())
+        return found
 
     # a node can also be the "current object" the panel reads
     def Volume(self):

@@ -92,14 +92,14 @@ _PRESET_NAMES = []
 REDUCTION_SLIDER = "$DecimationParams::ReductionPercent"
 REDUCTION_KEY = "reduction"
 
-#: what a Send hands over: the node selected in the sculpt tree (and its
-#: children), or 3D-Coat's own export, which does the whole scene
+#: what a Send hands over: the nodes selected in the sculpt tree (and their
+#: children, one node or several), or 3D-Coat's own export, which does the whole scene
 SEND_SCOPE_KEY = "send_scope"
 SEND_SCOPES = ("selected", "scene")
 SEND_SCOPE_LABELS = "#Selected|#Whole scene"
 #: what each scope actually hands over - the two are not the same thing, and 3D-Coat
 #: decides for itself what its own export covers, so the panel says so
-SEND_SCOPE_HINTS = ("the node selected in the Sculpt Tree, plus its children",
+SEND_SCOPE_HINTS = ("the nodes selected in the Sculpt Tree, plus their children",
                     "3D-Coat's own export (all volumes, its own rules)")
 
 #: the export dialog's "export textures" checkbox (documented as an import.txt
@@ -1577,27 +1577,29 @@ class CoatLinkPanel(object):
         self._report("Export failed", "use File > Export To > %s, or check the console" % APP_FOLDER)
 
     def _export_selected(self, root, path):
-        """Send the node selected in the sculpt tree, plus its children.
+        """Send the nodes selected in the sculpt tree, plus their children.
 
-        Scene.current() is documented as "the current sculpt object", and the mesh
-        extraction takes with_subtree / all_selected explicitly, so nothing else in
-        the scene can leave by accident.  There is deliberately no fallback to the
-        whole-scene export: a bridge that quietly sends more than you selected is
-        worse than one that tells you to select a node.
+        One node or several: 3D-Coat's own tree selection is what says which, and the
+        mesh extraction takes all_selected explicitly, so nothing else in the scene can
+        leave by accident.  There is deliberately no fallback to the whole-scene export:
+        a bridge that quietly sends more than you selected is worse than one that tells
+        you to select a node.
         """
         if scoped_export is None:
             self._report("Export helper missing", "reinstall the 3D-Coat scripts")
             return
         try:
-            names, faces = scoped_export.export_subtree(coat, path, reduction_percent())
+            names, faces, chosen = scoped_export.export_subtree(coat, path, reduction_percent(),
+                                                                MODEL_NAME)
         except Exception as exc:
             self._report("Nothing sent: %s" % exc, "select a node in the Sculpt Tree")
             log("selected-node export refused: %s" % exc)
             return
         write_signal(root, path)
         write_shader_map(root, names, path)
-        self._report("Sent %s: %s (selected node + subtree)%s"
-                     % (os.path.basename(path), ", ".join(names), reduction_note()),
+        what = "selected node + subtree" if chosen <= 1 else "%d selected nodes + subtrees" % chosen
+        self._report("Sent %s: %s (%s)%s"
+                     % (os.path.basename(path), ", ".join(names), what, reduction_note()),
                      "%d faces | folder: %s" % (faces, app_folder(root)))
 
     def PullFromBlender(self):

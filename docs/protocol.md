@@ -76,7 +76,20 @@ texture is flagged, in which case that stored colour is left off the material.  
 in the library matches costs its parameters, never the assignment.
 
 `bridge.obj` is the model in **both** directions, which is what leaves exactly one axis rule
-and one unit rule to keep straight.
+and one unit rule to keep straight.  A `Send` covers the Sculpt Tree's **own selection** - one
+node or several, each with its children (`Mesh.fromVolume(…, with_subtree, all_selected)`, the
+second flag set when more than one node is selected) - so nothing else in the scene can leave
+by accident.
+
+The file's groups are the objects, with one exception each way.  A group that carries no faces is
+not an object: it is the node 3D-Coat wrapped the last import in, and it is dropped from the file
+(a face-less group is what an importer may turn into an empty object, and on Blender 5.2 it is
+skipped instead - measured).  A group named after the exchange model itself (`bridge`) is the wrap
+3D-Coat puts around a model Blender sent, and it is **not sent as an object** at all - its children
+are the objects, and if it is somehow the only group with geometry it stays, so a send can never
+come back empty.  A group that *owns* faces but lost its group is a merge: the mesh is asked which
+object each face belongs to (`Mesh.getFaceObject`) and the export is refused rather than handed
+over as a model whose objects nobody can name.
 
 Both sides also keep **one log and one state file**, in 3D-Coat's own data folder
 (`Documents/3DCoat/CoatLink.log` and `CoatLink.json`): the log is what the 3D-Coat panel

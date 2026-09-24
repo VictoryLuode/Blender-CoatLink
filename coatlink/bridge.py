@@ -786,6 +786,21 @@ def _import_and_link(context, path):
                 continue
     if not arriving:
         raise RuntimeError("the import produced nothing we can see")
+    # 3D-Coat writes a group for every node it walked, and the node it wrapped the last
+    # import in is packaging, holding no faces of its own - a model exported before that
+    # was fixed still arrives with it as an object with no geometry.  Only a mesh with no
+    # vertices at all is ever removed.
+    for arriving_name in list(arriving):
+        empty = _object(arriving_name)
+        if empty is None or empty.type != "MESH" or empty.data is None:
+            continue
+        if len(empty.data.vertices):
+            continue
+        _log("dropped an empty group 3D-Coat wrapped the model in: %s" % arriving_name)
+        bpy.data.objects.remove(empty, do_unlink=True)
+        arriving.remove(arriving_name)
+    if not arriving:
+        raise RuntimeError("the import produced nothing we can see")
 
     names = []
     placements = []

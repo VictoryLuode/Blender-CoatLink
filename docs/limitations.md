@@ -12,7 +12,11 @@ so.  The short version is on the [README](../README.md).
   does **not** cover: grouping, positions, scale and axis on real geometry (including
   `Send to origin`, whose file is checked here but which has never been watched landing on the
   origin in a running 3D-Coat), a second machine,
-  a second 3D-Coat build, or the selected-node export.  `tests/live_roundtrip.sh` runs the
+  a second 3D-Coat build, or the selected-node export.  **Several nodes selected in the Sculpt
+  Tree go out as one model** (the extraction's `all_selected` flag, documented in 3D-Coat's own
+  `CoreAPI.h`); that path is unit-tested against the fake 3D-Coat only - whether the live build
+  brings each selected node's **children** along as well is expected, not measured.
+  `tests/live_roundtrip.sh` runs the
   real thing (both applications open) and records the add-on version and the exact
   `import.txt` it wrote - until it has been run, "works on a live pair" is an expectation,
   not a fact.

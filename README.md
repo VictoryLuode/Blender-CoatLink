@@ -101,8 +101,9 @@ Copying the files by hand, explicit install paths and the XML 3D-Coat needs:
    never end up as one material.  The values come from the shader preset
    itself; the look it gives in 3D-Coat cannot be copied.
 
-From the 3D-Coat side, `Send` hands over **the node selected in the Sculpt Tree plus its
-children** (`Scope: whole scene` uses 3D-Coat's own export instead - the only route that can
+From the 3D-Coat side, `Send` hands over **the nodes selected in the Sculpt Tree plus their
+children** - one node or several, as picked there (`Scope: whole scene` uses 3D-Coat's own export
+instead - the only route that can
 carry textures), and `To voxels` converts everything the tree is showing.  It does that by
 pressing 3D-Coat's own S/V badge - the conversion you would do by hand - and accepts the
 dialog for you, so a scene converts from one click.

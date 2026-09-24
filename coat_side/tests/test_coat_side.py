@@ -40,6 +40,14 @@ def import_script():
     return module
 
 
+def import_scoped():
+    path = os.path.join(HERE, "..", "CoatLinkScopedExport.py")
+    spec = importlib.util.spec_from_file_location("coatlink_scoped", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="coat_side_test.")
     own_root = os.path.join(tmp, "Documents", "3DCoat", "Exchange")
@@ -881,6 +889,68 @@ def main():
     check("a whole-scene send reads the nodes out of the export itself",
           sorted(sent) == ["Clay", "Metal"], sent)
     check("and that send still reports normally", "Sent to Blender" in panel.status, panel.status)
+
+    # ---- the scoped export: one node or several, and no packaging left in the file ----
+    scoped = import_scoped()
+    scoped_path = os.path.join(tmp, "scoped.obj")
+
+    root = coat.root
+    first = TreeNode("Volume1", coat, root)
+    second = TreeNode("Volume2", coat, root)
+    coat.current_element = first
+
+    def write_with_packaging(path):
+        """The shape 3D-Coat really writes: a group per node walked, and the node it
+        wrapped the last Blender import in carries no faces of its own."""
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write("g bridge\ng Volume1\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+        return True
+
+    first.select()
+    coat.mesh_template = {"names": ["bridge", "Volume1"], "faces": 1, "face_objects": [1],
+                          "write": write_with_packaging}
+    names, faces, chosen = scoped.export_subtree(coat, scoped_path)
+    check("one selected node: the current one, and its extraction is asked for by name",
+          coat.meshes[-1].calls[-1] == ("fromVolume", True, False)
+          and names == ["Volume1"] and faces > 0 and chosen == 1,
+          (coat.meshes[-1].calls, names, faces, chosen))
+    check("the packaging group 3D-Coat wraps an import in is not written to the file",
+          "bridge" not in open(scoped_path, encoding="utf-8").read(), scoped_path)
+
+    second.select()
+    scoped.export_subtree(coat, scoped_path)
+    check("two selected nodes: 3D-Coat is asked for all of them (all_selected)",
+          coat.meshes[-1].calls[-1] == ("fromVolume", True, True)
+          and scoped.selected_nodes(coat) == [first, second],
+          (coat.meshes[-1].calls, [node.name() for node in scoped.selected_nodes(coat)]))
+
+    # the panel says how much went: a send that quietly covered less than the tree says
+    # would look like a working send
+    panel._export_selected(bridge.primary_root(), scoped_path)
+    check("the status says how many nodes went, when it was more than one",
+          "2 selected nodes + subtrees" in panel.status, panel.status)
+
+    # geometry outside any group at all is refused rather than handed over as a model
+    # whose objects nobody can name
+    def write_without_groups(path):
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+        return True
+
+    coat.mesh_template = {"names": ["Volume1"], "faces": 1, "write": write_without_groups}
+    with open(scoped_path, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("the previous return, must survive\n")
+    try:
+        scoped.export_subtree(coat, scoped_path, 0)
+        check("an OBJ with geometry in no group is refused", False, "no error raised")
+    except RuntimeError as exc:
+        check("an OBJ with geometry in no group is refused",
+              "outside its object groups" in str(exc), exc)
+    check("and the file it refused to replace is left alone",
+          "must survive" in open(scoped_path, encoding="utf-8").read(), scoped_path)
+
+    first.unselectAll()
+    second.unselectAll()
 
     # ---- blender lookup ----
     check("no Blender found -> empty path", bridge.find_blender_executable() == "")
