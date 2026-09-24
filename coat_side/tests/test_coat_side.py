@@ -350,7 +350,7 @@ def main():
           bridge.SEND_SCOPES == ("selected", "scene")
           and bridge.SEND_SCOPE_LABELS == "#Selected objects|#Visible objects",
           (bridge.SEND_SCOPES, bridge.SEND_SCOPE_LABELS))
-    for name in ("SendScope", "ReductionPercent",
+    for name in ("ExportType", "SendScope", "ReductionPercent",
                  "Detect", "OpenFolder", "StartBlender", "RemoveLauncher"):
         check("the panel control '%s' has a readable label" % name,
               translations.get(name), translations)
@@ -834,6 +834,68 @@ def main():
           cmd.bools.get(field) is False, cmd.bools)
     check("and the status line no longer mentions textures at all",
           "texture" not in panel.status.lower(), panel.status)
+
+    # ---- what an export carries: the Sculpt Tree, or the painting room ----
+    bridge.set_export_kind("sculpt")
+    panel = bridge.CoatLinkPanel()
+    items = panel.ui()
+    kind_index = next(index for index, item in enumerate(items) if item.startswith("ExportType,[#"))
+    check("the kind comes first inside Export options, because it decides the rest",
+          items.index("#Export options") < kind_index < items.index("ReductionPercent,[0,100]"),
+          items[:9])
+    check("and it names the two exports",
+          items[kind_index] == "ExportType,[#sculpt object|#paint object]", items[kind_index])
+    check("with a readable label", bridge.PANEL_LABELS.get("ExportType") == "Export type",
+          bridge.PANEL_LABELS)
+    check("the panel starts on the sculpt tree", bridge.export_kind() == "sculpt", bridge.load_state())
+    check("and a senseless stored value falls back to it",
+          bridge.set_export_kind("painting") is False and bridge.export_kind() == "sculpt",
+          bridge.load_state())
+
+    panel.ExportType = bridge.KINDS.index("paint")
+    panel.process()
+    check("choosing paint is remembered", bridge.export_kind() == "paint", bridge.load_state())
+    check("and the range row is not drawn there - nothing in that dialog could honour it",
+          not any(item.startswith("SendScope,[") for item in panel.ui()), panel.ui()[:9])
+
+    # a paint export asks 3D-Coat for geometry *and* textures, into our own folder
+    edit_calls = []
+
+    def record_edit(name, value):
+        edit_calls.append((name, value))
+        return True
+
+    coat.ui.setEditBoxValue = record_edit
+    cmd.calls = []
+    coat.direct_export = None
+    panel.SendToBlender()
+    tuple_calls = [call for call in cmd.calls if isinstance(call, tuple)]
+    check("a paint export asks 3D-Coat for its textures",
+          ("bool", bridge.TEXTURES_FIELD, True) in tuple_calls, tuple_calls)
+    check("and points the dialog's texture folder at our own exchange folder",
+          (bridge.TEXTURES_PATH_FIELD, bridge.app_folder(bridge.primary_root())) in edit_calls,
+          edit_calls)
+    check("with nothing written, it reports a failure rather than a send",
+          "Export failed" in panel.status, panel.status)
+
+    def paint_written(target):
+        with open(target, "w") as handle:
+            handle.write("paint")
+
+    coat.direct_export = paint_written
+    cmd.calls = []
+    panel.SendToBlender()
+    check("with a real write behind it, the click reports the export",
+          "Exported paint objects to Blender" in panel.status, panel.status)
+    check("and Blender is handed the path", os.path.isfile(bridge.signal_path(bridge.primary_root())),
+          bridge.signal_path(bridge.primary_root()))
+    check("an unreadable paint room leaves no map rather than a stale one",
+          not os.path.isfile(bridge.paint_map_path(bridge.primary_root())),
+          bridge.paint_map_path(bridge.primary_root()))
+
+    # back to sculpt for what follows
+    bridge.set_export_kind("sculpt")
+    coat.direct_export = None
     # ---- the Setup button opens 3D-Coat's own panel, never a Qt window ----
     coat.dialog_log = []
     coat.ui.cmd.calls = []

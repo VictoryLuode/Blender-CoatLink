@@ -7,7 +7,7 @@
 # menu:
 #
 #     Export / Import      hand this model to Blender, take what Blender sent
-#     Export options       Export range, Reduction percent
+#     Export options       Export type, Export range, Reduction percent
 #     Import options       Selected To Voxel - convert what is selected
 #     Setup                Detect, Open folder, Start Blender, Remove launcher
 #     Status               the object readouts, the last action, Copy details
@@ -104,6 +104,19 @@ REDUCTION_KEY = "reduction"
 SEND_SCOPE_KEY = "send_scope"
 SEND_SCOPES = ("selected", "scene")
 SEND_SCOPE_LABELS = "#Selected objects|#Visible objects"
+
+#: What an export carries.  Two exports behind one panel row: "sculpt" hands over the
+#: volumes in the Sculpt Tree, "paint" the painting room's mesh with its textures.
+#: Blender receives both through the same door - it is the same model format, and the
+#: same pull imports it - but only the paint route has textures to put on anything, so
+#: only that route writes a material map.
+KIND_KEY = "export_type"
+KINDS = ("sculpt", "paint")
+KIND_LABELS = "#sculpt object|#paint object"
+
+#: the export dialog's texture folder, and the record written beside a paint export
+TEXTURES_PATH_FIELD = "$ExportOpt::PathForTextures"
+PAINT_MAP_FILE = "paint.json"
 
 #: the export dialog's "export textures" checkbox (documented as an import.txt
 #: option listed in applinks.rst, settable with the CMD module's SetBoolField)
@@ -1006,6 +1019,18 @@ def set_send_scope(value):
     return save_state({SEND_SCOPE_KEY: value})
 
 
+def export_kind():
+    """What an export hands over - "sculpt" unless the panel says paint."""
+    value = str(load_state().get(KIND_KEY, "sculpt")).lower()
+    return value if value in KINDS else "sculpt"
+
+
+def set_export_kind(value):
+    if value not in KINDS:
+        return False
+    return save_state({KIND_KEY: value})
+
+
 def reduction_note():
     """What to say when a Send carried a reduction request (nothing when it did not).
 
@@ -1055,24 +1080,126 @@ def capture_reduction():
     return "remembered reduction %d%% from 3D-Coat" % percent
 
 
-def apply_textures():
-    """Switch 3D-Coat's own texture export off - a fixed answer, not a preference.
+def apply_textures(on=False):
+    """Set 3D-Coat's own texture export: off for a sculpt send, on for a paint one.
 
-    There is no texture control on the panel, and there is nothing to choose: this
-    bridge carries models, the sculpt export it produces has no UVs for a texture to
-    land on, and nothing on the Blender side ever read the files, so turning them on
-    only made the exchange folder heavier.  Leaving the checkbox alone is not the
-    same as setting it off, though - it would hand the result over to whatever state
-    3D-Coat's dialog was left in, and the same click would produce different folders
-    on different days.  Paint objects bring their textures by their own route.
+    There is no texture control on the panel, because the two kinds want opposite
+    answers and neither is a matter of taste.  A sculpt export has no UVs for a
+    texture to land on and nothing on the Blender side read the files, so off is the
+    answer - and answering it explicitly matters: leaving the checkbox alone would hand
+    the result over to whatever state 3D-Coat's dialog was left in, and the same click
+    would then produce different folders on different days.  A paint export is the
+    other case: its textures are the whole point, so it asks for them.
     """
     if CMD is None:
         return "textures: no CMD api in this build"
     try:
-        CMD.SetBoolField(TEXTURES_FIELD, False)
+        CMD.SetBoolField(TEXTURES_FIELD, bool(on))
     except Exception as exc:
-        return "textures off failed: %s" % exc
-    return "textures off"
+        return "textures %s failed: %s" % ("on" if on else "off", exc)
+    return "textures %s" % ("on" if on else "off")
+
+
+def apply_texture_folder(folder):
+    """Point the export dialog's texture folder at ours (paint exports only).
+
+    3D-Coat writes the texture files itself - no API hands them over - so this is the
+    one place their folder is decided.  The setter lives on ``coat.ui`` (the CMD module
+    has SetBoolField only); 3D-Coat's own Autoexport template sets the same field the
+    same way before pressing the dialog's Export.
+    """
+    setter = getattr(getattr(coat, "ui", None), "setEditBoxValue", None)
+    if setter is None:
+        return "textures folder: no ui api in this build"
+    try:
+        if not setter(TEXTURES_PATH_FIELD, folder):
+            return "textures folder not accepted by 3D-Coat"
+    except Exception as exc:
+        return "textures folder failed: %s" % exc
+    return "textures folder %s" % folder
+
+
+def paint_objects():
+    """What the painting room holds: object names, materials and texture sets.
+
+    Read straight from 3D-Coat (``Scene.PaintObjectName`` and its neighbours).  This is
+    the only place the Blender side can learn which material to build: the .mtl a
+    3D-Coat export writes carries empty material names, so nothing in the model itself
+    says it.  Never raises - a name that cannot be read must not stop an export.
+    """
+    scene = getattr(coat, "Scene", None)
+    try:
+        count = int(scene.PaintObjectsCount())
+    except Exception:
+        return None
+    names = []
+    for index in range(count):
+        try:
+            names.append(str(scene.PaintObjectName(index)))
+        except Exception:
+            continue
+    materials = []
+    try:
+        material_count = int(scene.PaintMaterialCount())
+    except Exception:
+        material_count = 0
+    for index in range(material_count):
+        try:
+            materials.append(str(scene.PaintMaterialName(index)))
+        except Exception:
+            continue
+    uv_sets = []
+    try:
+        uv_count = int(scene.PaintUVSetsCount())
+    except Exception:
+        uv_count = 0
+    for index in range(uv_count):
+        try:
+            uv_sets.append(str(scene.PaintUVSetName(index)))
+        except Exception:
+            continue
+    return {"objects": names, "materials": materials, "uv_sets": uv_sets}
+
+
+def paint_map_path(root):
+    return os.path.join(root, PAINT_MAP_FILE)
+
+
+def remove_paint_map(root):
+    try:
+        os.remove(paint_map_path(root))
+    except OSError:
+        pass
+
+
+def write_paint_map(root, model=""):
+    """Record the painting room's objects, materials and texture sets beside the model.
+
+    Written after a paint export and *removed* when nothing could be read, for the same
+    reason the shader map is: a stale record describing a newer model is worse than no
+    record at all, and the Blender side would build materials out of it in good faith.
+    """
+    try:
+        found = paint_objects()
+        if not found or not (found["objects"] or found["materials"]):
+            remove_paint_map(root)
+            log("paint map: nothing recorded")
+            return {}
+        payload = {
+            "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "model": os.path.basename(model or model_path(root, EXPORT_FORMAT)),
+            "objects": found["objects"],
+            "materials": found["materials"],
+            "uv_sets": found["uv_sets"],
+        }
+        with open(paint_map_path(root), "w") as handle:
+            handle.write(json.dumps(payload, indent=1, sort_keys=True))
+        log("paint map: %d object(s), %d material(s), %d uv set(s)"
+            % (len(payload["objects"]), len(payload["materials"]), len(payload["uv_sets"])))
+        return payload
+    except Exception as exc:
+        log("paint map: not written (%s: %s)" % (type(exc).__name__, exc))
+        return {}
 
 
 def apply_reduction(percent=None):
@@ -1115,6 +1242,7 @@ PANEL_ACTION_LABELS = {"SendToBlender": "Export", "PullFromBlender": "Import"}
 #: words the code uses, not words a person uses.  The wording matches the Blender menu
 #: wherever the two mean the same thing.
 PANEL_LABELS = {
+    "ExportType": "Export type",
     "SendScope": "Export range",
     "ReductionPercent": "Reduction percent",
     "CopyDetails": "Copy details",
@@ -1355,13 +1483,14 @@ class CoatLinkPanel(object):
         # attribute, "Name,[#A|#B]" a droplist.  This is the layout syntax
         # 3D-Coat's own Autoexport example panel uses.
         self.ReductionPercent = reduction_percent()
+        self.ExportType = KINDS.index(export_kind())
         self.SendScope = SEND_SCOPES.index(send_scope())
         self.SizeLabel = "Size: -"
         #: queue state, recomputed only by explicit actions (disk I/O)
         self.QueueLabel = ""
         #: how much of the tree is still surface, recomputed by RefreshStats only
         self.ModeLabel = ""
-        self._saved_controls = (self.ReductionPercent, self.SendScope)
+        self._saved_controls = (self.ReductionPercent, self.ExportType, self.SendScope)
         self.refresh_detail()
         self.refresh_stats()
 
@@ -1379,7 +1508,18 @@ class CoatLinkPanel(object):
         # what to do with what came back, the setup, the readout.  No descriptions
         # under the controls - the labels say what they do.
         items.append("#Export options")
-        items.append("SendScope,[%s]" % SEND_SCOPE_LABELS)
+        # What goes out comes first: the kind decides what everything under it means.  A
+        # paint export has no range to offer - 3D-Coat's own dialog decides which paint
+        # objects it writes, and the panel cannot narrow that - so that row is not drawn
+        # there.  A control that cannot do anything is worse than one that is not there.
+        # The kind comes from the cached control, never from a state-file read: nothing
+        # inside ui() may touch the disk, because 3D-Coat redraws this panel whenever it
+        # pleases (the suite has a test that fails on any state read from a redraw).
+        items.append("ExportType,[%s]" % KIND_LABELS)
+        painting = (0 <= int(self.ExportType) < len(KINDS)
+                    and KINDS[int(self.ExportType)] == "paint")
+        if not painting:
+            items.append("SendScope,[%s]" % SEND_SCOPE_LABELS)
         items.append("ReductionPercent,[0,100]")
         items.append("---")
         items.append("#Import options")
@@ -1433,10 +1573,13 @@ class CoatLinkPanel(object):
 
     def process(self):
         """No host queries or disk reads per frame. Persist actual edits only."""
-        current = (self.ReductionPercent, self.SendScope)
+        current = (self.ReductionPercent, self.ExportType, self.SendScope)
         if current == self._saved_controls:
             return False
         values = {REDUCTION_KEY: max(0, min(100, int(self.ReductionPercent)))}
+        kind = int(self.ExportType)
+        if 0 <= kind < len(KINDS):
+            values[KIND_KEY] = KINDS[kind]
         scope = int(self.SendScope)
         if 0 <= scope < len(SEND_SCOPES):
             values[SEND_SCOPE_KEY] = SEND_SCOPES[scope]
@@ -1677,6 +1820,10 @@ class CoatLinkPanel(object):
                 except OSError:
                     pass
 
+        if export_kind() == "paint":
+            self._export_paint(root, path)
+            return
+
         if send_scope() == "selected":
             self._export_selected(root, path)
             return
@@ -1872,6 +2019,51 @@ class CoatLinkPanel(object):
         if applied[0]:
             log("export settings: %s" % applied[0])
         return os.path.isfile(signal_path(primary_root()))
+
+    def _export_paint(self, root, path):
+        """Send the painting room's mesh, with its textures, through 3D-Coat's dialog.
+
+        A different export, not a variant of the sculpt one: a painted model carries UVs
+        and textures, the volumes in the Sculpt Tree carry neither.  This is the route
+        3D-Coat's own template uses for the job (PythonAPI/Templates/py_Export/
+        Autoexport.py): ask the dialog for geometry and textures, point its texture
+        folder at the folder the model goes to, then press Export.  It is the only route
+        that carries texture files out at all.
+
+        What the dialog cannot say is which paint object a material belongs to - the .mtl
+        it writes has empty material names - so the names are read from the PaintRoom API
+        and written beside the model for the Blender side to build from.
+
+        The stamped file is what says whether *this* call wrote anything: reporting a
+        previous export as the one just sent is the worst thing this bridge could do.
+        """
+        if CMD is None:
+            self._report("Export failed", "no CMD api in this build")
+            return False
+        before = file_stamp(path)
+        try:
+            notes = [part for part in (apply_reduction(), apply_textures(True),
+                                       apply_texture_folder(app_folder(root))) if part]
+            if notes:
+                log("paint export settings: %s" % " | ".join(notes))
+            CMD.ExportObjectsAndTextures(path)
+            coat.io.step(4)
+        except Exception as exc:
+            log("paint export: %s: %s" % (type(exc).__name__, exc))
+            self._report("Export failed", "3D-Coat's paint export raised - see the log")
+            return False
+        after = file_stamp(path)
+        if after is None or after == before:
+            log("paint export: 3D-Coat wrote nothing to %s" % os.path.basename(path))
+            self._report("Export failed", "no paint model was written - see the log")
+            return False
+        recorded = write_paint_map(root, model=path)   # before the signal: see _export_selected
+        write_signal(root, path)
+        self._report("Exported paint objects to Blender: %s%s"
+                     % (os.path.basename(path), export_note()),
+                     "folder: %s | %d material(s) recorded"
+                     % (app_folder(root), len((recorded or {}).get("materials", []))))
+        return True
 
     def _export_direct(self, path):
         """3D-Coat's own exporter, for the whole scene.
