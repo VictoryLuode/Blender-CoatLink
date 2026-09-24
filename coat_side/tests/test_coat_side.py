@@ -839,11 +839,19 @@ def main():
     check("the map names the shader every node carries",
           nodes.get("Volume1", {}).get("shader") == "#Metal/Aluminum"
           and nodes.get("Volume2", {}).get("shader") == "NothingLikeThis", nodes)
-    check("a node whose shader has no preset still gets its name recorded",
-          nodes.get("Volume2") == {"shader": "NothingLikeThis"}, nodes.get("Volume2"))
-    check("the map says which preset that shader is, so the material can be named after it",
-          nodes.get("Volume1", {}).get("preset") == "Aluminum"
-          and "preset" not in nodes.get("Volume2", {}), nodes)
+    check("a node whose shader is not in the library keeps the name it came with",
+          nodes.get("Volume2") == {"shader": "NothingLikeThis", "preset": "NothingLikeThis"},
+          nodes.get("Volume2"))
+    check("the map names the preset, and keeps two presets of one name apart",
+          nodes.get("Volume1", {}).get("preset") == "Metal/Aluminum"
+          and nodes.get("Volume2", {}).get("preset") == "NothingLikeThis", nodes)
+    check("two presets of the same name get two names, never one shared material",
+          bridge.shader_material_name(loose, "PbrShaders/Aluminum/mcubes") == "Aluminum"
+          and bridge.shader_material_name(
+              bridge.preset_folder("PbrShaders/#Metal/Aluminum/mcubes"),
+              "PbrShaders/#Metal/Aluminum/mcubes") == "Metal/Aluminum",
+          (bridge.shader_material_name(loose, "PbrShaders/Aluminum/mcubes"),
+           bridge.preset_folder("PbrShaders/#Metal/Aluminum/mcubes")))
     check("reading each volume's shader puts the previous selection back",
           cmd.current_volume == "Volume2", cmd.current_volume)
     written = json.load(open(bridge.shader_map_path(own_root), encoding="utf-8"))

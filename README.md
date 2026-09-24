@@ -96,7 +96,9 @@ Copying the files by hand, explicit install paths and the XML 3D-Coat needs:
    own and nothing already in the scene is written over.  **Shaders as materials** (also on by
    default) gives each returning object a material named after the 3D-Coat shader it was sent
    with - a sculpt shader is display shading that 3D-Coat's exporters never write, so the
-   assignment is carried beside the model instead.  The values come from the shader preset
+   assignment is carried beside the model instead.  Where the shader library holds two presets
+   of one name the material is named after the preset's place in it (`Metal/Gold2`), so the two
+   never end up as one material.  The values come from the shader preset
    itself; the look it gives in 3D-Coat cannot be copied.
 
 From the 3D-Coat side, `Send` hands over **the node selected in the Sculpt Tree plus its

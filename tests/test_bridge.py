@@ -1483,8 +1483,11 @@ def main():
                 ("MetalNode", "Aluminum", "FF030304", "1.000000"),
                 # what 3D-Coat really hands back, measured: the shader's place in its own
                 # library - "PbrShaders/Gold2/mcubes" - with the preset it names
-                ("GoldNode", "PbrShaders/Gold2/mcubes", "", ""))
-    presets = {"GoldNode": "Gold2"}
+                ("GoldNode", "PbrShaders/Gold2/mcubes", "", ""),
+                # and the shipped library holds this name twice, so the second one comes
+                # with its place in the library as its name
+                ("GoldNode2", "PbrShaders/#Metal/Gold2/mcubes", "", ""))
+    presets = {"GoldNode": "Gold2", "GoldNode2": "Metal/Gold2"}
     sources = []
     for index, (node, _shader, _colour, _metalness) in enumerate(returned):
         bpy.ops.mesh.primitive_uv_sphere_add(segments=8, ring_count=6, radius=0.4 + 0.2 * index)
@@ -1507,7 +1510,8 @@ def main():
                   returned[1][0]: {"shader": returned[1][1], "Color": returned[1][2],
                                    "Metalness": returned[1][3],
                                    "color_from_texture": True},
-                  returned[2][0]: {"shader": returned[2][1], "preset": presets["GoldNode"]}}},
+                  returned[2][0]: {"shader": returned[2][1], "preset": presets["GoldNode"]},
+                  returned[3][0]: {"shader": returned[3][1], "preset": presets["GoldNode2"]}}},
         sort_keys=True))
     write(signal, back_path + "\n")
     bridge.pull(bpy.context, force=True)
@@ -1541,7 +1545,7 @@ def main():
           list(metallic.inputs["Base Color"].default_value))
     left_behind = ({material.name for material in bpy.data.materials}
                    - before_materials
-                   - {entry[1] for entry in returned[:2]} - {presets["GoldNode"]})
+                   - {entry[1] for entry in returned[:2]} - set(presets.values()))
     check("the file's own nameless material is dropped, not left as an orphan",
           not left_behind, sorted(left_behind))
 
@@ -1561,6 +1565,17 @@ def main():
           and bridge._shader_material_name({}, "Aluminum") == "Aluminum",
           (bridge._shader_material_name({}, library),
            bridge._shader_material_name({}, "Aluminum")))
+    # Two presets can share a name - the shipped library holds "Gold2" twice - so the name
+    # that arrives is used as it is, and the two never end up sharing one material.
+    check("the name the map gives is the name the material gets, qualifier and all",
+          slot_of(returned[3][0]) == presets["GoldNode2"]
+          and bpy.data.materials.get(presets["GoldNode2"]) is not None,
+          (slot_of(returned[3][0]), [material.name for material in bpy.data.materials]))
+    check("two presets of one name end up as two materials, not one",
+          bpy.data.materials.get(presets["GoldNode"]) is not
+          bpy.data.materials.get(presets["GoldNode2"])
+          and slot_of(returned[2][0]) == presets["GoldNode"],
+          (presets["GoldNode"], presets["GoldNode2"], slot_of(returned[2][0])))
 
     # someone's own material on a node the bridge already touched stays theirs
     own = bpy.data.materials.new("MyOwn")

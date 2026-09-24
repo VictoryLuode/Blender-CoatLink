@@ -53,15 +53,27 @@ stale one when it sends, so a map can never describe a model it did not come wit
 
 **What `CMD.GetCurVolumeShader` answers with** (measured on 3D-Coat 2025): `PbrShaders/Gold2/mcubes`
 - the shader's place in 3D-Coat's own library.  Its last part names the shader *file* inside the
-preset folder (every PBR preset of that family carries `mcubes.glsl`), so the preset is the part
-before it, and the map carries that as `preset` - the Blender half then names its material
-`Gold2` instead of after a path.  The presets themselves live in the **installation**
-(`<install>/UserPrefs/Shaders/PbrShaders/#Metal/Gold2`), not in the user data folder, so the
-lookup searches the user's copy first and then the program folder, which is found by looking on
-the drives rather than by assuming `Program Files`.  A bare name (`Aluminum`) and a
-category-qualified one (`#Metal/Aluminum`) resolve to the same preset.  The parameters are the
-preset's own stored values - `Color` is 8 hex digits, alpha first, and a preset whose colour
-comes from a texture is flagged, in which case that stored colour is left off the material.
+preset folder (measured across the whole library: every preset carries `mcubes.glsl`), so the
+preset is the part before it, and the map carries that as `preset`.  The presets themselves live
+in the **installation** (`<install>/UserPrefs/Shaders/PbrShaders/#Metal/Gold2`), not in the user
+data folder, so the lookup searches the user's copy first and then the program folder, which is
+found by looking on the drives rather than by assuming `Program Files`.  Shaders are filed in
+families, so the whole `UserPrefs/Shaders` folder is searched - the PBR family, `NGPreview` and
+`CurrentMcubes` all resolve - and two string forms come back: a path inside the library
+(`PbrShaders/Gold2/mcubes`) and a name relative to it (`#Metal/Aluminum`).  Both are tried
+exactly, with and without the family in front, before falling back to matching a preset by
+name; only a folder carrying a `ShaderParams.xml` counts as one.
+
+The material's name is the preset's own name - `Gold2`, not a path - with a qualification when
+the library holds **two presets of that name**: measured, four of the shipped names are used
+twice (`Gold2`, `Copper`, `Skin`, loose and categorised; `Default`, in two families), and those
+are different presets with different stored values, so the second one is named by its place in
+the library (`Metal/Gold2`, `NGPreview/Default`) rather than quietly sharing one material.  When
+no folder can be worked out, the name is read out of the string instead: the family and the
+shader file are dropped, which leaves the preset's name.  The parameters are the preset's own
+stored values - `Color` is 8 hex digits, alpha first, and a preset whose colour comes from a
+texture is flagged, in which case that stored colour is left off the material.  A shader nothing
+in the library matches costs its parameters, never the assignment.
 
 `bridge.obj` is the model in **both** directions, which is what leaves exactly one axis rule
 and one unit rule to keep straight.

@@ -66,9 +66,13 @@ EXPORT_FORMAT = "obj"
 #: 3D-Coat writes its own side files as .txt/.xml, so the name is ours.  The Blender
 #: half carries the same constant.
 SHADER_MAP_NAME = "shaders.json"
-#: Where the PBR shader presets live, under a 3D-Coat folder.  A preset that cannot be
-#: found costs the parameters, never the assignment.
-SHADER_PRESET_PARTS = ("UserPrefs", "Shaders", "PbrShaders")
+#: Where the shaders live under a 3D-Coat folder.  A preset that cannot be found costs
+#: the parameters, never the assignment.
+SHADER_ROOT_PARTS = ("UserPrefs", "Shaders")
+#: The family 3D-Coat's own PBR presets are filed under - what a shader path usually
+#: starts with.  Other families sit beside it (measured: "NGPreview", "CurrentMcubes"),
+#: so the whole shader folder is searched, not this one family.
+SHADER_DEFAULT_FAMILY = "PbrShaders"
 #: The copy that matters is the installation's: measured, GetCurVolumeShader answers
 #: "PbrShaders/Gold2/mcubes", and Gold2 is one of the presets 3D-Coat ships, which live
 #: in the program folder ("<install>/UserPrefs/Shaders/PbrShaders/#Metal/Gold2"), not in
@@ -78,6 +82,7 @@ SHADER_PRESET_PARTS = ("UserPrefs", "Shaders", "PbrShaders")
 INSTALL_DRIVES = ("C", "D", "E", "F", "G", "H")
 _INSTALL_ROOT = []
 _PRESET_FOLDERS = {}
+_PRESET_NAMES = []
 
 #: 3D-Coat's own decimation slider.  This is the id the shipped scripts use -
 #: UserPrefs/Scripts/mm_export.as and CoreAPI/Templates/CoreAPI_Export/
@@ -488,19 +493,20 @@ def install_root():
 
 
 def shader_preset_roots():
-    """Where the shader presets are kept: the user's copy first, then the installation's."""
-    roots = [os.path.join(user_data_dir(), *SHADER_PRESET_PARTS)]
+    """Where the shaders are kept: the user's copy first, then the installation's."""
+    roots = [os.path.join(user_data_dir(), *SHADER_ROOT_PARTS)]
     install = install_root()
     if install:
-        roots.append(os.path.join(install, *SHADER_PRESET_PARTS))
+        roots.append(os.path.join(install, *SHADER_ROOT_PARTS))
     return [root for root in roots if os.path.isdir(root)]
 
 
-def presets_under(root, depth=3):
+def presets_under(root, depth=4):
     """Folders under ``root`` that hold a ShaderParams.xml - a preset, by its own mark.
 
-    They are filed in categories (#Metal/Gold2) and can also sit straight under the root,
-    so the walk goes a few levels down and stops at any folder that identifies itself.
+    They are filed in families and categories (#Metal/Gold2) and can also sit straight
+    under a family, so the walk goes a few levels down and stops at any folder that
+    identifies itself as a preset.
     """
     found = []
     pending = [(root, 0)]
@@ -526,14 +532,16 @@ def preset_folder(shader):
 
     Measured: GetCurVolumeShader answers with the shader's place in 3D-Coat's library -
     "PbrShaders/Gold2/mcubes" - where the last part names the shader *file* inside the
-    preset folder (every PBR preset of that family carries "mcubes.glsl"), so the part
-    before it is the preset.  That path is tried **exactly first**: the same preset name
-    can exist twice (a loose "PbrShaders/Gold2" and a categorised "PbrShaders/#Metal/
-    Gold2" are different presets, with different stored values), and only the path says
-    which one the volume is actually using.  Name matching stays as the fallback for the
-    forms that are not paths - a bare name ("Aluminum") and a category-qualified one
-    ("#Metal/Aluminum") name the same preset - where any folder holding a
-    ShaderParams.xml wins.  Cached per shader string: a send asks once per volume.
+    preset folder (measured across the whole library: every preset carries
+    "mcubes.glsl"), so the part before it is the preset.  That path is tried **exactly
+    first**, under the shader folder and then under the default family, because the same
+    preset name exists twice in the shipped library (a loose "PbrShaders/Gold2" and a
+    categorised "PbrShaders/#Metal/Gold2" are different presets with different stored
+    values) and only the path says which one a volume is using.  Name matching stays as
+    the fallback for the forms that are not paths - a bare name ("Aluminum") and a
+    category-qualified one ("#Metal/Aluminum") name the same preset - where any folder
+    holding a ShaderParams.xml wins.  Cached per shader string: a send asks once per
+    volume.
     """
     wanted = (shader or "").replace("\\", "/").strip("/")
     if not wanted:
@@ -545,17 +553,28 @@ def preset_folder(shader):
     for name in ((parts[-2] if len(parts) > 1 else ""), parts[-1] if parts else ""):
         if name and name not in names:
             names.append(name.lower())
-    middle = parts[:-1]
-    if middle and middle[0].lower() == SHADER_PRESET_PARTS[-1].lower():
-        middle = middle[1:]
-    relative = os.path.join(*middle) if middle else ""
+    # Two forms come back from 3D-Coat: a path inside the library, whose last part is the
+    # shader file ("PbrShaders/Gold2/mcubes"), and a name relative to the library, which is
+    # a folder outright ("#Metal/Aluminum").  Both are tried with and without the default
+    # family in front of them, and only a folder that carries a ShaderParams.xml counts.
+    relatives = []
+    for candidate in (parts, parts[:-1]):
+        if not candidate:
+            continue
+        relatives.append(os.path.join(*candidate))
+        if candidate[0].lower() != SHADER_DEFAULT_FAMILY.lower():
+            relatives.append(os.path.join(SHADER_DEFAULT_FAMILY, *candidate))
+    relatives = [relative for index, relative in enumerate(relatives)
+                 if relative and relative not in relatives[:index]]
     found = ""
     for root in shader_preset_roots():
-        if relative:
+        for relative in relatives:
             exact = os.path.join(root, relative)
             if os.path.isfile(os.path.join(exact, "ShaderParams.xml")):
                 found = exact
                 break
+        if found:
+            break
         for folder in presets_under(root):
             if os.path.basename(folder).lower() in names:
                 found = folder
@@ -564,6 +583,63 @@ def preset_folder(shader):
             break
     _PRESET_FOLDERS[wanted] = found
     return found
+
+
+def preset_names():
+    """{preset folder name, lower case: how many folders carry it} over both copies.
+
+    Measured on the shipped library: four names are used twice - "Gold2", "Copper",
+    "Skin" (a loose preset and a categorised one) and "Default" (PbrShaders and
+    NGPreview) - and those are different presets, so a material named after the bare
+    name alone would quietly mix two shaders.
+    """
+    if not _PRESET_NAMES:
+        counts = {}
+        for root in shader_preset_roots():
+            for folder in presets_under(root):
+                name = os.path.basename(folder).lower()
+                counts[name] = counts.get(name, 0) + 1
+        _PRESET_NAMES.append(counts)
+    return _PRESET_NAMES[0]
+
+
+def relative_preset_path(folder):
+    """A preset's path inside the library: "#" dropped, the default family dropped.
+
+    ".../Shaders/PbrShaders/#Metal/Gold2" -> "Metal/Gold2"; one sitting straight under the
+    default family keeps just its own name, and another family keeps its family name
+    ("NGPreview/Default").
+    """
+    for root in shader_preset_roots():
+        prefix = root.rstrip("/\\") + os.sep
+        if folder.lower().startswith(prefix.lower()):
+            parts = [part for part in folder[len(prefix):].replace("\\", "/").split("/") if part]
+            if parts and parts[0] == SHADER_DEFAULT_FAMILY:
+                parts = parts[1:]
+            return "/".join(part.lstrip("#") for part in parts)
+    return ""
+
+
+def shader_material_name(folder, shader=""):
+    """The name to give a material for this shader: "Gold2", or "Metal/Gold2" if needed.
+
+    The preset's own name is the name, unless the library holds another preset with that
+    name - then the folder's place in the library says which is which.  When no folder
+    could be worked out, the shader string itself is read instead: measured as
+    "PbrShaders/Gold2/mcubes", dropping the leading family and the trailing shader file
+    leaves the preset's name.
+    """
+    if folder:
+        base = os.path.basename(folder)
+        if preset_names().get(base.lower(), 0) <= 1:
+            return base
+        return relative_preset_path(folder) or base
+    parts = [part for part in str(shader or "").replace("\\", "/").split("/") if part]
+    if len(parts) > 1 and parts[0].lower() == SHADER_DEFAULT_FAMILY.lower():
+        parts = parts[1:]
+    if len(parts) > 1:
+        parts = parts[:-1]          # the shader file every preset of this family carries
+    return parts[-1] if parts else ""
 
 
 def shader_params(shader):
@@ -628,6 +704,10 @@ def write_shader_map(root, names=None, model=""):
     if names is None:
         names = model_nodes(model)
     names = [name for name in (names or []) if name]
+    # The library can change between sends (a shader installed, a preset moved), and what
+    # the map says about names and parameters must not be a stale picture of it.
+    _PRESET_FOLDERS.clear()
+    del _PRESET_NAMES[:]
     found = volume_shaders(names)
     if not found:
         remove_shader_map(root)
@@ -640,12 +720,12 @@ def write_shader_map(root, names=None, model=""):
             continue
         entry = {"shader": shader}
         entry.update(shader_params(shader))
-        # The preset's own folder name is what a person would call the shader ("Gold2",
-        # not "PbrShaders/Gold2/mcubes"), so the Blender half gets it to name the
-        # material with - when it could be worked out at all.
-        folder = preset_folder(shader)
-        if folder:
-            entry["preset"] = os.path.basename(folder)
+        # The name a material for this shader should carry: the preset's own name, or its
+        # place in the library when two presets share that name.  The Blender half has no
+        # way to work this out - it never sees the library - so it is decided here.
+        preset_name = shader_material_name(preset_folder(shader), shader)
+        if preset_name:
+            entry["preset"] = preset_name
         nodes[name] = entry
     data = {"generated": time.strftime("%Y-%m-%d %H:%M:%S"),
             "model": os.path.basename(model or model_path(root, EXPORT_FORMAT)),
