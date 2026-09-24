@@ -203,7 +203,7 @@ def main():
     check("the panel says the object was unparented",
           "unparented 1 object" in panel.detail, panel.detail)
     check("the pull still reports the object",
-          "Pulled" in panel.status and "bridge.obj" in panel.status, panel.status)
+          "Imported" in panel.status and "bridge.obj" in panel.status, panel.status)
 
     # an import that comes back already flat must not be damaged
     coat.root.children.clear()

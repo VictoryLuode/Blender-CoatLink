@@ -76,7 +76,7 @@ def main():
     status = lib.run_action("CoatLink_Pull")
     check("pull imports the queued model", coat.scene_imports == [queued], coat.scene_imports)
     check("pull consumes the queue", not os.path.isfile(lib.import_txt(job_root)))
-    check("pull reports the result", "Pulled" in status, status)
+    check("pull reports the result", "Imported" in status, status)
 
     # ---- running the entry files the way 3D-Coat does ----
     coat.scene_imports.clear()

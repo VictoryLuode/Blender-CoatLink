@@ -70,10 +70,10 @@ class CoatLinkPreferences(bpy.types.AddonPreferences):
         subtype="FACTOR",
     )
     scope: EnumProperty(
-        name="Scope",
-        description="What Send covers: the selected objects, or every visible object",
-        items=[("selected", "Selected", "Send the selected objects"),
-               ("scene", "Whole scene", "Send every visible object in the scene")],
+        name="Export range",
+        description="What Export covers: the selected objects, or every visible object",
+        items=[("selected", "Selected objects", "Export the selected objects"),
+               ("scene", "Visible objects", "Export every visible object in the scene")],
         default="selected",
     )
     send_origin: BoolProperty(

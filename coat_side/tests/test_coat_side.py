@@ -204,7 +204,7 @@ def main():
     os.remove(bridge.import_txt(queue_root))
     panel.PullFromBlender()
     check("pull imports the queued model", coat.scene_imports == [queued_model], coat.scene_imports)
-    check("pull reports what it took", "Pulled" in panel.status, panel.status)
+    check("pull reports what it took", "Imported" in panel.status, panel.status)
     check("the queue file is consumed so 3D-Coat does not import it twice",
           not os.path.isfile(bridge.import_txt(own_root)))
 
@@ -264,7 +264,7 @@ def main():
     panel.SendToBlender()
     check("send falls back to the direct export", bool(cmd.calls) and cmd.calls[-1].endswith("bridge.obj"), cmd.calls[-1:])
     check("send writes the signal Blender watches", os.path.isfile(bridge.signal_path(bridge.primary_root())))
-    check("send reports the file", "Sent to Blender" in panel.status and "bridge.obj" in panel.status, panel.status)
+    check("send reports the file", "Exported to Blender" in panel.status and "bridge.obj" in panel.status, panel.status)
 
     # ---- an export that wrote nothing must not look like a send ----
     # The file name is fixed, so the previous send left a bridge.obj behind: what says the
@@ -305,15 +305,17 @@ def main():
                                               "RemoveLauncher", "Advanced")])
     scope_index = next(index for index, item in enumerate(items)
                        if item.startswith("SendScope,[#"))
-    check("the scope is the first thing inside the Send options block, like Blender's",
-          items.index("#Send options") < scope_index
-          < items.index("Textures,[%s]" % bridge.TEXTURES_LABELS),
+    check("the scope is the first thing inside the Export options block, like Blender's",
+          items.index("#Export options") < scope_index
+          < items.index("ReductionPercent,[0,100]"),
           items[:8])
     check("and nothing explains it in fine print",
-          items[scope_index + 1] == "Textures,[%s]" % bridge.TEXTURES_LABELS,
+          items[scope_index + 1] == "ReductionPercent,[0,100]",
           items[scope_index:scope_index + 3])
+    check("no texture switch: nothing on the Blender side could use the files",
+          not any(item.startswith("Textures,[") for item in items), items[:8])
     check("with the sections headed like the Blender menu's",
-          "Send options" in [item[1:] for item in items if item.startswith("#")]
+          "Export options" in [item[1:] for item in items if item.startswith("#")]
           and "Setup" in [item[1:] for item in items if item.startswith("#")],
           [item for item in items if item.startswith("#")])
     panel.SendScope = bridge.SEND_SCOPES.index("selected")
@@ -334,21 +336,21 @@ def main():
     # ---- the two menus are meant to read the same ----
     translations = {args[0]: args[1] for args in coat.ui.addTranslation.calls if len(args) >= 2}
     check("the panel's buttons read Send / Pull, like the Blender menu",
-          translations.get("SendToBlender") == "Send"
-          and translations.get("PullFromBlender") == "Pull",
+          translations.get("SendToBlender") == "Export"
+          and translations.get("PullFromBlender") == "Import",
           {key: value for key, value in translations.items()
            if key in ("SendToBlender", "PullFromBlender")})
     check("the tool-strip buttons keep their longer labels",
-          translations.get("CoatLink_Send") == "Send to Blender"
-          and translations.get("CoatLink_Pull") == "Pull from Blender",
+          translations.get("CoatLink_Send") == "Export to Blender"
+          and translations.get("CoatLink_Pull") == "Import from Blender",
           {key: value for key, value in translations.items() if key.startswith("CoatLink")})
     check("the scope droplist reads like the Blender menu's",
-          bridge.SEND_SCOPE_LABELS == "#Selected|#Whole scene", bridge.SEND_SCOPE_LABELS)
+          bridge.SEND_SCOPE_LABELS == "#Selected objects|#Visible objects", bridge.SEND_SCOPE_LABELS)
     check("and the two scopes are still the two the code acts on",
           bridge.SEND_SCOPES == ("selected", "scene")
-          and bridge.SEND_SCOPE_LABELS == "#Selected|#Whole scene",
+          and bridge.SEND_SCOPE_LABELS == "#Selected objects|#Visible objects",
           (bridge.SEND_SCOPES, bridge.SEND_SCOPE_LABELS))
-    for name in ("SendScope", "ReductionPercent", "Textures",
+    for name in ("SendScope", "ReductionPercent",
                  "Detect", "OpenFolder", "StartBlender", "RemoveLauncher"):
         check("the panel control '%s' has a readable label" % name,
               translations.get(name), translations)
@@ -793,8 +795,8 @@ def main():
           bridge.CoatLinkPanel().ReductionPercent)
     check("the panel carries a native number field for the percentage",
           "ReductionPercent,[0,100]" in panel.ui(), panel.ui())
-    check("the panel carries a native choice for textures, off first",
-          "Textures,[#textures off|#textures on]" in panel.ui(), panel.ui())
+    check("there is no texture control on the panel any more",
+          "Textures," not in panel.ui(), panel.ui())
     bridge.set_reduction_percent(40)
     panel.ReductionPercent = 35
     panel.process()
@@ -818,47 +820,21 @@ def main():
     check("0 means 3D-Coat's dialog decides again", bridge.reduction_percent() == 0,
           bridge.load_state())
 
-    # ---- the texture switch (same idea, one state further) ----
+    # ---- textures: a fixed answer, not a switch ----
     use_scope("scene")
     field = bridge.TEXTURES_FIELD
-    check("the textures field is 3D-Coat's own", field == "$ExportOpt::ExportTextures", field)
-
-    # one state, not three: this bridge carries models, so its own exports keep the
-    # texture files out of the exchange folder unless someone asks for them
-    bridge.set_export_textures(False)
-    cmd.calls = []
-    panel.SendToBlender()
-    check("textures off is pushed into 3D-Coat's dialog",
-          ("bool", field, False) in cmd.calls, [call for call in cmd.calls if isinstance(call, tuple)])
-    check("3D-Coat really holds textures off", cmd.bools.get(field) is False, cmd.bools)
-    check("the status line mentions textures", "textures off" in panel.status, panel.status)
-
-    panel.Textures = 1
-    panel.process()
-    check("the second entry is the only way to ask for textures",
-          bridge.export_textures() is True, bridge.load_state())
-    cmd.calls = []
-    panel.SendToBlender()
-    check("asked for, textures on is pushed too", ("bool", field, True) in cmd.calls,
-          [call for call in cmd.calls if isinstance(call, tuple)])
-
-    panel.Textures = 0
-    panel.process()
-    check("back to the first entry means off again", bridge.export_textures() is False,
+    check("the textures field is still 3D-Coat's own", field == "$ExportOpt::ExportTextures", field)
+    check("and no state key asks for textures any more",
+          not hasattr(bridge, "export_textures") and "textures" not in bridge.load_state(),
           bridge.load_state())
-
-    # a state file from a build that had the third state still reads as a decision
-    bridge.save_state({bridge.TEXTURES_KEY: "auto"})
-    check("a stored \"auto\" reads as off, not as undefined",
-          bridge.export_textures() is False, bridge.load_state())
-    bridge.save_state({bridge.TEXTURES_KEY: "on"})
-    check("and a stored \"on\" is kept", bridge.export_textures() is True, bridge.load_state())
-
-    # leave the panel and the state file in step for what follows
-    bridge.set_export_textures(False)
-    panel.Textures = 0
-    panel.process()
-
+    cmd.calls = []
+    panel.SendToBlender()
+    check("every export sets 3D-Coat's texture checkbox itself",
+          ("bool", field, False) in cmd.calls, [c for c in cmd.calls if isinstance(c, tuple)])
+    check("so the folder does not depend on what that dialog was left at",
+          cmd.bools.get(field) is False, cmd.bools)
+    check("and the status line no longer mentions textures at all",
+          "texture" not in panel.status.lower(), panel.status)
     # ---- the Setup button opens 3D-Coat's own panel, never a Qt window ----
     coat.dialog_log = []
     coat.ui.cmd.calls = []
@@ -978,7 +954,7 @@ def main():
     sent = json.load(open(bridge.shader_map_path(bridge.primary_root()), encoding="utf-8"))["nodes"]
     check("a whole-scene send reads the nodes out of the export itself",
           sorted(sent) == ["Clay", "Metal"], sent)
-    check("and that send still reports normally", "Sent to Blender" in panel.status, panel.status)
+    check("and that send still reports normally", "Exported to Blender" in panel.status, panel.status)
 
     # ---- the scoped export: one node or several, and no packaging left in the file ----
     scoped = import_scoped()

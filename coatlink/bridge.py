@@ -725,14 +725,14 @@ def _send_objects(context, whole_scene=False):
         visible = visible_meshes(context)
         if not visible:
             raise RuntimeError("no visible mesh object in the scene")
-        return visible, "whole scene"
+        return visible, "visible objects"
     selected = [obj for obj in context.selected_objects if obj.type == "MESH"]
     if selected:
         return selected, "selection"
     visible = visible_meshes(context)
     if not visible:
         raise RuntimeError("no mesh object in the scene")
-    return visible, "whole scene (nothing selected)"
+    return visible, "visible objects (nothing selected)"
 
 
 def _object(name):

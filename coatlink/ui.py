@@ -31,7 +31,7 @@ def status_lines(message):
 
 class COATLINK_OT_send(bpy.types.Operator):
     bl_idname = "coatlink.send"
-    bl_label = "Send to 3D-Coat"
+    bl_label = "Export to 3D-Coat"
     bl_description = "Export the selection (or all visible meshes) to the exchange folder and ask 3D-Coat to load it"
     bl_options = {"REGISTER"}
 
@@ -46,7 +46,7 @@ class COATLINK_OT_send(bpy.types.Operator):
         try:
             path = bridge.send(context)
         except Exception as exc:
-            bridge._set_message("Send failed: %s" % exc)
+            bridge._set_message("Export failed: %s" % exc)
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
         self.report({"INFO"}, "Queued for 3D-Coat: %s" % os.path.basename(path))
@@ -55,7 +55,7 @@ class COATLINK_OT_send(bpy.types.Operator):
 
 class COATLINK_OT_pull(bpy.types.Operator):
     bl_idname = "coatlink.pull"
-    bl_label = "Pull from 3D-Coat"
+    bl_label = "Import from 3D-Coat"
     bl_description = "Look for a model returned by 3D-Coat right now and merge it into the object it came from"
     bl_options = {"REGISTER"}
 
@@ -72,7 +72,7 @@ class COATLINK_OT_pull(bpy.types.Operator):
         try:
             messages = bridge.pull(context, force=self.force)
         except Exception as exc:
-            bridge._set_message("Pull failed: %s" % exc)
+            bridge._set_message("Import failed: %s" % exc)
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
         if not messages:
@@ -197,14 +197,14 @@ class COATLINK_PT_menu(bpy.types.Panel):
         # share a line and anything with longer text keeps a line to itself.
         row = layout.row(align=True)
         row.scale_y = 1.6
-        row.operator("coatlink.send", text="Send", icon="EXPORT")
-        row.operator("coatlink.pull", text="Pull", icon="IMPORT")
+        row.operator("coatlink.send", text="Export", icon="EXPORT")
+        row.operator("coatlink.pull", text="Import", icon="IMPORT")
 
         header, body = layout.panel("coatlink_send_options", default_closed=False)
-        header.label(text="Send options")
+        header.label(text="Export options")
         if body:
             column = body.column(align=True)
-            column.prop(p, "scope", text="Scope")
+            column.prop(p, "scope", text="Export range")
             column.prop(p, "mode", text="Import as")
             column.prop(p, "send_origin", text="Send to origin")
             column.prop(p, "remesh", text="Remesh on send")
@@ -217,7 +217,7 @@ class COATLINK_PT_menu(bpy.types.Panel):
             settings.prop(p, "remesh_adaptivity", text="Adaptivity")
 
         header, body = layout.panel("coatlink_return", default_closed=False)
-        header.label(text="Return")
+        header.label(text="Import options")
         if body:
             column = body.column(align=True)
             row = column.row(align=True)

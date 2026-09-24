@@ -6,9 +6,9 @@
 # same sections, in the same order and the same words, as the Blender add-on's
 # menu:
 #
-#     Send / Pull          hand this model to Blender, take what Blender sent
-#     Send options         Scope, Reduction percent, Textures
-#     Return               Selected To Voxel - convert what is selected
+#     Export / Import      hand this model to Blender, take what Blender sent
+#     Export options       Export range, Reduction percent
+#     Import options       Selected To Voxel - convert what is selected
 #     Setup                Detect, Open folder, Start Blender, Remove launcher
 #     Status               the object readouts, the last action, Copy details
 #
@@ -100,21 +100,14 @@ REDUCTION_KEY = "reduction"
 #: what a Send hands over: the nodes selected in the sculpt tree (and their children,
 #: one node or several), or 3D-Coat's own export.  The two are not the same thing -
 #: 3D-Coat decides for itself what its own export covers - but the panel states that
-#: in words, not in a caption under the droplist (docs/menus.md, "Scope").
+#: in words, not in a caption under the droplist (docs/menus.md, "Export range").
 SEND_SCOPE_KEY = "send_scope"
 SEND_SCOPES = ("selected", "scene")
-SEND_SCOPE_LABELS = "#Selected|#Whole scene"
+SEND_SCOPE_LABELS = "#Selected objects|#Visible objects"
 
 #: the export dialog's "export textures" checkbox (documented as an import.txt
 #: option listed in applinks.rst, settable with the CMD module's SetBoolField)
 TEXTURES_FIELD = "$ExportOpt::ExportTextures"
-TEXTURES_KEY = "textures"
-
-#: the panel's native droplist: index -> stored value.  Off comes first because that is
-#: what this bridge is for - models - so the texture files 3D-Coat's own exporter would
-#: write stay out of the exchange folder.  Turning them on is a decision, not a default.
-TEXTURES_CHOICES = (False, True)
-TEXTURES_LABELS = "#textures off|#textures on"
 
 #: The S/V badge in a sculpt-tree row.  Its own tooltip reads "Press this button to
 #: transform surface to voxel representation", so pressing it is 3D-Coat doing the
@@ -1038,8 +1031,6 @@ def export_note():
     percent = reduction_percent()
     if percent > 0:
         bits.append("reduction requested %d%% (unverified)" % percent)
-    textures = export_textures()
-    bits.append("textures %s" % ("on" if textures else "off"))
     return " (%s)" % ", ".join(bits) if bits else ""
 
 
@@ -1064,36 +1055,24 @@ def capture_reduction():
     return "remembered reduction %d%% from 3D-Coat" % percent
 
 
-def export_textures():
-    """True / False as the panel decided.  Off unless someone turned it on.
-
-    There used to be a third state - "auto", leaving it to 3D-Coat's own export
-    dialog.  A stored "auto" reads as off now: that is what it meant for anyone who
-    left the setting alone, and this bridge carries models, so textures have to be
-    asked for rather than quietly appearing in the exchange folder.
-    """
-    value = load_state().get(TEXTURES_KEY, "off")
-    if isinstance(value, bool):
-        return value
-    if str(value).lower() == "auto":
-        return False
-    return {"on": True, "off": False}.get(str(value).lower(), False)
-
-
-def set_export_textures(value):
-    return save_state({TEXTURES_KEY: "on" if value else "off"})
-
-
 def apply_textures():
-    """Push the texture switch into 3D-Coat's export dialog."""
-    value = export_textures()
+    """Switch 3D-Coat's own texture export off - a fixed answer, not a preference.
+
+    There is no texture control on the panel, and there is nothing to choose: this
+    bridge carries models, the sculpt export it produces has no UVs for a texture to
+    land on, and nothing on the Blender side ever read the files, so turning them on
+    only made the exchange folder heavier.  Leaving the checkbox alone is not the
+    same as setting it off, though - it would hand the result over to whatever state
+    3D-Coat's dialog was left in, and the same click would produce different folders
+    on different days.  Paint objects bring their textures by their own route.
+    """
     if CMD is None:
         return "textures: no CMD api in this build"
     try:
-        CMD.SetBoolField(TEXTURES_FIELD, bool(value))
+        CMD.SetBoolField(TEXTURES_FIELD, False)
     except Exception as exc:
-        return "textures %s failed: %s" % (value, exc)
-    return "textures %s" % ("on" if value else "off")
+        return "textures off failed: %s" % exc
+    return "textures off"
 
 
 def apply_reduction(percent=None):
@@ -1129,16 +1108,15 @@ def apply_reduction(percent=None):
 
 #: tool id -> label shown in the room tool panel (and in the hotkey editor)
 #: what the panel's buttons say (the tool-strip buttons use ACTION_LABELS instead)
-PANEL_ACTION_LABELS = {"SendToBlender": "Send", "PullFromBlender": "Pull"}
+PANEL_ACTION_LABELS = {"SendToBlender": "Export", "PullFromBlender": "Import"}
 
 #: 3D-Coat labels a panel control by its own name unless that name is translated, so
 #: without this the panel reads "SendScope", "ReductionPercent", "RefreshStats" - the
 #: words the code uses, not words a person uses.  The wording matches the Blender menu
 #: wherever the two mean the same thing.
 PANEL_LABELS = {
-    "SendScope": "Scope",
+    "SendScope": "Export range",
     "ReductionPercent": "Reduction percent",
-    "Textures": "Textures",
     "CopyDetails": "Copy details",
     "Detect": "Detect",
     "OpenFolder": "Open folder",
@@ -1148,8 +1126,8 @@ PANEL_LABELS = {
 }
 
 ACTION_LABELS = {
-    "CoatLink_Send": ("SendToBlender", "Send to Blender"),
-    "CoatLink_Pull": ("PullFromBlender", "Pull from Blender"),
+    "CoatLink_Send": ("SendToBlender", "Export to Blender"),
+    "CoatLink_Pull": ("PullFromBlender", "Import from Blender"),
     "CoatLink_Setup": ("OpenPanel", "CoatLink: panel"),
 }
 
@@ -1377,14 +1355,13 @@ class CoatLinkPanel(object):
         # attribute, "Name,[#A|#B]" a droplist.  This is the layout syntax
         # 3D-Coat's own Autoexport example panel uses.
         self.ReductionPercent = reduction_percent()
-        self.Textures = TEXTURES_CHOICES.index(export_textures())
         self.SendScope = SEND_SCOPES.index(send_scope())
         self.SizeLabel = "Size: -"
         #: queue state, recomputed only by explicit actions (disk I/O)
         self.QueueLabel = ""
         #: how much of the tree is still surface, recomputed by RefreshStats only
         self.ModeLabel = ""
-        self._saved_controls = (self.ReductionPercent, self.Textures, self.SendScope)
+        self._saved_controls = (self.ReductionPercent, self.SendScope)
         self.refresh_detail()
         self.refresh_stats()
 
@@ -1401,12 +1378,11 @@ class CoatLinkPanel(object):
         # Same sections, same order, same words as the Blender menu: what goes out,
         # what to do with what came back, the setup, the readout.  No descriptions
         # under the controls - the labels say what they do.
-        items.append("#Send options")
+        items.append("#Export options")
         items.append("SendScope,[%s]" % SEND_SCOPE_LABELS)
-        items.append("Textures,[%s]" % TEXTURES_LABELS)
         items.append("ReductionPercent,[0,100]")
         items.append("---")
-        items.append("#Return")
+        items.append("#Import options")
         items.append("[1]")
         items.append("SelectedToVoxel")
         items.append("---")
@@ -1457,16 +1433,13 @@ class CoatLinkPanel(object):
 
     def process(self):
         """No host queries or disk reads per frame. Persist actual edits only."""
-        current = (self.ReductionPercent, self.Textures, self.SendScope)
+        current = (self.ReductionPercent, self.SendScope)
         if current == self._saved_controls:
             return False
         values = {REDUCTION_KEY: max(0, min(100, int(self.ReductionPercent)))}
         scope = int(self.SendScope)
         if 0 <= scope < len(SEND_SCOPES):
             values[SEND_SCOPE_KEY] = SEND_SCOPES[scope]
-        choice = int(self.Textures)
-        if 0 <= choice < len(TEXTURES_CHOICES):
-            values[TEXTURES_KEY] = "on" if TEXTURES_CHOICES[choice] else "off"
         if save_state(values):
             self._saved_controls = current
         return False
@@ -1680,7 +1653,7 @@ class CoatLinkPanel(object):
         self.detail = " | ".join(parts)
         # Empty while nothing waits: the panel draws a queue row only when there is a
         # queue, so an idle panel says nothing rather than saying "nothing".
-        self.QueueLabel = ("Queue: %s waiting - press Pull" % os.path.basename(queued)
+        self.QueueLabel = ("Queue: %s waiting - press Import" % os.path.basename(queued)
                            if queued else "")
     # ---- actions ----------------------------------------------------------
 
@@ -1711,14 +1684,14 @@ class CoatLinkPanel(object):
         exported = self._export_via_applink(path)
         if exported:
             write_shader_map(root, model=path)
-            self._report("Sent to Blender via the AppLink target (whole scene)" + export_note(),
+            self._report("Exported to Blender via the AppLink target (visible objects)" + export_note(),
                          "folder: %s" % app_folder(root))
             return
         exported = self._export_direct(path)
         if exported:
             write_shader_map(root, model=path)   # before the signal: see _export_selected
             write_signal(root, path)
-            self._report("Sent to Blender: %s (whole scene)%s" % (os.path.basename(path), export_note()),
+            self._report("Exported to Blender: %s (visible objects)%s" % (os.path.basename(path), export_note()),
                          "folder: %s" % app_folder(root))
             return
         self._report("Export failed", "use File > Export To > %s, or check the console" % APP_FOLDER)
@@ -1747,7 +1720,7 @@ class CoatLinkPanel(object):
         write_shader_map(root, names, path)
         write_signal(root, path)
         what = "selected node + subtree" if chosen <= 1 else "%d selected nodes + subtrees" % chosen
-        self._report("Sent %s: %s (%s)%s"
+        self._report("Exported %s: %s (%s)%s"
                      % (os.path.basename(path), ", ".join(names), what, reduction_note()),
                      "%d faces | folder: %s" % (faces, app_folder(root)))
 
@@ -1786,7 +1759,7 @@ class CoatLinkPanel(object):
         note = "%s | %s" % ("queue file consumed" if consumed else "queue file left alone",
                             "unparented %d object(s)" % len(unparented) if unparented
                             else "no import group to unparent")
-        self._report("Pulled %s from %s" % (name, os.path.basename(model)), note)
+        self._report("Imported %s from %s" % (name, os.path.basename(model)), note)
 
     def OpenPanel(self):
         """Open the panel: 3D-Coat's own dialog, nothing Qt."""
@@ -1937,7 +1910,7 @@ class CoatLinkPanel(object):
             # the queue readout is disk I/O, so only an explicit action refreshes it
             root = primary_root()
             queued = read_import_model(root) if root else ""
-            self.QueueLabel = ("Queue: %s waiting - press Pull" % os.path.basename(queued)
+            self.QueueLabel = ("Queue: %s waiting - press Import" % os.path.basename(queued)
                                if queued else "Queue: nothing waiting from Blender")
         except Exception:
             pass

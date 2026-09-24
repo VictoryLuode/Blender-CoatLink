@@ -4,19 +4,19 @@
 baking, no texture nodes, no scene surgery.
 
 <img src="docs/images/blender-menu.png" width="300" alt="The CoatLink menu, opened from the single CoatLink button in Blender's top bar">
-<img src="docs/images/3dcoat-panel.jpg" width="620" alt="The CoatLink panel in 3D-Coat: scope, Send/Pull, To voxels, send options, setup and status">
+<img src="docs/images/3dcoat-panel.jpg" width="620" alt="The CoatLink panel in 3D-Coat: export range, Export/Import, Selected To Voxel, export options, setup and status">
 
 <sub>The CoatLink menu in Blender's top bar &nbsp;·&nbsp; the CoatLink panel in 3D-Coat.  Both carry
 the same sections in the same order.</sub>
 
 * one **CoatLink** button in Blender's top bar and one panel in 3D-Coat - both carry the same
   sections in the same order with the same words
-* `Send` / `Pull` in both directions.  Objects keep their names, their materials and their
+* `Export` / `Import` in both directions.  Objects keep their names, their materials and their
   place in the outliner; nothing in your scene is renamed, joined or deleted
 * units and axes are read from 3D-Coat itself, so 2 m in Blender is 2 m in 3D-Coat
 * optional `Send to origin`: hand the model to 3D-Coat's world origin instead of from where it
   sits in the scene - and take it back to the same place when it returns
-* optional voxel remesh on send (over the exported copy only), and one-click `To voxels` in
+* optional voxel remesh on send (over the exported copy only), and one-click `Selected To Voxel` in
   3D-Coat that converts what the Sculpt Tree is showing
 
 ## Install
@@ -84,10 +84,10 @@ Copying the files by hand, explicit install paths and the XML 3D-Coat needs:
 
 ## Use
 
-1. `Scope` picks the selected object (default) or every visible one.  `Import as` picks how
+1. `Export range` picks the selected objects (default) or every visible one.  `Import as` picks how
    3D-Coat opens it - `Sculpt Object (voxel)` by default.  `Remesh on send` can voxel-remesh
    the exported copy only; the scene, the names and your own modifiers stay as they are.
-2. **`Send`**.  If 3D-Coat is not running, the job waits in the exchange folder until it is -
+2. **`Export`**.  If 3D-Coat is not running, the job waits in the exchange folder until it is -
    `Start 3D-Coat` is right there in the menu.
 3. Work in 3D-Coat, then **`File > Export To > CoatLinkBridge`** (or `Bring object back`).
    With **Auto receive** on, the model is imported within ~2 s and merged into the object it
@@ -103,14 +103,14 @@ Copying the files by hand, explicit install paths and the XML 3D-Coat needs:
    the shader it stood for.  The texture that gives the shader its fine look does not
    travel, so what 3D-Coat shows on screen is approximated, not reproduced.
 
-From the 3D-Coat side, `Send` hands over **the nodes selected in the Sculpt Tree plus their
-children** - one node or several, as picked there (`Scope: whole scene` uses 3D-Coat's own export
+From the 3D-Coat side, `Export` hands over **the nodes selected in the Sculpt Tree plus their
+children** - one node or several, as picked there (`Export range: Visible objects` uses 3D-Coat's own export
 instead - the only route that can
-carry textures), and `To voxels` converts everything the tree is showing.  It does that by
+carry textures), and `Selected To Voxel` converts everything the tree is showing.  It does that by
 pressing 3D-Coat's own S/V badge - the conversion you would do by hand - and accepts the
 dialog for you, so a scene converts from one click.
 
-The menu's four sections - `Send options`, `Return`, `Setup`, `Status` - are fold-out headers,
+The menu's four sections - `Export options`, `Import options`, `Setup`, `Status` - are fold-out headers,
 the way Blender's own popovers group things.  `Setup` starts folded, everything else open.
 
 What every entry does, on both sides: [docs/menus.md](docs/menus.md).
@@ -162,16 +162,16 @@ so:
 
 * **The `[vox]` import mode is asked for, not guaranteed.**  3D-Coat's own log shows it
   reading that line, but on the build this was developed against the model still arrives in
-  *surface* mode (S in the Sculpt Tree).  `To voxels` in the panel is the reliable route; the
+  *surface* mode (S in the Sculpt Tree).  `Selected To Voxel` in the panel is the reliable route; the
   cause has not been identified.
 * **No live round trip has been run on this release.**  Both suites run headless against a
   stand-in host; `tests/live_roundtrip.sh` exists for a real one and records the exact job
   file it wrote, which is the evidence the earlier attempts were missing.
-* **The reduction percentage is an estimate**, and `To voxels` accepts the conversion
+* **The reduction percentage is an estimate**, and `Selected To Voxel` accepts the conversion
   dialog's defaults - so one object cannot be skipped mid-run.
 * **The tool buttons have no icon of their own**: a button icon has to be written into
   3D-Coat's program folder, which needs administrator rights, so they use 3D-Coat's default.
-* **3D-Coat's "whole scene" export is 3D-Coat's own**, so what it covers is its decision.
+* **3D-Coat's "Visible objects" export is 3D-Coat's own**, so what it covers is its decision.
 
 The full list, including what is deliberately not shipped:
 [docs/limitations.md](docs/limitations.md).

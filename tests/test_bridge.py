@@ -242,8 +242,8 @@ def main():
     # first, exactly as it comes up the first time
     draw_menu()
     check("the menu opens on the two actions",
-          drawn[:2] == [("operator", "coatlink.send", "Send"),
-                        ("operator", "coatlink.pull", "Pull")], drawn[:3])
+          drawn[:2] == [("operator", "coatlink.send", "Export"),
+                        ("operator", "coatlink.pull", "Import")], drawn[:3])
     check("then the Send options section, so the options read as one block",
           drawn[2] == ("panel", "coatlink_send_options", False), drawn[:5])
     check("the sections are fold-outs, in the panel's order",
@@ -267,28 +267,28 @@ def main():
           section_items["coatlink_setup"])
     check("the send options sit inside their own section, scope first",
           section_items["coatlink_send_options"][:3]
-          == [("label", "Send options"), ("prop", "scope", "Scope"), ("prop", "mode", "Import as")],
+          == [("label", "Export options"), ("prop", "scope", "Export range"), ("prop", "mode", "Import as")],
           section_items["coatlink_send_options"][:4])
-    check("the Return section holds exactly the switches a return follows",
+    check("the Import options section holds exactly the switches a return follows",
           [item[1] for item in section_items["coatlink_return"] if item[0] == "prop"]
           == ["auto_pull", "strip_materials", "replace_in_place", "shader_materials"],
           section_items["coatlink_return"])
     check("under it the scope, then the import mode",
-          drawn.index(("prop", "scope", "Scope")) < drawn.index(("prop", "mode", "Import as")),
+          drawn.index(("prop", "scope", "Export range")) < drawn.index(("prop", "mode", "Import as")),
           drawn[:8])
     check("and both sit right under that heading",
-          drawn.index(("label", "Send options"))
-          < drawn.index(("prop", "scope", "Scope"))
+          drawn.index(("label", "Export options"))
+          < drawn.index(("prop", "scope", "Export range"))
           < drawn.index(("prop", "mode", "Import as")), drawn[:8])
     check("then the two actions, named like the 3D-Coat panel's",
-          ("operator", "coatlink.send", "Send") in drawn
-          and ("operator", "coatlink.pull", "Pull") in drawn, drawn[:4])
+          ("operator", "coatlink.send", "Export") in drawn
+          and ("operator", "coatlink.pull", "Import") in drawn, drawn[:4])
     check("Send to origin sits with the other send options",
           drawn.index(("prop", "mode", "Import as"))
           < drawn.index(("prop", "send_origin", "Send to origin"))
-          < drawn.index(("label", "Return")), drawn[:10])
-    check("Replace in place and Shaders as materials sit in the Return section",
-          drawn.index(("label", "Return"))
+          < drawn.index(("label", "Import options")), drawn[:10])
+    check("Replace in place and Shaders as materials sit in the Import options section",
+          drawn.index(("label", "Import options"))
           < drawn.index(("prop", "replace_in_place", "Replace in place"))
           < drawn.index(("prop", "shader_materials", "Shaders as materials"))
           < drawn.index(("label", "Setup")), drawn[:28])
@@ -297,12 +297,12 @@ def main():
     check("no checkbox hides content: folding is a section, never a switch",
           not folded, folded)
     labels = [item[1] for item in drawn if item[0] == "label"]
-    for header in ("Send options", "Return", "Setup"):
+    for header in ("Export options", "Import options", "Setup"):
         check("the menu has a '%s' heading" % header, header in labels, labels)
     check("the headings come before what they head",
-          drawn.index(("label", "Send options")) < drawn.index(("prop", "scope", "Scope"))
+          drawn.index(("label", "Export options")) < drawn.index(("prop", "scope", "Export range"))
           < drawn.index(("prop", "mode", "Import as"))
-          < drawn.index(("label", "Return"))
+          < drawn.index(("label", "Import options"))
           < drawn.index(("label", "Setup"))
           < drawn.index(("prop", "axis_mode", "Axis")), drawn[:8])
     # No dividers any more: a section header is its own separation, the way Blender's
@@ -312,7 +312,7 @@ def main():
           not divider_positions, divider_positions)
     check("the four sections are all present in order",
           [drawn[index + 1][1] for index, item in enumerate(drawn) if item[0] == "panel"]
-          == ["Send options", "Return", "Setup", "Status"],
+          == ["Export options", "Import options", "Setup", "Status"],
           [item for item in drawn if item[0] == "panel"])
     check("only the remesh settings are framed, so no section is boxed",
           [item for item in drawn if item[0] == "box"] == [("box", None)]
@@ -553,9 +553,9 @@ def main():
 
     prefs.scope = "scene"
     bridge.send(bpy.context)
-    check("choosing the whole scene sends every visible object",
+    check("choosing visible objects sends every visible object",
           set(exported_names()) == {"BridgeCube", "BridgeOther"}, exported_names())
-    check("and the status says so", "whole scene" in bridge.status(bpy.context),
+    check("and the status says so", "visible objects" in bridge.status(bpy.context),
           bridge.status(bpy.context))
 
     other.hide_set(True)

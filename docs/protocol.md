@@ -84,7 +84,7 @@ so an id only some other shader pack uses is a one-line mapping away.  A shader 
 in the library matches costs its parameters, never the assignment.
 
 `bridge.obj` is the model in **both** directions, which is what leaves exactly one axis rule
-and one unit rule to keep straight.  A `Send` covers the Sculpt Tree's **own selection** - one
+and one unit rule to keep straight.  An `Export` covers the Sculpt Tree's **own selection** - one
 node or several, each with its children (`Mesh.fromVolume(…, with_subtree, all_selected)`, the
 second flag set when more than one node is selected) - so nothing else in the scene can leave
 by accident.
@@ -123,8 +123,11 @@ leaves the other side reading a stale axis/unit record, which is exactly what th
   dialog is never seen; the selected-node route passes it to
   `fromReducedVolume(volume, reduction_percent, …)`, whose parameter carries that name.  The
   percentage means *removed*, not *kept*.
-* **Textures.**  A droplist with two states: off, or on.  Off out of the box, because this
-  bridge carries models.
+* **Textures.**  No switch.  The sculpt export has no UVs for a texture to land on and
+  nothing on the Blender side read the files, so a control for them only made the exchange
+  folder heavier.  Every export still answers 3D-Coat's own `$ExportOpt::ExportTextures`
+  explicitly - to off - because leaving it alone would hand the result over to whatever
+  state that dialog was left in.  Paint objects come with their textures by their own route.
 * **No leftover parent node.**  3D-Coat wraps an imported file in a node named after it
   (`bridge.obj` → "bridge"), which Blender has no equivalent of.  The unparenting is handed
   over twice, because one handover is not enough: the job file names the script with
@@ -134,7 +137,7 @@ leaves the other side reading a stale axis/unit record, which is exactly what th
   - but never executed).  Either way the objects move up to the sculpt root and the empty
   wrapper is deleted - only that wrapper, and only if it belongs to this model.  A Pull made
   from the panel does the same in code.  The sculpt tree then matches the Blender outliner.
-* **Selection, not the scene.**  `Send` exports `Scene.current()` with
+* **Selection, not the scene.**  `Export` exports `Scene.current()` with
   `with_subtree=True, all_selected=False`, so sculpting in progress cannot leak into Blender,
   and a return that loses its object groups is refused rather than merged.
 * **Names.**  Objects keep their names in both directions.  Groups that come back are matched
@@ -177,7 +180,7 @@ Measured on 3D-Coat 2025/2026:
   and drawn only where `context.region.alignment == 'RIGHT'`.
 * 3D-Coat's tree rows carry an S/V badge (`$VoxTreeBranch.VoxSurf.<object>`) whose tooltip is
   "Press this button to transform surface to voxel representation" - its own conversion, which
-  is what `To voxels` presses.
+  is what `Selected To Voxel` presses.
 * `import.txt` has no import-side field mechanism: the documented extra commands
   (`[SkipImport]`, `[SkipExport]`, `[TexOutput]`, `[Option=…]`, `[field …]`, `[click …]`) are
   all for the export side, and there is no `ImportOpt::` field namespace.  Voxelizing an import

@@ -162,7 +162,7 @@ def main():
     coat.ui.cmd.return_value = lambda *args, **kwargs: coat.applink_export(root) or True
     panel.SendToBlender()
     check("asking for the whole scene uses 3D-Coat's own export",
-          "whole scene" in panel.status, panel.status)
+          "visible objects" in panel.status, panel.status)
     check("the scope survives in the state file", bridge.send_scope() == "scene",
           bridge.load_state())
     bridge.set_send_scope("selected")

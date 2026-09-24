@@ -26,7 +26,7 @@ so.  The short version is on the [README](../README.md).
   `isVoxelized()`).  Two suspects, neither confirmed: the `[SkipImport]` / `[SkipExport]` lines
   that make the trip silent (3D-Coat documents `[SkipImport]` as "skip the import dialog,
   default options will be used", and the official Blender AppLink never adds it), and the
-  `[pythonfile …]` line.  **`To voxels` in the panel is the reliable route** - see below.
+  `[pythonfile …]` line.  **`Selected To Voxel` in the panel is the reliable route** - see below.
 * **`[pythonfile …]` is not executed on 2025.17, and the unparenting no longer depends on it.**
   A live trip on 2026-09-23 (Blender 5.2, 3D-Coat 2025.17) settled it: the job file carried the
   line, 3D-Coat's own log printed it as part of the job, and nothing ran - no `PyImportFile`
@@ -54,7 +54,7 @@ so.  The short version is on the [README](../README.md).
   3D-Coat's own scripts write, and that field belongs to the "decimate to Retopo" flow in
   3D-Coat's sources; whether every AppLink export path honours it is untested.  The panel calls
   its number an estimate.
-* **`To voxels` accepts the conversion dialog's defaults**, because it presses that dialog's OK
+* **`Selected To Voxel` accepts the conversion dialog's defaults**, because it presses that dialog's OK
   itself (otherwise every object would need a click).  Consequence: a single object cannot be
   skipped mid-run - switch it off in the tree first, and it will be left alone.
 * **The face count in 3D-Coat's sculpt tree was reported to climb while the panel was open.**
@@ -80,11 +80,11 @@ so.  The short version is on the [README](../README.md).
   moved is not readable from outside 3D-Coat (its Python API offers `SetShaderProperty` and no
   getter), and a shader that paints its colour from a texture ships an unused stored colour,
   which is deliberately left off the material.
-* **3D-Coat's "whole scene" export is 3D-Coat's own**, so what it covers is its decision (it can
+* **3D-Coat's "Visible objects" export is 3D-Coat's own**, so what it covers is its decision (it can
   include hidden volumes).  Sending only the *visible* tree objects from 3D-Coat would need one
   of 3D-Coat's own commands (`Export Selected Objects`, or the decimate-and-export-all-visible
   action) and neither has been verified here, so nothing was guessed in.
-* **A hidden parent excludes its descendants** in `To voxels`, and unreadable visibility or
+* **A hidden parent excludes its descendants** in `Selected To Voxel`, and unreadable visibility or
   child lists are skipped conservatively - the status reports skipped branches rather than
   claiming an exact object count.
 * **Try bringing 3D-Coat forward if a job is waiting.**  Background pause messages were observed
