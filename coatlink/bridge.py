@@ -1085,9 +1085,13 @@ def _apply_paint_materials(path, placements, file_materials=()):
             if candidate and candidate in materials:
                 wanted = candidate
                 break
-        if not wanted:
-            wanted = materials[index] if index < len(materials) else (
-                materials[0] if len(placements) == 1 and materials else "")
+        if not wanted and materials:
+            # More objects than the record has names - one painting room material worn by
+            # several objects is the common case, and 3D-Coat's API exposes no pairing.
+            # Share the last name rather than making one up: a material named after the
+            # object is a copy nobody asked for, and it reads as a second material in the
+            # file when the paint room has one.
+            wanted = materials[min(index, len(materials) - 1)]
         if not wanted:
             wanted = arriving or obj.name
         material = made.get(wanted)

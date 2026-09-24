@@ -1762,6 +1762,21 @@ def main():
           and os.path.basename(normal_image.image.filepath) == os.path.basename(maps["normalmap"])
           and normal_image.image.colorspace_settings.name == "Non-Color",
           (normal_node.type if normal_node else None,))
+    # One painting room material worn by several objects: everyone shares it.  Taking a
+    # name per object instead invents a copy - and a copy named after the object reads
+    # as a second material in the file when the paint room only has one.
+    twin = bpy.data.objects.new("PaintTwin", bpy.data.meshes.new("PaintTwinMesh"))
+    bpy.context.scene.collection.objects.link(twin)
+    bridge._apply_paint_materials(back_path,
+                                  [(twin, "Surface"), (arrived, "Surface")], ())
+    twin_slot = twin.material_slots[0].material if twin.material_slots else None
+    check("objects sharing one paint material share one material, no per-object copy",
+          twin_slot is not None and twin_slot is material
+          and bpy.data.materials.get("PaintTwin") is None,
+          (twin_slot.name if twin_slot else None,
+           [m.name for m in bpy.data.materials if m.name.startswith("Paint")]))
+    bpy.data.objects.remove(twin, do_unlink=True)
+
     # A material the importer already built under the same name must be rebuilt, not
     # left alone: the .mtl 3D-Coat writes names no texture slots, so what the importer
     # makes is wired wrong (roughness through specular, the alpha of a data map into
