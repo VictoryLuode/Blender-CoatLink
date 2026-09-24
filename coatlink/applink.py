@@ -523,10 +523,25 @@ def coat_state():
     Both applications run on the same machine, so this is how the Blender side
     learns 3D-Coat's settings without asking the user: the 3D-Coat side refreshes
     it on every action.
+
+    The newest file wins.  A machine can end up with more than one 3D-Coat data folder
+    (an older install beside the current one), each with its own state file, and taking
+    the first one found read settings the running 3D-Coat had long replaced - units and
+    scene scale among them, which is how a model arrives 100x out with nothing to explain
+    it.  The half that is running refreshes its file on every action, so the freshest
+    file is the one to believe.
     """
+    best = {}
+    newest = None
     for folder in coat_data_dirs():
         path = os.path.join(folder, "CoatLink.json")
         if not os.path.isfile(path):
+            continue
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            continue
+        if newest is not None and mtime <= newest:
             continue
         try:
             with open(path, "r", encoding="utf-8") as handle:
@@ -534,9 +549,10 @@ def coat_state():
         except (OSError, ValueError):
             continue
         state = data.get("coat") if isinstance(data, dict) else None
-        if isinstance(state, dict):
-            return state
-    return {}
+        if isinstance(state, dict) and state:
+            best = state
+            newest = mtime
+    return best
 
 
 def find_coat_executable():

@@ -491,6 +491,12 @@ def send(context):
     applied = []
     if scale != 1.0:
         applied.append("x%s (%s)" % (_trim(scale), scale_from))
+    elif not str((applink.coat_state() or {}).get("scene_units") or "").strip():
+        # Nothing has reported the other end's units, so no conversion was applied:
+        # Blender writes metres and 3D-Coat reads its scene in centimetres, which is how
+        # a model arrives 100x out.  Saying it in the status line is the difference
+        # between a setting the user can fix and a bridge that looks broken.
+        applied.append("units unknown - 3D-Coat has not reported its scene units yet")
     if swap is not None:
         applied.append("swap Y/Z" if swap else "Y up")
     if origin is not None and origin.length > 0.0:

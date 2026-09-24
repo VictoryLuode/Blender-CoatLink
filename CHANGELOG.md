@@ -502,10 +502,9 @@ Two behaviour changes the user asked for.  Everything else is unchanged.
 * **Blender opens models in 3D-Coat as a voxel sculpt object by default** (`Import
   as` now starts on `Sculpt Object (voxel)` and that entry is listed first).
 
-Also fixed: `check_coat_api.py` looked for 3D-Coat's type stubs at a hardcoded
-`D:\Program Files\3DCoat-2026`, so the API check quietly stopped checking when
-3D-Coat moved to another drive and version folder.  It now searches, newest wins,
-with `COAT_API` as an override.
+Also fixed: `check_coat_api.py` looked for 3D-Coat's type stubs at one hardcoded
+location, so the API check quietly stopped checking when 3D-Coat moved to another
+drive and version folder.  It now searches, newest wins, with `COAT_API` as an override.
 
 Notes from the live install: with 3D-Coat in `C:\Program Files` the icon folder needs
 administrator rights, so the installer skips the four icons and says so - the buttons

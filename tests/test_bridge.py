@@ -1705,8 +1705,45 @@ def main():
           bpy.context.view_layer.objects.active is room_b,
           bpy.context.view_layer.objects.active)
     prefs.scope = was_scope
+    # With nothing reported about the other end's units, no conversion is applied - and a
+    # silent 1:1 is how a model arrives 100x out.  The status line has to say so.
+    was_dirs = applink.coat_data_dirs
+    applink.coat_data_dirs = lambda: []
+    try:
+        bridge.send(bpy.context)
+        said = bridge.STATE.get("message", "")
+    finally:
+        applink.coat_data_dirs = was_dirs
+    check("a send that cannot know the units says so", "units unknown" in said, said)
     for item in (room_a, room_b):
         bpy.data.objects.remove(item, do_unlink=True)
+
+    # ---- two 3D-Coat data folders: the newest state file is the truth ---------------
+    # An older install can leave its own data folder beside the current one, each with a
+    # state file.  Reading the first one found reported units and scene scale the running
+    # 3D-Coat had long replaced - how a model arrives 100x out with nothing to explain it.
+    state_home = tempfile.mkdtemp(prefix="coat_state.")
+    stale_dir = os.path.join(state_home, "old")
+    fresh_dir = os.path.join(state_home, "new")
+    for folder in (stale_dir, fresh_dir):
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, "CoatLink.json"), "w", encoding="utf-8") as handle:
+            handle.write("{}")
+    write(os.path.join(stale_dir, "CoatLink.json"),
+          json.dumps({"coat": {"scene_units": "MILLIMETERS", "scene_scale": 1.0}}))
+    write(os.path.join(fresh_dir, "CoatLink.json"),
+          json.dumps({"coat": {"scene_units": "CENTIMETERS", "scene_scale": 1.0}}))
+    os.utime(os.path.join(fresh_dir, "CoatLink.json"),
+             (os.path.getmtime(os.path.join(stale_dir, "CoatLink.json")) + 60,) * 2)
+    was_dirs = applink.coat_data_dirs
+    applink.coat_data_dirs = lambda: [stale_dir, fresh_dir]
+    try:
+        chosen = applink.coat_state()
+    finally:
+        applink.coat_data_dirs = was_dirs
+    check("the newest 3D-Coat state file is the one believed",
+          chosen.get("scene_units") == "CENTIMETERS",
+          (chosen.get("scene_units"), [stale_dir, fresh_dir]))
 
     # ---- a shader whose name the user already used --------------------------------
     # The material standing for a shader is reused by name, but only when it is one this
