@@ -1535,7 +1535,8 @@ def main():
         "nodes": {returned[0][0]: {"shader": returned[0][1], "Color": returned[0][2],
                                    "Metalness": returned[0][3]},
                   returned[1][0]: {"shader": returned[1][1], "Color": returned[1][2],
-                                   "Metalness": returned[1][3],
+                                   "Metallness": returned[1][3],      # 7 presets spell it so
+                                   "Opacity": "0.5",
                                    "color_from_texture": True},
                   returned[2][0]: {"shader": returned[2][1], "preset": presets["GoldNode"]},
                   returned[3][0]: {"shader": returned[3][1], "preset": presets["GoldNode2"]}}},
@@ -1564,12 +1565,17 @@ def main():
           abs(shaded.inputs["Base Color"].default_value[0] - linear[0]) < 1e-5,
           (list(shaded.inputs["Base Color"].default_value), linear))
     metallic = next(node for node in metal.node_tree.nodes if node.type == "BSDF_PRINCIPLED")
-    check("metallic comes from the preset",
+    check("metallic comes from the preset, under either spelling of the id",
           abs(metallic.inputs["Metallic"].default_value - 1.0) < 1e-5,
           metallic.inputs["Metallic"].default_value)
-    check("a texture-driven shader keeps its unused stored colour off the material",
-          abs(metallic.inputs["Base Color"].default_value[0] - 0.8) < 1e-3,
-          list(metallic.inputs["Base Color"].default_value))
+    check("and so does the opacity, as alpha",
+          abs(metallic.inputs["Alpha"].default_value - 0.5) < 1e-5,
+          metallic.inputs["Alpha"].default_value)
+    check("a texture-driven shader still carries the preset's own stored colour",
+          all(abs(a - b) < 1e-5 for a, b in zip(metallic.inputs["Base Color"].default_value,
+                                                 bridge._shader_colour(returned[1][2]))),
+          (list(metallic.inputs["Base Color"].default_value),
+           bridge._shader_colour(returned[1][2])))
     left_behind = ({material.name for material in bpy.data.materials}
                    - before_materials
                    - {entry[1] for entry in returned[:2]} - set(presets.values()))

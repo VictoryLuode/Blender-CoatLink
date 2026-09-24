@@ -71,8 +71,16 @@ are different presets with different stored values, so the second one is named b
 the library (`Metal/Gold2`, `NGPreview/Default`) rather than quietly sharing one material.  When
 no folder can be worked out, the name is read out of the string instead: the family and the
 shader file are dropped, which leaves the preset's name.  The parameters are the preset's own
-stored values - `Color` is 8 hex digits, alpha first, and a preset whose colour comes from a
-texture is flagged, in which case that stored colour is left off the material.  A shader nothing
+stored values - `Color` is 8 hex digits, alpha first, and it is carried whether or not the
+preset's *look* comes from a texture: measured across the shipped library, 77 of the 102 textured
+presets store a real tone (Copper `FF8E4E`, Gold `DFB331`, Clay `9F8272`), and only the glass and
+water family stores the near-black placeholder its look ignores.  The flag (`color_from_texture`)
+is still written, so the material records where its look came from; no texture travels either way,
+and the base colour is the value the material is adjusted from by hand.  Of the ids the presets
+store, three are read: `Color` (117 of the 154 presets measured, in the shipped library and the
+downloaded ones alike), `Metalness` (106) plus its other spelling `Metallness` (7), and `Opacity`
+(149) as alpha.  Every stored value is kept in the material's own record whether it is used or not,
+so an id only some other shader pack uses is a one-line mapping away.  A shader nothing
 in the library matches costs its parameters, never the assignment.
 
 `bridge.obj` is the model in **both** directions, which is what leaves exactly one axis rule

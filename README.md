@@ -99,7 +99,9 @@ Copying the files by hand, explicit install paths and the XML 3D-Coat needs:
    assignment is carried beside the model instead.  Where the shader library holds two presets
    of one name the material is named after the preset's place in it (`Metal/Gold2`), so the two
    never end up as one material.  The values come from the shader preset
-   itself; the look it gives in 3D-Coat cannot be copied.
+   itself: its base colour and metallic come over, so a returned material already reads as
+   the shader it stood for.  The texture that gives the shader its fine look does not
+   travel, so what 3D-Coat shows on screen is approximated, not reproduced.
 
 From the 3D-Coat side, `Send` hands over **the nodes selected in the Sculpt Tree plus their
 children** - one node or several, as picked there (`Scope: whole scene` uses 3D-Coat's own export
