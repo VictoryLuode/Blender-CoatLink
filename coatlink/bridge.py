@@ -912,6 +912,26 @@ def _shader_float(value):
         return None
 
 
+def _shader_material_name(entry, shader):
+    """What to call the material: the preset's own name wherever it is known.
+
+    The 3D-Coat half resolves the preset folder when it can and says so.  When it could
+    not, all we have is the library path it handed over - measured as
+    "PbrShaders/Gold2/mcubes", where the last part names the shader *file* every preset
+    of that family carries ("mcubes"), so the part before it is the better name.  A bare
+    name ("Aluminum") is used as it comes.
+    """
+    preset = str(entry.get("preset") or "").strip() if isinstance(entry, dict) else ""
+    if preset:
+        return preset
+    parts = [part for part in str(shader or "").replace("\\", "/").split("/") if part]
+    if not parts:
+        return ""
+    if len(parts) > 1 and parts[-1].lower().startswith("mcubes"):
+        return parts[-2]
+    return parts[-1]
+
+
 def _shader_material(name, entry):
     """The material standing for one shader.
 
@@ -986,10 +1006,13 @@ def _apply_shader_materials(path, placements, file_materials=()):
         shader = str(entry.get("shader") or "").strip() if isinstance(entry, dict) else ""
         if not shader:
             continue
-        material = made.get(shader)
+        # One material per shader, named the way 3D-Coat names it rather than by the
+        # library path the map happens to carry.
+        name = _shader_material_name(entry, shader) or shader
+        material = made.get(name)
         if material is None:
-            material = _shader_material(shader, entry)
-            made[shader] = material
+            material = _shader_material(name, entry)
+            made[name] = material
         if _assign_shader_material(obj, material, file_materials):
             assigned.append(obj.name)
         else:

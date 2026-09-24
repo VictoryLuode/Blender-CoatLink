@@ -805,6 +805,19 @@ def main():
           bridge.shader_params("Aluminum"))
     check("a shader with no preset brings no parameters", bridge.shader_params("Nope") == {},
           bridge.shader_params("Nope"))
+    # Measured: 3D-Coat answers with the shader's place in its own library, and the last
+    # part of that is the shader *file* inside the preset (every PBR preset of that family
+    # carries "mcubes.glsl") - so the part before it names the preset.
+    check("a library path finds the preset it points at",
+          os.path.basename(bridge.preset_folder("PbrShaders/Aluminum/mcubes")) == "Aluminum",
+          bridge.preset_folder("PbrShaders/Aluminum/mcubes"))
+    check("and that preset's own parameters come with it",
+          bridge.shader_params("PbrShaders/Aluminum/mcubes").get("Color") == "FFE1AE75",
+          bridge.shader_params("PbrShaders/Aluminum/mcubes"))
+    install = bridge.install_root()
+    check("the installation's shader folder, when one is found, is a 3D-Coat one",
+          install == "" or os.path.isdir(os.path.join(install, "UserPrefs", "Shaders")),
+          install)
 
     cmd.volumes = {"Volume1": "#Metal/Aluminum", "Volume2": "NothingLikeThis"}
     cmd.current_volume = "Volume2"
@@ -815,6 +828,9 @@ def main():
           and nodes.get("Volume2", {}).get("shader") == "NothingLikeThis", nodes)
     check("a node whose shader has no preset still gets its name recorded",
           nodes.get("Volume2") == {"shader": "NothingLikeThis"}, nodes.get("Volume2"))
+    check("the map says which preset that shader is, so the material can be named after it",
+          nodes.get("Volume1", {}).get("preset") == "Aluminum"
+          and "preset" not in nodes.get("Volume2", {}), nodes)
     check("reading each volume's shader puts the previous selection back",
           cmd.current_volume == "Volume2", cmd.current_volume)
     written = json.load(open(bridge.shader_map_path(own_root), encoding="utf-8"))

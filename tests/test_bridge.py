@@ -1480,7 +1480,11 @@ def main():
                                                  prefs.remesh)
     prefs.shader_materials, prefs.strip_materials, prefs.remesh = True, False, False
     returned = (("ClayNode", "JamaClay1", "FFE1AE75", "0.000000"),
-                ("MetalNode", "Aluminum", "FF030304", "1.000000"))
+                ("MetalNode", "Aluminum", "FF030304", "1.000000"),
+                # what 3D-Coat really hands back, measured: the shader's place in its own
+                # library - "PbrShaders/Gold2/mcubes" - with the preset it names
+                ("GoldNode", "PbrShaders/Gold2/mcubes", "", ""))
+    presets = {"GoldNode": "Gold2"}
     sources = []
     for index, (node, _shader, _colour, _metalness) in enumerate(returned):
         bpy.ops.mesh.primitive_uv_sphere_add(segments=8, ring_count=6, radius=0.4 + 0.2 * index)
@@ -1502,7 +1506,9 @@ def main():
                                    "Metalness": returned[0][3]},
                   returned[1][0]: {"shader": returned[1][1], "Color": returned[1][2],
                                    "Metalness": returned[1][3],
-                                   "color_from_texture": True}}}, sort_keys=True))
+                                   "color_from_texture": True},
+                  returned[2][0]: {"shader": returned[2][1], "preset": presets["GoldNode"]}}},
+        sort_keys=True))
     write(signal, back_path + "\n")
     bridge.pull(bpy.context, force=True)
 
@@ -1534,9 +1540,27 @@ def main():
           abs(metallic.inputs["Base Color"].default_value[0] - 0.8) < 1e-3,
           list(metallic.inputs["Base Color"].default_value))
     left_behind = ({material.name for material in bpy.data.materials}
-                   - before_materials - {returned[0][1], returned[1][1]})
+                   - before_materials
+                   - {entry[1] for entry in returned[:2]} - {presets["GoldNode"]})
     check("the file's own nameless material is dropped, not left as an orphan",
           not left_behind, sorted(left_behind))
+
+    # The measured shape of what 3D-Coat hands back is a library path.  The name to use is
+    # the preset it points at - not the path, and not the shader *file* inside the preset,
+    # which every preset of that family shares.
+    library = returned[2][1]
+    check("a library path names the material after the preset it points at",
+          slot_of(returned[2][0]) == presets["GoldNode"]
+          and bpy.data.materials.get(presets["GoldNode"]) is not None,
+          (slot_of(returned[2][0]), [material.name for material in bpy.data.materials]))
+    check("neither the path nor the shader file inside it becomes a material name",
+          bpy.data.materials.get(library) is None and bpy.data.materials.get("mcubes") is None,
+          [material.name for material in bpy.data.materials])
+    check("without the preset, the name comes from the path's own preset part",
+          bridge._shader_material_name({}, library) == presets["GoldNode"]
+          and bridge._shader_material_name({}, "Aluminum") == "Aluminum",
+          (bridge._shader_material_name({}, library),
+           bridge._shader_material_name({}, "Aluminum")))
 
     # someone's own material on a node the bridge already touched stays theirs
     own = bpy.data.materials.new("MyOwn")
