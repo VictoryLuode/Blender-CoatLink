@@ -21,7 +21,7 @@ def broken_receipt(*args, **kwargs):
     raise PermissionError('this folder cannot be written')
 with tempfile.TemporaryDirectory(prefix='bridge_history_') as tmp:
     root = pathlib.Path(tmp)
-    folder = root / 'CoatLink'
+    folder = root / applink.APP_FOLDER
     folder.mkdir()
     model = folder / 'bridge.obj'
     signal = folder / 'export.txt'

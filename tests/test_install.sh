@@ -67,10 +67,25 @@ esac
 # --coat-only must leave the Blender tree alone
 ADDONS2="$TMP/blender-only/scripts/addons"
 mkdir -p "$ADDONS2"
-bash "$REPO/install.sh" --coat-only "$SCRIPTS" "$COAT" > /dev/null 2>&1
+bash "$REPO/install.sh" --coat-only "$ADDONS2" "$SCRIPTS" "$COAT" > /dev/null 2>&1
 [ -z "$(find "$ADDONS2" -mindepth 1 -print -quit)" ] \
     && check "--coat-only leaves the Blender side alone" yes \
     || check "--coat-only leaves the Blender side alone" no
+
+# git-bash hands every path over as /c/Users/..., and the installer is a Windows
+# program's Python that cannot resolve one: a bare MSYS path used to arrive as
+# \c\Users\... and the install stopped with "script folder was not found".  The
+# three positional slots are fixed (add-ons, scripts, program) whatever the flags
+# are, so --coat-only still fills the add-ons slot with something ignored.
+if command -v cygpath >/dev/null 2>&1; then
+    MSYS_TMP="$(cygpath -u "$TMP")"
+    rm -rf "$SCRIPTS/cExtensions"
+    bash "$REPO/install.sh" --coat-only "$ADDONS2" "$MSYS_TMP/Documents/3DCoat/UserPrefs/Scripts" \
+        "$MSYS_TMP/3DCoat-2026" > "$TMP/msys-install.log" 2>&1
+    [ -f "$SCRIPTS/cExtensions/CoatLink/CoatLinkLib.py" ] \
+        && check "an MSYS-style path installs the 3D-Coat half too" yes \
+        || check "an MSYS-style path installs the 3D-Coat half too" no "$(tail -3 "$TMP/msys-install.log")"
+fi
 
 # an older build called itself `coat_bridge`: installing over it must move that folder out
 # of Blender's search path (kept on disk, not deleted) instead of leaving two CoatLinks

@@ -35,14 +35,22 @@ if [ -z "$PYTHON" ]; then
     exit 1
 fi
 
-ARGS=( --scripts "$SCRIPTS" )
-[ -n "$COAT" ] && ARGS+=( --coat "$COAT" )
+# the installer is a Windows program's Python: it cannot resolve an MSYS-style
+# path, so it and every path it is handed go in the mixed form (drive letter,
+# forward slashes).  git-bash hands paths over as /c/Users/... - a bare one used
+# to reach the installer as \c\Users\..., which then found no script folder.
+winpath() {
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -m "$1"
+    else
+        printf '%s\n' "$1"
+    fi
+}
+
+ARGS=( --scripts "$(winpath "$SCRIPTS")" )
+[ -n "$COAT" ] && ARGS+=( --coat "$(winpath "$COAT")" )
 # anything past the two paths is passed straight through (--uninstall, --quiet)
 
-# the installer is a Windows program's Python: it cannot resolve an MSYS-style
-# path, so hand it the mixed form (drive letter, forward slashes)
 INSTALLER="$REPO/coat_side/CoatLinkInstall.py"
-if command -v cygpath >/dev/null 2>&1; then
-    INSTALLER="$(cygpath -m "$INSTALLER")"
-fi
+INSTALLER="$(winpath "$INSTALLER")"
 exec "$PYTHON" "$INSTALLER" "${ARGS[@]}" "${@:3}"

@@ -55,7 +55,7 @@ echo
 # ---- every standalone regression script --------------------------------------
 for script in test_receipts.py test_retry.py test_delayed_signal.py \
               test_obj_groups.py test_object_names.py test_target_identity.py \
-              test_pull_history.py; do
+              test_target_rename.py test_pull_history.py; do
     echo "──────────────── tests/$script ────────────────"
     set +e
     blender_run --python "$WIN_REPO\\tests\\$script"

@@ -89,7 +89,7 @@ Copying the files by hand, explicit install paths and the XML 3D-Coat needs:
    the exported copy only; the scene, the names and your own modifiers stay as they are.
 2. **`Send`**.  If 3D-Coat is not running, the job waits in the exchange folder until it is -
    `Start 3D-Coat` is right there in the menu.
-3. Work in 3D-Coat, then **`File > Export To > CoatLink`** (or `Bring object back`).
+3. Work in 3D-Coat, then **`File > Export To > CoatLinkBridge`** (or `Bring object back`).
    With **Auto receive** on, the model is imported within ~2 s and merged into the object it
    came from: same name, same materials, same place in the outliner, new geometry.
 
@@ -108,14 +108,22 @@ One exchange folder, one file layout, one vocabulary:
 ```
 <3D-Coat exchange root>/
     import.txt                 the job: what to load, where to return, how to open it
-    CoatLink/             our folder - everything else lives in here
+    CoatLinkBridge/            our folder - everything else lives in here
+        run.txt                empty marker: makes the folder a File > Export To target
         bridge.obj             the model, both directions (one axis rule, one unit rule)
         export.txt             written by 3D-Coat when it hands a model back
         pull-history.json      what was already imported, so a restart does not repeat it
     CoatLink_AfterImport.py    run after the import: drops 3D-Coat's wrapper node
 ```
 
-Nothing else is written, and only files inside a `CoatLink` folder are ever touched -
+The export target is `CoatLinkBridge`, deliberately **not** the add-on's own name: 3D-Coat's
+Scripts menu entry for this extension is `CoatLink`, and two different things answering to one
+name was the confusing part.  A build from before the rename left its folder behind as
+`CoatLink/`; it is not touched, but its marker goes so the old name drops out of the menu, and
+anything 3D-Coat handed back into it is still pulled.
+
+Nothing else is written, and only files inside one of our own folders (`CoatLinkBridge`, plus
+the pre-rename `CoatLink`) are ever touched -
 with one exception: the job file `import.txt`.  3D-Coat polls that file only at the exchange
 root, and the official Blender AppLink queues its jobs in the very same file (its own source
 writes the model path first).  The two add-ons can therefore stay enabled side by side, but

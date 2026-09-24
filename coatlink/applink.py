@@ -10,9 +10,9 @@
 
 """3D-Coat AppLink protocol - the two files that matter.
 
-    <root>/import.txt                 job file: what to load, nothing else
-    <root>/CoatLink/             our folder: the model goes here
-    <root>/CoatLink/export.txt   3D-Coat writes it when it sends a model back
+    <root>/import.txt                    job file: what to load, nothing else
+    <root>/CoatLinkBridge/              our folder: the model goes here
+    <root>/CoatLinkBridge/export.txt    3D-Coat writes it when it sends a model back
 
 3D-Coat registers more than one root (it logs both on startup):
 
@@ -41,12 +41,20 @@ import json
 import os
 import platform
 import subprocess
+import time
 
 from . import after_import
 
 # Folder name that shows up in 3D-Coat's File > Export To menu.  Kept separate
-# from the official AppLink folder ("Blender") so both add-ons can coexist.
-APP_FOLDER = "CoatLink"
+# from the official AppLink folder ("Blender") so both add-ons can coexist, and
+# deliberately not the add-on's own name: "CoatLink" in the export list and
+# "CoatLink" in 3D-Coat's Scripts menu read as one thing and are not.
+APP_FOLDER = "CoatLinkBridge"
+
+#: what the export target was called before the rename, oldest first.  The name
+#: 3D-Coat lists comes from the run.txt marker inside the folder, so the old entry
+#: leaves the menu only once that marker is gone - see retire_legacy_app_folders().
+LEGACY_APP_FOLDERS = ("CoatLink",)
 
 _MODEL_NAME = "bridge"
 _COAT_EXE = "3DCoatGL64.exe"
@@ -190,6 +198,83 @@ def app_folder(root):
     return os.path.join(root, APP_FOLDER)
 
 
+def app_folder_names():
+    """Every folder name of ours, the current one first."""
+    return (APP_FOLDER,) + LEGACY_APP_FOLDERS
+
+
+def is_our_folder(path, roots):
+    """Is ``path`` a file inside one of our folders under one of ``roots``?
+
+    A pre-rename folder counts.  A model 3D-Coat handed back before the rename is
+    still this bridge's model, and refusing it would strand the transfer.
+    """
+    folder = os.path.normcase(os.path.normpath(os.path.dirname(path)))
+    for root in roots:
+        for name in app_folder_names():
+            if folder == os.path.normcase(os.path.normpath(os.path.join(root, name))):
+                return True
+    return False
+
+
+def retire_legacy_app_folders(root):
+    """Take the old target name off 3D-Coat's File > Export To menu.
+
+    The menu entry comes from the run.txt marker inside the folder, not from the
+    folder itself (measured: a folder renamed to ``*.removed`` while keeping its
+    marker is still listed), so deleting the marker is what retires a name.  The
+    folder and everything in it stay: a returned model still sits where the
+    export.txt naming it points, which is also where is_our_folder() looks.
+    """
+    notes = []
+    for name in LEGACY_APP_FOLDERS:
+        folder = os.path.join(root, name)
+        marker = os.path.join(folder, "run.txt")
+        if not os.path.isfile(marker):
+            continue
+        try:
+            os.remove(marker)
+        except OSError as exc:
+            notes.append("could not retire the old export target %s (%s)" % (folder, exc))
+            continue
+        notes.append("retired the old export target %s: its run.txt marker is gone" % folder)
+    return notes
+
+
+def carry_legacy_file(root, name, folder=None):
+    """Bring a file of ours over from a pre-rename folder, and answer with its path.
+
+    The pull record is the reason this exists: its keys are absolute model paths,
+    so it survives the folder change, while leaving it behind would let an old
+    signal import the same model a second time.  A file already in the new folder
+    wins - it is the newer one by definition of having been written there.
+    """
+    folder = folder or app_folder(root)
+    target = os.path.join(folder, name)
+    if os.path.isfile(target):
+        return target
+    for legacy in LEGACY_APP_FOLDERS:
+        source = os.path.join(root, legacy, name)
+        if os.path.isfile(source):
+            try:
+                os.replace(source, target)
+            except OSError:
+                pass
+            break
+    return target
+
+
+def _log_shared(message):
+    """One line into the log both halves write; logging never breaks a transfer."""
+    try:
+        path = shared_log_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8", newline="\n") as handle:
+            handle.write("%s | blender | %s\n" % (time.strftime("%H:%M:%S"), message))
+    except Exception:
+        pass
+
+
 def model_path(root, extension=None, name=_MODEL_NAME):
     """Single, fixed name inside the app folder - no per-send file names."""
     stem = name if not extension else "%s.%s" % (name, extension.lstrip("."))
@@ -197,17 +282,20 @@ def model_path(root, extension=None, name=_MODEL_NAME):
 
 
 def ensure_app_folder(root):
-    """Create <root>/CoatLink/ with the one file AppLink requires.
+    """Create <root>/CoatLinkBridge/ with the one file AppLink requires.
 
     run.txt only has to exist (it may be empty) for 3D-Coat to list the target
     in File > Export To.  No extension.txt: measured on 3D-Coat 2026, it ignores
-    it and hands back FBX.
+    it and hands back FBX.  Publishing the new name also retires the old one, so
+    the export list never offers both.
     """
     folder = app_folder(root)
     os.makedirs(folder, exist_ok=True)
     marker = os.path.join(folder, "run.txt")
     if not os.path.isfile(marker):
         _write(marker, "")
+    for note in retire_legacy_app_folders(root):
+        _log_shared(note)
     return folder
 
 
@@ -255,11 +343,14 @@ def signal_files(roots):
     """Where a returned model is announced, in every root.
 
     The app folder signal is ours by definition; the root one is an
-    announcement that has to point into an app folder to be accepted.
+    announcement that has to point into an app folder to be accepted.  A
+    pre-rename folder is watched as well: a return 3D-Coat announced before the
+    rename still counts, and the model it names is still on disk.
     """
     files = []
     for root in roots:
-        files.append(os.path.join(app_folder(root), "export.txt"))
+        for name in app_folder_names():
+            files.append(os.path.join(root, name, "export.txt"))
         files.append(os.path.join(root, "export.txt"))
     return files
 

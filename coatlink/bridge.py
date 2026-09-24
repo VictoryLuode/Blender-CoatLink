@@ -4,13 +4,13 @@
 
 """Send / pull orchestration.
 
-Send : export the chosen meshes to <root>/CoatLink/bridge.<ext> and drop a
+Send : export the chosen meshes to <root>/CoatLinkBridge/bridge.<ext> and drop a
        root-level import.txt next to it, then remember where they came from.
-Pull : watch <root>/CoatLink/export.txt for the returned model and merge it
+Pull : watch <root>/CoatLinkBridge/export.txt for the returned model and merge it
        into the object the send came from.
 
-Everything 3D-Coat writes into a CoatLink folder is ours; anything else is
-left alone, so the official 3D-Coat AppLink can stay enabled.
+Everything 3D-Coat writes into one of our folders is ours; anything else is left
+alone, so the official 3D-Coat AppLink can stay enabled.
 """
 
 import json
@@ -175,7 +175,9 @@ def _history_path(p):
     these files, so clearing the folder should clear it too.
     """
     root = applink.exchange_roots(p.exchange_folder)[0]
-    return os.path.join(applink.ensure_app_folder(root), HISTORY_NAME)
+    folder = applink.ensure_app_folder(root)
+    # a record written under the old folder name describes these very same files
+    return applink.carry_legacy_file(root, HISTORY_NAME, folder)
 
 
 def load_history(p, force=False):
@@ -600,7 +602,7 @@ def _pull_once(context, force):
                     candidates.append((os.path.getmtime(path), path))
                 continue
             if foreign:
-                messages.append("Ignored export.txt outside CoatLink: %s" % os.path.basename(paths[0]))
+                messages.append("Ignored export.txt outside our own folder: %s" % os.path.basename(paths[0]))
             continue
         handled.append((signal, not foreign))
         for path in ours:
@@ -1033,12 +1035,12 @@ def _log(message):
 
 
 def _is_ours(path, roots):
-    """A model inside one of our CoatLink folders is ours - nothing else is."""
-    folder = os.path.normcase(os.path.normpath(os.path.dirname(path)))
-    for root in roots:
-        if folder == os.path.normcase(os.path.normpath(applink.app_folder(root))):
-            return True
-    return False
+    """A model inside one of our own folders is ours - nothing else is.
+
+    The pre-rename folder name counts as ours too: a model 3D-Coat handed back
+    before the rename belongs to this bridge, and refusing it would strand it.
+    """
+    return applink.is_our_folder(path, roots)
 
 
 def _set_message(text):

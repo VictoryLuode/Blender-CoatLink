@@ -89,9 +89,32 @@ def main():
     check("the shared root is primary", os.path.normcase(bridge.primary_root()) == os.path.normcase(job_root))
 
     folder = bridge.ensure_folder(own_root)
-    check("the CoatLink folder is created", os.path.isdir(folder), folder)
+    check("the exchange folder is created", os.path.isdir(folder), folder)
     check("run.txt marker exists and is empty",
           os.path.isfile(os.path.join(folder, "run.txt")) and os.path.getsize(os.path.join(folder, "run.txt")) == 0)
+
+    # ---- the export target name, and the name it replaced ----
+    # 3D-Coat lists a target because of this marker, so the old name only leaves
+    # File > Export To once the marker goes - and the name must not be the one
+    # 3D-Coat's Scripts menu uses for this same extension.
+    check("the export target is not named like the Scripts entry",
+          bridge.APP_FOLDER != bridge.MENU_ID, (bridge.APP_FOLDER, bridge.MENU_ID))
+    check("the folder carries the name 3D-Coat lists",
+          os.path.basename(folder) == bridge.APP_FOLDER == "CoatLinkBridge", folder)
+    legacy = os.path.join(own_root, bridge.LEGACY_APP_FOLDERS[0])
+    os.makedirs(legacy, exist_ok=True)
+    with open(os.path.join(legacy, bridge.RUN_MARKER), "w", encoding="utf-8") as handle:
+        handle.write("")
+    old_model = os.path.join(legacy, "bridge.obj")
+    with open(old_model, "w", encoding="utf-8") as handle:
+        handle.write("# fake model\\n")
+    bridge.ensure_folder(own_root)
+    check("the old target name leaves the export list",
+          not os.path.isfile(os.path.join(legacy, bridge.RUN_MARKER)), legacy)
+    check("retiring a name keeps the folder and what it holds",
+          os.path.isdir(legacy) and os.path.isfile(old_model))
+    check("a model handed back into the old folder is still ours",
+          bridge.is_our_model(own_root, old_model))
 
     # the primary root needs its folder too: the queue readout and the pull below
     # both look there first

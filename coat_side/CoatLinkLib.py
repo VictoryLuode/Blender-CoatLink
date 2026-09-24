@@ -16,8 +16,8 @@
 # The exchange layout is the one the Blender add-on uses:
 #
 #     <root>/import.txt                  Blender's job file (we consume it)
-#     <root>/CoatLink/bridge.<ext>  the model Blender sent
-#     <root>/CoatLink/export.txt    what we write to hand a model back
+#     <root>/CoatLinkBridge/bridge.<ext>  the model Blender sent
+#     <root>/CoatLinkBridge/export.txt    what we write to hand a model back
 #
 # 3D-Coat registers more than one exchange root, so both are handled.
 
@@ -42,7 +42,11 @@ try:
 except ImportError:  # the command module is optional at import time
     CMD = None
 
-APP_FOLDER = "CoatLink"
+APP_FOLDER = "CoatLinkBridge"
+#: what the export target was called before the rename.  3D-Coat lists a target
+#: from the run.txt marker inside its folder, so the old name only leaves
+#: File > Export To once that marker is gone - see retire_legacy_app_folders().
+LEGACY_APP_FOLDERS = ("CoatLink",)
 MODEL_NAME = "bridge"
 PANEL_CAPTION = "CoatLink"
 #: the format 3D-Coat hands back.  Its own AppLink export uses FBX anyway, so
@@ -238,6 +242,34 @@ def app_folder(root):
     return os.path.join(root, APP_FOLDER)
 
 
+def app_folder_names():
+    """Every folder name of ours, the current one first."""
+    return (APP_FOLDER,) + LEGACY_APP_FOLDERS
+
+
+def retire_legacy_app_folders(root):
+    """Take the old target name off 3D-Coat's File > Export To menu.
+
+    The entry comes from the run.txt marker inside the folder, so deleting the
+    marker is what retires a name; the folder and its files stay put, where the
+    export.txt naming a returned model still points.
+    """
+    done = []
+    for name in LEGACY_APP_FOLDERS:
+        folder = os.path.join(root, name)
+        marker = os.path.join(folder, RUN_MARKER)
+        if not os.path.isfile(marker):
+            continue
+        try:
+            os.remove(marker)
+        except OSError as exc:
+            log("could not retire the old export target %s (%s)" % (folder, exc))
+            continue
+        done.append(folder)
+        log("retired the old export target %s: its %s marker is gone" % (folder, RUN_MARKER))
+    return done
+
+
 def import_txt(root):
     return os.path.join(root, "import.txt")
 
@@ -257,17 +289,22 @@ def ensure_folder(root):
     if not os.path.isfile(marker):
         with open(marker, "w", encoding="utf-8", newline="\n") as handle:
             handle.write("")  # empty on purpose: only makes the folder an AppLink target
+    retire_legacy_app_folders(root)   # publishing the new name retires the old one
     return folder
 
 
 def is_our_model(root, path):
-    """Does this model sit inside our own folder under ``root``?
+    """Does this model sit inside one of our folders under ``root``?
 
     The job file is the one file both AppLinks share, so a job has to be claimed by
-    what it points at rather than by the file it arrived in.
+    what it points at rather than by the file it arrived in.  The pre-rename folder
+    counts as ours: a job queued before the rename is still ours to import.
     """
     folder = os.path.normcase(os.path.normpath(os.path.dirname(os.path.abspath(path))))
-    return folder == os.path.normcase(os.path.normpath(app_folder(root)))
+    for name in app_folder_names():
+        if folder == os.path.normcase(os.path.normpath(os.path.join(root, name))):
+            return True
+    return False
 
 
 def read_import_model(root):
@@ -291,7 +328,7 @@ def read_import_model(root):
         return ""
     model = os.path.normpath(first)
     if not is_our_model(root, model):
-        log("import.txt names a model outside CoatLink - left for its own AppLink: %s" % model)
+        log("import.txt names a model outside our own folder - left for its own AppLink: %s" % model)
         return ""
     return model
 
@@ -1127,7 +1164,7 @@ class CoatLinkPanel(object):
             self._report("exchange folder not found - press Detect", "")
             return
         if not ensure_folder(root):
-            self._report("could not create the CoatLink folder", "")
+            self._report("could not create our exchange folder", "")
             return
 
         path = model_path(root, EXPORT_FORMAT)

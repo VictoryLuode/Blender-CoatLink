@@ -5,7 +5,7 @@
 ```
 Documents/AppLinks/3D-Coat/Exchange/     <- the job file goes here (3D-Coat polls the root)
     import.txt                               what to load, where to return, how to open it
-    CoatLink/                           <- our folder; everything else lives in here
+    CoatLinkBridge/                     <- our folder; everything else lives in here
         run.txt                                 empty marker: makes the folder appear in File > Export To
         bridge.obj                              the model, both ways: every send and every return overwrites it
         export.txt                              3D-Coat writes it when it hands a model back
@@ -16,8 +16,18 @@ Documents/AppLinks/3D-Coat/Exchange/     <- the job file goes here (3D-Coat poll
     import.py.ran                            and the note that it got that far
 
 Documents/3DCoat/Exchange/               <- 3D-Coat's own root: watched, never written to
-    CoatLink/                           a return from an older session can still be sitting here
+    CoatLinkBridge/                     a return from an older session can still be sitting here
 ```
+
+The folder name **is** the name in 3D-Coat's `File > Export To` list, and the entry comes from
+the `run.txt` marker inside it rather than from the folder (measured: a folder renamed to
+`*.removed` while keeping its marker is still listed, and `Documents/3DCoat/Exchange/Blender`
+without one is not).  That is why the rename from `CoatLink` to `CoatLinkBridge` had to be two
+steps - publish the new name, delete the old marker - and why the target is not simply called
+`CoatLink`: 3D-Coat's Scripts menu entry for this extension is `CoatLink`, and one name for two
+different rows is the thing being fixed.  The old folder is left in place with its files: a
+`export.txt` written before the rename still names a model that is still there, and it is still
+read as ours.
 
 Both halves put `Documents/AppLinks/3D-Coat/Exchange` first (the Blender add-on in
 `applink._candidate_exchange_folders`, the 3D-Coat script in `CoatLinkLib.candidate_roots`), and that
