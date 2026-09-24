@@ -62,6 +62,11 @@ so.  The short version is on the [README](../README.md).
 
 * **Models only.**  No baking, no texture nodes, no scene surgery.  Textures can travel only
   through 3D-Coat's own whole-scene export.
+* **A returned model can only land on an object this bridge linked**, and `Replace in place` is
+  the switch for it: off, a return arrives as an object of its own and nothing in the scene is
+  written over.  It is Blender-side only - the 3D-Coat panel has nothing that could act on it -
+  and with it off the two corrections that need the object the send came from (`Match scale`,
+  and the position a `Send to origin` recorded) have no target to apply to.
 * **3D-Coat's "whole scene" export is 3D-Coat's own**, so what it covers is its decision (it can
   include hidden volumes).  Sending only the *visible* tree objects from 3D-Coat would need one
   of 3D-Coat's own commands (`Export Selected Objects`, or the decimate-and-export-all-visible

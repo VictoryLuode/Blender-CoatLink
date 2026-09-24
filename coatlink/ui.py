@@ -208,6 +208,10 @@ class COATLINK_PT_menu(bpy.types.Panel):
         row = column.row(align=True)
         row.prop(p, "auto_pull", text="Auto receive")
         row.prop(p, "strip_materials", text="Without materials")
+        # Its own line because it is the one switch here that decides whether a return
+        # touches the scene at all - off, a pull can never overwrite a model by name.
+        row = column.row(align=True)
+        row.prop(p, "replace_in_place", text="Replace in place")
         column.separator()
         column.label(text="Setup")
         column.prop(p, "axis_mode", text="Axis")

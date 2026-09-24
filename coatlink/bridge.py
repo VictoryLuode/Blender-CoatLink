@@ -746,6 +746,7 @@ def _object(name):
 
 
 def _import_and_link(context, path):
+    replace = _replace_enabled()
     fmt = transfer.format_from_path(path)
     if not transfer.ensure_module(fmt):
         raise RuntimeError(transfer.missing_reason(fmt) or "%s unavailable" % fmt)
@@ -803,6 +804,14 @@ def _import_and_link(context, path):
                 candidate = _object(old_name)
                 if candidate and candidate.type == "MESH":
                     target = candidate
+        # "Replace in place" off: a return stands on its own.  Which object that spares
+        # is worth saying - a model that keeps its old geometry otherwise looks like a
+        # pull that did nothing - so it goes to the status line and to the log.
+        spared = target is not None and not replace
+        if not replace:
+            if spared:
+                _log("replace in place is off: %s arrives as its own object" % arriving_name)
+            target = None
         file_materials = []
         if _strip_enabled():
             file_materials = list({slot.material for slot in source.material_slots if slot.material})
@@ -826,8 +835,8 @@ def _import_and_link(context, path):
             source["coatlink_file"] = path
             source["coatlink_source_name"] = arriving_name
             _strip_materials(source, file_materials)
-            names.append(source.name)
-            if matches:
+            names.append(source.name + (" (replace is off)" if spared else ""))
+            if len(matches) > 1:      # not the same thing as "a match we did not take"
                 _log("ambiguous object association for %s; imported separately" % arriving_name)
     return names
 
@@ -1004,6 +1013,18 @@ def _trim(value):
 def _strip_enabled():
     p = prefs()
     return bool(p is not None and p.strip_materials)
+
+
+def _replace_enabled():
+    """"Replace in place": may a return take the place of the object it came from?
+
+    The switch for a pull that must not overwrite a model by name.  Off, every return
+    stands on its own and nothing already in the scene is touched.
+    """
+    p = prefs()
+    if p is None:
+        return True                     # the documented default, not an accident
+    return bool(getattr(p, "replace_in_place", True))
 
 
 def _strip_materials(target, file_materials):

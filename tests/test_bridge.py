@@ -230,6 +230,10 @@ def main():
           drawn.index(("prop", "mode", "Import as"))
           < drawn.index(("prop", "send_origin", "Send to origin"))
           < drawn.index(("label", "Return")), drawn[:10])
+    check("Replace in place sits in the Return section, where a return is decided",
+          drawn.index(("label", "Return"))
+          < drawn.index(("prop", "replace_in_place", "Replace in place"))
+          < drawn.index(("label", "Setup")), drawn[:26])
 
     folded = [item[1] for item in drawn if item[0] == "prop" and item[1] == "show_advanced"]
     check("nothing is hidden behind a fold-out", not folded, folded)
@@ -333,6 +337,8 @@ def main():
     check("there is no format option any more", not hasattr(prefs, "fmt"))
     check("the send format is fixed to OBJ", bridge.SEND_FORMAT == "obj")
     check("Send to origin is off out of the box", prefs.send_origin is False, prefs.send_origin)
+    check("a return replaces the object it came from out of the box",
+          prefs.replace_in_place is True, prefs.replace_in_place)
     for gone in ("apply_textures", "preset", "interval", "skip_import", "skip_export"):
         check("no '%s' option left" % gone, not hasattr(prefs, gone))
 
@@ -1338,6 +1344,72 @@ def main():
     prefs.coat_scale = 0.0
     bpy.data.objects.remove(fresh, do_unlink=True)
     bpy.data.objects.remove(probe, do_unlink=True)
+
+    # ---- "Replace in place": a return that must not touch the scene (opt-out) ----
+    # The switch that keeps a pull from overwriting a model by name.  Off, the returned
+    # model arrives as an object of its own and the object it came from keeps the
+    # geometry it had - "the pull did nothing" would be the wrong conclusion, so the
+    # pull says what it spared.
+    was_remesh, was_replace = prefs.remesh, prefs.replace_in_place
+    prefs.remesh = False                 # these checks count vertices, not sizes
+    prefs.replace_in_place = False
+    spare_mesh = bpy.data.meshes.new("ReplaceMe")
+    spare_mesh.from_pydata([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)], [], [(0, 1, 2)])
+    spare = bpy.data.objects.new("ReplaceMe", spare_mesh)
+    bpy.context.scene.collection.objects.link(spare)
+    aim_at(spare)
+    spare_path = bridge.send(bpy.context)
+    check("the send wrote the model it queued", os.path.isfile(spare_path), spare_path)
+    check("the object a send went out with keeps its export alias",
+          bridge.source_alias(spare) == "ReplaceMe", bridge.source_alias(spare))
+
+    # 3D-Coat hands the same node back, denser, under the name it was sent as: Blender
+    # turns that into "ReplaceMe.001", which is the name collision the matching exists
+    # for - and the case a replacement would otherwise take by name
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8, radius=1.6)
+    denser = bpy.context.active_object
+    denser.name = spare.name
+    denser_scale = bridge._diagonal(spare) / max(bridge._diagonal(denser), 1e-9)
+    transfer.export_model(back_path, "obj", [denser], apply_modifiers=False,
+                          overrides={"global_scale": denser_scale})
+    dense_vertices = len(denser.data.vertices)
+    bpy.data.objects.remove(denser, do_unlink=True)
+    before_names = {obj.name for obj in bpy.data.objects}
+    write(signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    arrived = [obj.name for obj in bpy.data.objects if obj.name not in before_names]
+    check("with Replace in place off the return arrives as an object of its own",
+          len(arrived) == 1 and arrived[0] != spare.name, arrived)
+    check("and the object it came from keeps the geometry it had",
+          len(spare.data.vertices) == 3, len(spare.data.vertices))
+    check("the pull says why nothing took its place",
+          any("replace is off" in message for message in messages), messages)
+    check("and the log says the same",
+          "replace in place is off" in read(applink.shared_log_path()),
+          read(applink.shared_log_path()).splitlines()[-2:])
+
+    for name in arrived:                 # drop what the opt-out left behind
+        leftover = bpy.data.objects.get(name)
+        if leftover is not None:
+            bpy.data.objects.remove(leftover, do_unlink=True)
+
+    # With the switch back on, that same return replaces it again: the switch has to be
+    # the only difference between the two pulls.
+    prefs.replace_in_place = True
+    write(signal, back_path + "\n")
+    messages = bridge.pull(bpy.context, force=True)
+    check("with it on the same return replaces the object it came from",
+          len(spare.data.vertices) == dense_vertices,
+          (len(spare.data.vertices), dense_vertices))
+    check("so the scene holds one ReplaceMe, not two",
+          [obj.name for obj in bpy.data.objects if obj.name.startswith("ReplaceMe")] == ["ReplaceMe"],
+          [obj.name for obj in bpy.data.objects])
+    check("and no pull says replace is off any more",
+          not any("replace is off" in message for message in messages), messages)
+
+    bpy.data.objects.remove(spare, do_unlink=True)
+    prefs.replace_in_place = was_replace
+    prefs.remesh = was_remesh
 
     # ---- links written by an earlier build keep working ----
     # Until the module was renamed to `coatlink`, these keys were `coat_bridge_*`.  A

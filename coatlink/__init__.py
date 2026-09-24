@@ -120,6 +120,14 @@ class CoatLinkPreferences(bpy.types.AddonPreferences):
         description="Drop the materials of a returned model, so only the geometry comes back",
         default=False,
     )
+    replace_in_place: BoolProperty(
+        name="Replace in place",
+        description="A returned model takes the place of the object the send came from - "
+                    "same name, same materials, same place in the outliner, new geometry.  "
+                    "Off, it arrives as an object of its own and nothing already in the "
+                    "scene is touched",
+        default=True,
+    )
     match_scale: BoolProperty(
         name="Match scale on pull",
         description="Measure the returned model against the sent one and undo a unit mismatch (3D-Coat scene units are not always metres)",
