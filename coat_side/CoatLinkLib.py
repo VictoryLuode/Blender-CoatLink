@@ -7,15 +7,14 @@
 # menu:
 #
 #     Send / Pull          hand this model to Blender, take what Blender sent
-#     Voxelize visible     press every visible node's V/S badge
 #     Send options         Scope, Reduction percent, Textures
+#     Return               Selected To Voxel - convert what is selected
 #     Setup                Detect, Open folder, Start Blender, Remove launcher
-#     Status               the last action, Copy details, what is queued
+#     Status               the object readouts, the last action, Copy details
 #
-# The panel carries the controls and one readout.  The extra lines it used to
-# print - model size, surface/voxel statistics, a second detail line - are still
-# gathered (they feed the log and Copy details) but are no longer rows, so the
-# panel reads like the Blender menu instead of like a diagnostics dump.
+# No descriptions under the controls: the labels say what they do, and a panel
+# that explains itself in fine print stops reading like the Blender menu.  The
+# words and the order of the sections are what make the two halves one product.
 #
 # The exchange layout is the one the Blender add-on uses:
 #
@@ -98,15 +97,13 @@ _PRESET_NAMES = []
 REDUCTION_SLIDER = "$DecimationParams::ReductionPercent"
 REDUCTION_KEY = "reduction"
 
-#: what a Send hands over: the nodes selected in the sculpt tree (and their
-#: children, one node or several), or 3D-Coat's own export, which does the whole scene
+#: what a Send hands over: the nodes selected in the sculpt tree (and their children,
+#: one node or several), or 3D-Coat's own export.  The two are not the same thing -
+#: 3D-Coat decides for itself what its own export covers - but the panel states that
+#: in words, not in a caption under the droplist (docs/menus.md, "Scope").
 SEND_SCOPE_KEY = "send_scope"
 SEND_SCOPES = ("selected", "scene")
 SEND_SCOPE_LABELS = "#Selected|#Whole scene"
-#: what each scope actually hands over - the two are not the same thing, and 3D-Coat
-#: decides for itself what its own export covers, so the panel says so
-SEND_SCOPE_HINTS = ("the nodes selected in the Sculpt Tree, plus their children",
-                    "3D-Coat's own export (all volumes, its own rules)")
 
 #: the export dialog's "export textures" checkbox (documented as an import.txt
 #: option listed in applinks.rst, settable with the CMD module's SetBoolField)
@@ -1147,7 +1144,7 @@ PANEL_LABELS = {
     "OpenFolder": "Open folder",
     "StartBlender": "Start Blender",
     "RemoveLauncher": "Remove tool buttons",
-    "VoxelizeVisible": "To voxels",
+    "SelectedToVoxel": "Selected To Voxel",
 }
 
 ACTION_LABELS = {
@@ -1389,6 +1386,7 @@ class CoatLinkPanel(object):
         self.ModeLabel = ""
         self._saved_controls = (self.ReductionPercent, self.Textures, self.SendScope)
         self.refresh_detail()
+        self.refresh_stats()
 
     # ---- layout -----------------------------------------------------------
 
@@ -1399,21 +1397,18 @@ class CoatLinkPanel(object):
         items.append("[1 1]")
         items.append("SendToBlender")
         items.append("PullFromBlender")
-        items.append("[1]")
-        items.append("VoxelizeVisible")
-        items.append("##makes every visible object in the Sculpt Tree a voxel volume")
         items.append("---")
-        # Same sections, same order, same words as the Blender menu's Send options
-        # block: the switch that decides what goes out, then the switches that
-        # decide what shape it goes out in.
+        # Same sections, same order, same words as the Blender menu: what goes out,
+        # what to do with what came back, the setup, the readout.  No descriptions
+        # under the controls - the labels say what they do.
         items.append("#Send options")
         items.append("SendScope,[%s]" % SEND_SCOPE_LABELS)
-        try:
-            items.append("##" + SEND_SCOPE_HINTS[int(self.SendScope)])
-        except (IndexError, TypeError, ValueError):
-            pass
         items.append("ReductionPercent,[0,100]")
         items.append("Textures,[%s]" % TEXTURES_LABELS)
+        items.append("---")
+        items.append("#Return")
+        items.append("[1]")
+        items.append("SelectedToVoxel")
         items.append("---")
         items.append("#Setup")
         items.append("[1 1]")
@@ -1424,10 +1419,15 @@ class CoatLinkPanel(object):
         items.append("RemoveLauncher")
         items.append("[1]")
         items.append("---")
-        # Two fixed rows and nothing else: the size, the statistics and the second
-        # detail line are in Copy details and the log.  The queue row appears only
-        # while something is waiting, so an empty panel stays empty.
+        # Everything about the objects themselves lives here, in Status, beside the
+        # last action: the size, the face-count snapshot, how much of the tree is
+        # still surface.  The queue row appears only while something is waiting.
         items.append("#Status")
+        items.append("#" + self.SizeLabel)
+        items.extend(panel_text_rows(
+            getattr(self, "StatsLabel", "Snapshot unavailable"), 2))
+        if self.ModeLabel:
+            items.extend(panel_text_rows(self.ModeLabel, 1))
         items.extend(panel_text_rows(self.status, 2))
         items.append("CopyDetails")
         items.append("##copies full details, including local paths")
@@ -1471,18 +1471,13 @@ class CoatLinkPanel(object):
             self._saved_controls = current
         return False
 
-    def _visible_voxel_targets(self):
-        """Every object the Sculpt Tree is showing right now.
+    def _voxel_targets_under(self, roots):
+        """The leaf volumes under these nodes, hidden or unreadable ones skipped.
 
         Leaves only: a node with children is packaging (the group 3D-Coat wraps an
         import in), and converting it would leave a stray extra volume behind.
-        Hidden or unreadable branches are skipped before visiting children.
-        Returns (targets, skipped branch count), never raises, bounded.
+        Returns (targets, skipped branch count); never raises, bounded.
         """
-        try:
-            root = coat.Scene.sculptRoot()
-        except Exception:
-            return [], 0
         targets = []
         hidden = [0]
 
@@ -1510,32 +1505,80 @@ class CoatLinkPanel(object):
                 return
             targets.append(element)
 
+        for element in roots:
+            try:
+                walk(element)
+            except Exception:
+                continue
+        return targets, hidden[0]
+
+    def _visible_voxel_targets(self):
+        """Every object the Sculpt Tree is showing right now - what the readout counts."""
+        try:
+            root = coat.Scene.sculptRoot()
+        except Exception:
+            return [], 0
         # the sculpt root is the container, never an object: walking from it would
         # treat an empty tree as one node whose volume cannot be read
         try:
             count = root.childCount()
         except Exception:
             count = 0
+        roots = []
         for index in range(count):
             try:
-                walk(root.child(index))
+                roots.append(root.child(index))
             except Exception:
                 continue
-        return targets, hidden[0]
+        return self._voxel_targets_under(roots)
 
-    def VoxelizeVisible(self):
-        """Turn every visible object in the Sculpt Tree into voxel volumes.
+    def _selected_voxel_targets(self):
+        """The volumes under the Sculpt Tree's selection, children included.
+
+        When the build cannot report a selection the current node stands in for it -
+        the same fallback a send makes - and the status line says which happened.
+        Returns (targets, skipped branch count, "selection" or "current").
+        """
+        roots = []
+        how = "selection"
+        if scoped_export is not None:
+            try:
+                roots = [element for element in scoped_export.selected_nodes(coat)
+                         if element is not None]
+            except Exception:
+                roots = []
+        if not roots:
+            how = "current"
+            try:
+                current = coat.Scene.current()
+            except Exception:
+                current = None
+            if current is not None:
+                roots = [current]
+        targets, hidden = self._voxel_targets_under(roots)
+        return targets, hidden, how
+
+    def refresh_stats(self):
+        """The object readouts, gathered at explicit moments and never during a redraw."""
+        try:
+            self.RefreshStats()
+        except Exception:
+            pass
+
+    def SelectedToVoxel(self):
+        """Turn the selected Sculpt Tree volumes into voxel volumes.
 
         The import mode is not ours to force - 3D-Coat decides that from import.txt -
         and it has been handing models over in surface mode whatever the mode line
-        says.  This is the one click that puts the whole scene where the sculpting
-        tools want it.  Objects that are already voxelized are counted and left alone,
-        hidden ones are reported but not touched, and a failure is a sentence in the
-        status line rather than an exception.
+        says.  This is the one click that puts what you selected where the sculpting
+        tools want it: the selected nodes and their children, leaves only.  Objects
+        that are already voxelized are counted and left alone, a failure is a sentence
+        in the status line rather than an exception.
         """
-        targets, hidden = self._visible_voxel_targets()
+        targets, hidden, how = self._selected_voxel_targets()
         if not targets and not hidden:
-            self.status = "Nothing in the Sculpt Tree to convert"
+            self.status = ("Nothing selected to convert" if how == "selection"
+                           else "Nothing in the Sculpt Tree to convert")
             return
         converted = already = failed = 0
         via_tree = 0
@@ -1565,12 +1608,11 @@ class CoatLinkPanel(object):
             parts.append("%d hidden/unreadable branches, left alone" % hidden)
         if failed:
             parts.append("%d could not be converted" % failed)
-        self.status = "To voxels: " + (", ".join(parts) if parts else "nothing to do")
+        if how == "current":
+            parts.append("no selection to read, used the current node")
+        self.status = "Selected To Voxel: " + (", ".join(parts) if parts else "nothing to do")
         log(self.status)
-        try:
-            self.RefreshStats()
-        except Exception:
-            pass
+        self.refresh_stats()
 
     @staticmethod
     def volume_mode(volume):
@@ -1596,8 +1638,7 @@ class CoatLinkPanel(object):
         try:
             volume = coat.Scene.current().Volume()
             count = int(volume.getPolycount())
-            self.StatsLabel = "Snapshot: %d faces%s (not auto-refreshed)" % (
-                count, self.volume_mode(volume))
+            self.StatsLabel = "Snapshot: %d faces%s" % (count, self.volume_mode(volume))
         except Exception as exc:
             self.StatsLabel = "Statistics unavailable: %s" % exc
 
@@ -1605,8 +1646,8 @@ class CoatLinkPanel(object):
         """How many of the visible tree objects are still surfaces.
 
         The number the user asked for: after an import it is not obvious how much of
-        the scene is in surface mode, and that is exactly what decides whether `To
-        voxels` still has work to do.  Explicit action only - it walks the tree, which
+        the scene is in surface mode, and that is what decides whether `Selected To
+        Voxel` still has work to do.  Explicit action only - it walks the tree, which
         must never happen during a redraw.
         """
         try:
@@ -1625,8 +1666,7 @@ class CoatLinkPanel(object):
                 surface += 1
         if not counted:
             return ""
-        text = "%d of %d visible objects in surface mode" % (surface, counted)
-        return text + " - press To voxels" if surface else text
+        return "%d of %d visible objects in surface mode" % (surface, counted)
 
     def refresh_detail(self):
         root = primary_root()

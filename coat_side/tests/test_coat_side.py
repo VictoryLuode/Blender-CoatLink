@@ -142,10 +142,15 @@ def main():
     # ---- pull ----
     panel = bridge.CoatLinkPanel()
     check("the native panel exposes Copy details", "CopyDetails" in panel.ui())
-    check("the size and statistics readouts are gathered but no longer panel rows",
-          "RefreshStats" not in panel.ui()
-          and not any(item.startswith("#") and item[1:].startswith("Size:")
-                      for item in panel.ui()), panel.ui())
+    check("the object readouts are drawn inside the Status block",
+          any(item.startswith("#") and item[1:].startswith("Size:")
+              for item in panel.ui())
+          and panel.ui().index("#Status")
+          < next(index for index, item in enumerate(panel.ui())
+                 if item.startswith("#") and item[1:].startswith("Size:")),
+          panel.ui()[-8:])
+    check("and the old Refresh info button is gone with them",
+          "RefreshStats" not in panel.ui(), panel.ui())
     panel.status = "A very long status " * 60
     panel.detail = "C:/a/very/long/path/" * 60
     long_layout = panel.ui()
@@ -303,17 +308,18 @@ def main():
     check("the scope is the first thing inside the Send options block, like Blender's",
           items.index("#Send options") < scope_index < items.index("ReductionPercent,[0,100]"),
           items[:8])
-    check("the scope says what it will send",
-          items[scope_index + 1] == "##" + bridge.SEND_SCOPE_HINTS[int(panel.SendScope)],
-          items[scope_index:scope_index + 2])
+    check("and nothing explains it in fine print",
+          items[scope_index + 1] == "ReductionPercent,[0,100]",
+          items[scope_index:scope_index + 3])
     check("with the sections headed like the Blender menu's",
           "Send options" in [item[1:] for item in items if item.startswith("#")]
           and "Setup" in [item[1:] for item in items if item.startswith("#")],
           [item for item in items if item.startswith("#")])
     panel.SendScope = bridge.SEND_SCOPES.index("selected")
-    check("choosing another scope changes the hint",
-          any(item == "##" + bridge.SEND_SCOPE_HINTS[0] for item in panel.ui()),
-          [item for item in panel.ui() if item.startswith("##")][:2])
+    check("no description rows under any control, on either side",
+          not any("nodes selected in the Sculpt Tree" in item or "voxel volume" in item
+                  for item in panel.ui()),
+          [item for item in panel.ui() if item.startswith("##")])
     panel.SendScope = bridge.SEND_SCOPES.index("scene")
     check("layout offers the same actions as Blender",
           {"SendToBlender", "PullFromBlender", "Detect", "OpenFolder", "StartBlender"} <=
@@ -337,8 +343,10 @@ def main():
           {key: value for key, value in translations.items() if key.startswith("CoatLink")})
     check("the scope droplist reads like the Blender menu's",
           bridge.SEND_SCOPE_LABELS == "#Selected|#Whole scene", bridge.SEND_SCOPE_LABELS)
-    check("and both scopes are explained under it",
-          len(bridge.SEND_SCOPE_HINTS) == 2, bridge.SEND_SCOPE_HINTS)
+    check("and the two scopes are still the two the code acts on",
+          bridge.SEND_SCOPES == ("selected", "scene")
+          and bridge.SEND_SCOPE_LABELS == "#Selected|#Whole scene",
+          (bridge.SEND_SCOPES, bridge.SEND_SCOPE_LABELS))
     for name in ("SendScope", "ReductionPercent", "Textures",
                  "Detect", "OpenFolder", "StartBlender", "RemoveLauncher"):
         check("the panel control '%s' has a readable label" % name,
@@ -382,7 +390,7 @@ def main():
           panel.StatsLabel.startswith("Statistics unavailable"), panel.StatsLabel)
     coat.current_element = UNSET
 
-    # ---- "To voxels": one click for everything the tree is showing ----
+    # ---- "Selected To Voxel": one click for what the tree has selected ----
     class _FakeVolume(object):
         def __init__(self, voxel=True, broken=False):
             self.voxel = voxel
@@ -408,64 +416,104 @@ def main():
         element.visible = lambda: visible
         return element
 
-    # a scene like the real one: a packaging group from an import, one plain visible
-    # object, and one switched off in the tree
+    # a scene like the real one: a packaging group from an import, one plain object,
+    # one switched off in the tree, one nobody selected, plus the current node
     coat.root.children.clear()
     coat.removed.clear()
+    coat.current_element = None
     wrapper = node("bridge", _FakeVolume(True), coat.root)
     surface_obj = node("Cube.169", _FakeVolume(False), wrapper)
     voxel_obj = node("Cube.170", _FakeVolume(True), wrapper)
     plain = node("Box", _FakeVolume(False), coat.root)
     hidden = node("Cube.171", _FakeVolume(False), coat.root, visible=False)
+    untouched = node("Unselected", _FakeVolume(False), coat.root)
 
-    panel.VoxelizeVisible()
-    check("To voxels converts every visible surface object",
+    surface_obj.select()
+    plain.select()
+    panel.SelectedToVoxel()
+    check("Selected To Voxel converts the selected surface objects",
           surface_obj.Volume().converted == 1 and plain.Volume().converted == 1,
           (surface_obj.Volume().converted, plain.Volume().converted))
+    check("and leaves a surface object that was not selected alone",
+          untouched.Volume().converted == 0, untouched.Volume().converted)
     check("and leaves the ones that are already voxel volumes",
           voxel_obj.Volume().converted == 0, voxel_obj.Volume().converted)
     check("and does not convert the packaging node itself",
           wrapper.Volume().converted == 0, wrapper.Volume().converted)
-    check("and does not touch an object that is switched off in the tree",
-          hidden.Volume().converted == 0, hidden.Volume().converted)
     check("and says exactly what it did",
-          panel.status == "To voxels: 2 to voxels, 1 already voxel, 1 hidden/unreadable branches, left alone",
-          panel.status)
+          panel.status == "Selected To Voxel: 2 to voxels", panel.status)
 
-    panel.VoxelizeVisible()
+    panel.SelectedToVoxel()
     check("running it again converts nothing new",
           surface_obj.Volume().converted == 1
-          and panel.status == "To voxels: 3 already voxel, 1 hidden/unreadable branches, left alone",
+          and panel.status == "Selected To Voxel: 2 already voxel",
           panel.status)
 
+    # selecting the packaging group is how a whole import is converted: its leaf
+    # children are the objects, and the group itself is not one
+    coat.root.children.clear()
+    coat.removed.clear()
+    imported = node("bridge", _FakeVolume(True), coat.root)
+    first = node("Part A", _FakeVolume(False), imported)
+    second = node("Part B", _FakeVolume(False), imported)
+    imported.select()
+    panel.SelectedToVoxel()
+    check("selecting the packaging node converts the objects inside it",
+          first.Volume().converted == 1 and second.Volume().converted == 1,
+          (first.Volume().converted, second.Volume().converted))
+    check("and still not the group itself",
+          imported.Volume().converted == 0, imported.Volume().converted)
+
+    # nothing selected: the current node stands in, exactly as a send would, and
+    # the status line says which of the two happened
+    coat.root.children.clear()
+    coat.removed.clear()
+    lone = node("Lone", _FakeVolume(False), coat.root)
+    coat.current_element = lone
+    lone.unselectAll()
+    panel.SelectedToVoxel()
+    check("with nothing selected the current node is converted",
+          lone.Volume().converted == 1, panel.status)
+    check("and the status says the selection could not be read",
+          "used the current node" in panel.status, panel.status)
+
+    # an object that is switched off in the tree is reported, not converted
+    coat.root.children.clear()
+    coat.removed.clear()
+    coat.current_element = None
+    sneaky = node("Hidden", _FakeVolume(False), coat.root, visible=False)
+    sneaky.select()
+    panel.SelectedToVoxel()
+    check("a selected object that is switched off is left alone and reported",
+          sneaky.Volume().converted == 0 and "hidden/unreadable" in panel.status,
+          panel.status)
+
+    # Unknown visibility is not permission to modify geometry.
+    coat.root.children.clear()
+    coat.removed.clear()
+    unknown = node("NoVisibility", _FakeVolume(False), coat.root)
+    del unknown.visible
+    unknown.select()
+    panel.SelectedToVoxel()
+    check("unknown visibility leaves geometry untouched",
+          unknown.Volume().converted == 0, panel.status)
+
     broken = node("Broken", _FakeVolume(False, broken=True), coat.root)
-    panel.VoxelizeVisible()
+    broken.select()
+    panel.SelectedToVoxel()
     check("an object that cannot be converted is reported, not thrown",
           "1 could not be converted" in panel.status, panel.status)
     broken.remove()
 
     coat.root.children.clear()
-    panel.VoxelizeVisible()
-    check("an empty tree is a sentence, not a crash",
+    coat.removed.clear()
+    coat.current_element = None
+    panel.SelectedToVoxel()
+    check("nothing to convert is a sentence, not a crash",
           panel.status == "Nothing in the Sculpt Tree to convert", panel.status)
-
-    # Hidden parents hide their descendants, even when a child's local flag is on.
-    coat.root.children.clear()
-    hidden_group = node("Hidden group", _FakeVolume(False), coat.root, visible=False)
-    hidden_child = node("Child", _FakeVolume(False), hidden_group)
-    panel.VoxelizeVisible()
-    check("a hidden parent's child is never converted",
-          hidden_child.Volume().converted == 0, panel.status)
-
-    # Unknown visibility is not permission to modify geometry.
-    coat.root.children.clear()
-    unknown = node("NoVisibility", _FakeVolume(False), coat.root)
-    del unknown.visible
-    panel.VoxelizeVisible()
-    check("unknown visibility leaves geometry untouched",
-          unknown.Volume().converted == 0, panel.status)
-    check("and the old selection-only name is gone",
-          not hasattr(panel, "VoxelizeSelected"))
+    check("and the old whole-tree name is gone",
+          not hasattr(panel, "VoxelizeVisible"))
+    coat.current_element = UNSET      # hand the fake back as the rest of the file left it
 
     # ---- To voxels should press 3D-Coat's own tree badge, not just the API ----
     # The badge is the button in a tree row (id `$VoxTreeBranch.VoxSurf.<name>`)
@@ -491,11 +539,13 @@ def main():
         converts.append(badged)
         silently_ignored = node("Ignored by host", _FakeVolume(False), coat.root)
         already_voxel = node("AlreadyVoxel", _FakeVolume(True), coat.root)
+        for element in (badged, silently_ignored, already_voxel):
+            element.select()
         def confirm_clicks():
             return [call for call in real_cmd.calls
                     if call and call[0] == "$DialogButton#1"]
         confirms_before = len(confirm_clicks())
-        panel.VoxelizeVisible()
+        panel.SelectedToVoxel()
         check("the conversion dialog is accepted without the user clicking OK",
               len(confirm_clicks()) > confirms_before, real_cmd.calls[-4:])
         check("the accept is handed to 3D-Coat as the press's callback",
@@ -524,31 +574,39 @@ def main():
 
     # ---- the panel can say how much of the tree is still in surface mode ----
     coat.root.children.clear()
+    coat.removed.clear()
+    coat.current_element = None
     packaging = node("bridge", _FakeVolume(True), coat.root)
-    node("SurfaceA", _FakeVolume(False), packaging)      # inside the import group
-    node("SurfaceB", _FakeVolume(False), coat.root)
+    surface_a = node("SurfaceA", _FakeVolume(False), packaging)   # inside the import group
+    surface_b = node("SurfaceB", _FakeVolume(False), coat.root)
     node("VoxelC", _FakeVolume(True), coat.root)
     node("HiddenD", _FakeVolume(False), coat.root, visible=False)
-    panel.RefreshStats()
-    check("Refresh info reports how much of the tree is still surface",
-          panel.ModeLabel == "2 of 3 visible objects in surface mode - press To voxels",
-          panel.ModeLabel)
+    panel.refresh_stats()
+    check("the readout says how much of the tree is still surface",
+          panel.ModeLabel == "2 of 3 visible objects in surface mode", panel.ModeLabel)
+    check("and it is drawn in the Status block, with the object information",
+          any(item.startswith("##") and item.endswith("surface mode")
+              for item in panel.ui()), panel.ui()[-9:])
     clipboard_calls = []
     bridge.subprocess.run = lambda *args, **kwargs: clipboard_calls.append((args, kwargs))
     try:
         panel.CopyDetails()
     finally:
         bridge.subprocess.run = original_run
-    check("the mode summary reaches the user through Copy details, not as a panel row",
-          clipboard_calls and panel.ModeLabel in clipboard_calls[0][1]["input"].decode("utf-16")
-          and not any("surface mode" in item for item in panel.ui()),
-          panel.ui()[-9:])
-    panel.VoxelizeVisible()
-    check("and it reads clear once they are voxel volumes",
+    check("and Copy details still carries it",
+          clipboard_calls
+          and panel.ModeLabel in clipboard_calls[0][1]["input"].decode("utf-16"),
+          panel.ModeLabel)
+    surface_a.select()
+    surface_b.select()
+    panel.SelectedToVoxel()
+    check("and it reads clear once the selected ones are voxel volumes",
           panel.ModeLabel == "0 of 3 visible objects in surface mode", panel.ModeLabel)
     coat.root.children.clear()
-    panel.RefreshStats()
+    coat.removed.clear()
+    panel.refresh_stats()
     check("an empty tree claims nothing about modes", panel.ModeLabel == "", panel.ModeLabel)
+    coat.current_element = UNSET
 
     # ---- the menu entry: an XML file 3D-Coat reads at every start ----
     # It used to be inserted at run time.  Only the file survives a restart, and an
