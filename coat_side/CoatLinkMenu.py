@@ -277,6 +277,7 @@ def ensure():
         classic = os.path.join(script_dir(), CLASSIC_FOLDER)
         report = clean_old_installs(defer_classic=_menu_files_name(classic))
         written = retire_menu_xml() + write_tools_xml()
+        lib.write_export_preset()      # the paint dialog's answers, pre-made
     except Exception as exc:
         log("registering the launcher failed: %s" % exc)
         return {"cleaned": report, "written": written}

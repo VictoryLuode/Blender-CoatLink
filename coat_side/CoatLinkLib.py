@@ -1080,6 +1080,105 @@ def capture_reduction():
     return "remembered reduction %d%% from 3D-Coat" % percent
 
 
+#: the export preset this bridge installs into 3D-Coat's own list: the answer to every
+#: question its "Export Objects & Textures" dialog asks a paint export
+EXPORT_PRESET_NAME = "CoatLink"
+
+
+def export_preset_dir():
+    """``…/UserPrefs/ExportPresets`` in the user's 3D-Coat data folder, "" when unknown."""
+    try:
+        data = user_data_dir()
+    except Exception:
+        return ""
+    return os.path.join(data, "UserPrefs", "ExportPresets") if data else ""
+
+
+def _preset_base():
+    """3D-Coat's own Blender App-Link preset, or a minimal one when it is not there.
+
+    Reusing theirs is not laziness: its texture slots (``diffuse``, ``normalmap``,
+    ``metalness``…) are exactly the PBR set the Blender half knows how to wire up, and
+    a future build's slots should come along without this file being edited.
+    """
+    try:
+        root = install_root()
+    except Exception:
+        root = ""
+    if root:
+        base = os.path.join(root, "UserPrefs", "ExportPresets", "BlenderAppLink.xml")
+        try:
+            if os.path.isfile(base):
+                with open(base, "r", encoding="utf-8", errors="replace") as handle:
+                    return handle.read()
+        except OSError:
+            pass
+    return ("<ExportOpt>\n"
+            " <ExportGeometry>true</ExportGeometry>\n"
+            " <ExportTextures>true</ExportTextures>\n"
+            " <TexApproach>RoughnessMetallness</TexApproach>\n"
+            " <ExportResolution>MID-POLY</ExportResolution>\n"
+            " <SwapYZ>false</SwapYZ>\n"
+            " <PathForTextures>%(folder)s</PathForTextures>\n"
+            " <!ExportPreset>%(name)s</!ExportPreset>\n"
+            " <PmsMixer>\n"
+            "  <UseObjectNameAsPreffix>true</UseObjectNameAsPreffix>\n"
+            "  <ExportUvSetsToDifferentFolders>false</ExportUvSetsToDifferentFolders>\n"
+            "  <SkipUVSetNameIfSingle>true</SkipUVSetNameIfSingle>\n"
+            "  <Textures>\n"
+            "   <OneExportTexture><TextureSuffix>diffuse</TextureSuffix><RGB>TEX_COLOR</RGB></OneExportTexture>\n"
+            "   <OneExportTexture><TextureSuffix>normalmap</TextureSuffix><RGB>TEX_TANGENTNORMALMAP</RGB></OneExportTexture>\n"
+            "   <OneExportTexture><TextureSuffix>roughness</TextureSuffix><RGB>TEX_ROUGHNESS</RGB></OneExportTexture>\n"
+            "   <OneExportTexture><TextureSuffix>metalness</TextureSuffix><RGB>TEX_METALL</RGB></OneExportTexture>\n"
+            "  </Textures>\n"
+            " </PmsMixer>\n"
+            "</ExportOpt>\n")
+
+
+def write_export_preset(root=None):
+    """Write this bridge's own export preset into 3D-Coat's preset list.
+
+    The paint route hands the user 3D-Coat's "Export Objects & Textures" dialog, and
+    every question that dialog asks about a paint export - geometry yes, textures yes,
+    textures next to the model, names starting with the object's - is a *preset* in
+    3D-Coat.  A preset the user has to assemble by hand is one more thing to get wrong,
+    so it is generated here, per machine, because it carries our folder as an absolute
+    path.  Presets are read when that dialog opens and are never rewritten by 3D-Coat,
+    so writing this while the application runs is safe.
+    """
+    folder = export_preset_dir()
+    if not folder:
+        return ""
+    try:
+        os.makedirs(folder, exist_ok=True)
+        text = _preset_base()
+        text = re.sub(r"<!ExportPreset>.*?</!ExportPreset>",
+                      "<!ExportPreset>%s</!ExportPreset>" % EXPORT_PRESET_NAME, text, flags=re.S)
+        # the shared exchange root - the one a send writes to, so the one the textures
+        # have to land in.  primary_root() only knows roots that already exist, hence
+        # the fallback: the folder is created by the first send, not by this.
+        try:
+            root = primary_root() or (candidate_roots() or [""])[0]
+        except Exception:
+            root = ""
+        target = app_folder(root) if root else ""
+        wanted = "<PathForTextures>%s</PathForTextures>" % str(target).replace("\\", "/")
+        if "<PathForTextures>" in text:
+            text = re.sub(r"<PathForTextures>.*?</PathForTextures>", wanted, text, flags=re.S)
+        else:
+            marker = "<D></D>"
+            text = (text.replace(marker, marker + "\n " + wanted, 1) if marker in text
+                    else text.replace("</ExportOpt>", " " + wanted + "\n</ExportOpt>", 1))
+        path = os.path.join(folder, EXPORT_PRESET_NAME + ".xml")
+        with open(path, "w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+        log("export preset %s: textures -> %s" % (EXPORT_PRESET_NAME, target))
+        return path
+    except Exception as exc:
+        log("export preset not written (%s: %s)" % (type(exc).__name__, exc))
+        return ""
+
+
 def apply_textures(on=False):
     """Set 3D-Coat's own texture export: off for a sculpt send, on for a paint one.
 
