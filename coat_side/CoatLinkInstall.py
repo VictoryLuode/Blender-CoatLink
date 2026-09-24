@@ -306,11 +306,19 @@ def drive_program_roots():
     for prefix in ("%s:/", "/%s/"):
         for letter in string.ascii_lowercase:
             root = Path(prefix % letter)
-            if not root.is_dir():
+            try:
+                if not root.is_dir():
+                    continue
+                for folder in ("Program Files", "Program Files (x86)"):
+                    roots += sorted(root.glob("%s/3DCoat*" % folder))
+                    roots += sorted(root.glob("%s/3D-Coat*" % folder))
+            except OSError:
+                # A drive Windows lists but will not answer for - a cloud drive, a card
+                # reader with no card in it - raises out of the stat() behind glob():
+                # measured on a machine with BaiduCloud's P: mapped, WinError 50 (the
+                # request is not supported) out of Path.glob.  Skipping it is right:
+                # a folder that cannot be read cannot hold the program folder either.
                 continue
-            for folder in ("Program Files", "Program Files (x86)"):
-                roots += sorted(root.glob("%s/3DCoat*" % folder))
-                roots += sorted(root.glob("%s/3D-Coat*" % folder))
     return roots
 
 

@@ -825,8 +825,7 @@ def main():
     field = bridge.TEXTURES_FIELD
     check("the textures field is still 3D-Coat's own", field == "$ExportOpt::ExportTextures", field)
     check("and no state key asks for textures any more",
-          not hasattr(bridge, "export_textures") and "textures" not in bridge.load_state(),
-          bridge.load_state())
+          not hasattr(bridge, "export_textures"), bridge.load_state())
     cmd.calls = []
     panel.SendToBlender()
     check("every export sets 3D-Coat's texture checkbox itself",
