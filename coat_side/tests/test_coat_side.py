@@ -806,18 +806,31 @@ def main():
     check("a shader with no preset brings no parameters", bridge.shader_params("Nope") == {},
           bridge.shader_params("Nope"))
     # Measured: 3D-Coat answers with the shader's place in its own library, and the last
-    # part of that is the shader *file* inside the preset (every PBR preset of that family
-    # carries "mcubes.glsl") - so the part before it names the preset.
-    check("a library path finds the preset it points at",
-          os.path.basename(bridge.preset_folder("PbrShaders/Aluminum/mcubes")) == "Aluminum",
-          bridge.preset_folder("PbrShaders/Aluminum/mcubes"))
-    check("and that preset's own parameters come with it",
-          bridge.shader_params("PbrShaders/Aluminum/mcubes").get("Color") == "FFE1AE75",
-          bridge.shader_params("PbrShaders/Aluminum/mcubes"))
+    # part of that is the shader *file* inside the preset - so the part before it names the
+    # preset, and a folder called after the file is never what is looked for.
     install = bridge.install_root()
     check("the installation's shader folder, when one is found, is a 3D-Coat one",
           install == "" or os.path.isdir(os.path.join(install, "UserPrefs", "Shaders")),
           install)
+    # The same preset name can exist twice, and only the path says which one a volume is
+    # using (measured: "PbrShaders/Gold2" and "PbrShaders/#Metal/Gold2" are different
+    # presets with different stored values), so the path is tried exactly first.
+    loose = os.path.join(bridge.user_data_dir(), "UserPrefs", "Shaders", "PbrShaders", "Aluminum")
+    os.makedirs(loose, exist_ok=True)
+    with open(os.path.join(loose, "ShaderParams.xml"), "w", encoding="utf-8") as handle:
+        handle.write("<VoxShaderParams>\n <ExParams>\n"
+                     "  <ExShaderParam><Usage></Usage><ID>Color</ID><Type>float4</Type>"
+                     "<$Default>FF0000FF</$Default></ExShaderParam>\n"
+                     " </ExParams>\n</VoxShaderParams>\n")
+    check("a library path picks the preset it names, not another of that name",
+          bridge.preset_folder("PbrShaders/Aluminum/mcubes") == loose
+          and bridge.shader_params("PbrShaders/Aluminum/mcubes").get("Color") == "FF0000FF",
+          (bridge.preset_folder("PbrShaders/Aluminum/mcubes"),
+           bridge.shader_params("PbrShaders/Aluminum/mcubes")))
+    check("a bare preset name still resolves when the name exists twice",
+          bridge.preset_folder("Aluminum") != ""
+          and bridge.shader_params("Aluminum").get("Metalness") == "1.000000",
+          bridge.preset_folder("Aluminum"))
 
     cmd.volumes = {"Volume1": "#Metal/Aluminum", "Volume2": "NothingLikeThis"}
     cmd.current_volume = "Volume2"

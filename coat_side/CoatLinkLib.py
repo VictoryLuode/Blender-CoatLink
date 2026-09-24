@@ -527,10 +527,13 @@ def preset_folder(shader):
     Measured: GetCurVolumeShader answers with the shader's place in 3D-Coat's library -
     "PbrShaders/Gold2/mcubes" - where the last part names the shader *file* inside the
     preset folder (every PBR preset of that family carries "mcubes.glsl"), so the part
-    before it is the preset.  The match stays tolerant, because the string is
-    undocumented: a bare name ("Aluminum") and a category-qualified one ("#Metal/
-    Aluminum") name the same preset, and any part naming a folder with a
-    ShaderParams.xml in it wins.  Cached per shader string: a send asks once per volume.
+    before it is the preset.  That path is tried **exactly first**: the same preset name
+    can exist twice (a loose "PbrShaders/Gold2" and a categorised "PbrShaders/#Metal/
+    Gold2" are different presets, with different stored values), and only the path says
+    which one the volume is actually using.  Name matching stays as the fallback for the
+    forms that are not paths - a bare name ("Aluminum") and a category-qualified one
+    ("#Metal/Aluminum") name the same preset - where any folder holding a
+    ShaderParams.xml wins.  Cached per shader string: a send asks once per volume.
     """
     wanted = (shader or "").replace("\\", "/").strip("/")
     if not wanted:
@@ -542,8 +545,17 @@ def preset_folder(shader):
     for name in ((parts[-2] if len(parts) > 1 else ""), parts[-1] if parts else ""):
         if name and name not in names:
             names.append(name.lower())
+    middle = parts[:-1]
+    if middle and middle[0].lower() == SHADER_PRESET_PARTS[-1].lower():
+        middle = middle[1:]
+    relative = os.path.join(*middle) if middle else ""
     found = ""
     for root in shader_preset_roots():
+        if relative:
+            exact = os.path.join(root, relative)
+            if os.path.isfile(os.path.join(exact, "ShaderParams.xml")):
+                found = exact
+                break
         for folder in presets_under(root):
             if os.path.basename(folder).lower() in names:
                 found = folder
