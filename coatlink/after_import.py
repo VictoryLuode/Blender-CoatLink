@@ -212,34 +212,55 @@ def move_to_root(child, root):
 
 
 def flatten(coat, stem=MODEL_STEM):
-    """Unparent every `<stem>` group that still has children.  Returns the count."""
+    """Unparent the group the import parked the model in.  Returns the count.
+
+    Only the *last* group under the root that carries the stem is touched.  The import
+    appends the node it parks the file in, so that is the one just created; an earlier
+    group with the same name is the user's own, and taking every match would empty it
+    into the root and then remove it - the user's own group, with the user's own
+    objects in it, silently gone.  A group we did not create is left exactly as it is.
+    """
     root = coat.Scene.sculptRoot()
-    moved = 0
+    parked = None
+    others = 0
     for index in range(root.childCount()):
         group = root.child(index)
         try:
-            if group is None or group.name() != stem or group.childCount() == 0:
+            if group is None or group.name() != stem:
                 continue
         except Exception:
             continue
-        # always take the first child and append it: the objects keep the order
-        # Blender has, and the live index cannot skip one (the group shrinks as
-        # they leave it, so stepping through indexes would)
-        while True:
-            try:
-                if group.childCount() == 0:
-                    break
-                child = group.child(0)
-            except Exception:
-                break
-            if child is None or not move_to_root(child, root):
-                break
-            moved += 1
+        if parked is not None:
+            others += 1
+        parked = group
+    if parked is None:
+        return 0
+    if others:
+        note("left %d earlier '%s' group(s) alone: not ours to flatten" % (others, stem))
+    try:
+        if parked.childCount() == 0:
+            return 0
+    except Exception:
+        return 0
+    moved = 0
+    # always take the first child and append it: the objects keep the order
+    # Blender has, and the live index cannot skip one (the group shrinks as
+    # they leave it, so stepping through indexes would)
+    while True:
         try:
-            if group.childCount() == 0:
-                group.remove()
+            if parked.childCount() == 0:
+                break
+            child = parked.child(0)
         except Exception:
-            pass
+            break
+        if child is None or not move_to_root(child, root):
+            break
+        moved += 1
+    try:
+        if parked.childCount() == 0:
+            parked.remove()
+    except Exception:
+        pass
     return moved
 
 

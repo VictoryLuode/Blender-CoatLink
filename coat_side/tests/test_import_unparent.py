@@ -88,6 +88,23 @@ def main():
           [node.name() for node in coat.root.children])
     check("and it is not removed", "KeepMe" not in coat.removed, coat.removed)
 
+    # the user's *own* group, under the very name the import parks the model in: only
+    # the group the import appended is ours.  Emptying an earlier one took the user's
+    # objects up to the root with it, and then removed the group itself.
+    coat.root.children.clear()
+    keep = TreeNode("bridge", coat, coat.root)
+    TreeNode("UserThing", coat, keep)
+    wrapper = TreeNode("bridge", coat, coat.root)
+    TreeNode("Hull", coat, wrapper)
+    moved = helper.flatten(coat)
+    check("only the group the import appended is flattened", moved == 1, moved)
+    check("the user's own same-named group keeps its object",
+          [node.name() for node in keep.children] == ["UserThing"],
+          [node.name() for node in keep.children])
+    check("and the imported object still came out",
+          [node.name() for node in coat.root.children] == ["bridge", "Hull"],
+          [node.name() for node in coat.root.children])
+
     # a tree with no wrapper at all: nothing happens, nothing raises
     coat.root.children.clear()
     check("a tree without a wrapper is fine", helper.flatten(coat) == 0)

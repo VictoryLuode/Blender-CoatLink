@@ -1705,7 +1705,7 @@ def main():
         bpy.data.materials.remove(leftover)
     folder = os.path.dirname(os.path.abspath(back_path))
     maps = {}
-    for slot in ("diffuse", "roughness", "metalness", "normalmap"):
+    for slot in ("diffuse", "roughness", "metalness", "normalmap", "emissive"):
         where = os.path.join(folder, "PaintNode_%s.png" % slot)
         with open(where, "wb") as handle:
             handle.write(base64.b64decode(TINY_PNG))
@@ -1762,6 +1762,12 @@ def main():
           and os.path.basename(normal_image.image.filepath) == os.path.basename(maps["normalmap"])
           and normal_image.image.colorspace_settings.name == "Non-Color",
           (normal_node.type if normal_node else None,))
+    emissive_node = feeding(surface.inputs["Emission Color"]) if surface else None
+    check("the emissive map is wired into Emission Color, read as a picture",
+          emissive_node is not None
+          and os.path.basename(emissive_node.image.filepath) == os.path.basename(maps["emissive"])
+          and emissive_node.image.colorspace_settings.name == "sRGB",
+          (getattr(getattr(emissive_node, "image", None), "filepath", None), maps["emissive"]))
     # One painting room material worn by several objects: everyone shares it.  Taking a
     # name per object instead invents a copy - and a copy named after the object reads
     # as a second material in the file when the paint room only has one.
@@ -1814,6 +1820,19 @@ def main():
           again is material and bpy.data.materials.get("PaintSet.001") is None
           and len([n for n in again.node_tree.nodes if n.type == "TEX_IMAGE"]) == shots,
           [m.name for m in bpy.data.materials])
+    # A signal from an earlier round still names the model we *sent*, and that model is
+    # still sitting there under its one fixed name.  Pressing Import must not bring our
+    # own export back: a return is written after the send, so time tells them apart.
+    before_objects = {obj.name for obj in bpy.data.objects}
+    bridge.STATE["last_send"] = os.path.getmtime(back_path) + 60.0
+    write(signal, back_path + "\n")
+    stale_messages = bridge.pull(bpy.context, force=True)
+    check("a stale model we sent ourselves is not imported back",
+          {obj.name for obj in bpy.data.objects} == before_objects
+          and any("unchanged since we sent it" in message for message in stale_messages),
+          (len(before_objects), len(bpy.data.objects), stale_messages))
+    bridge.STATE["last_send"] = 0.0
+
     prefs.shader_materials = was_paint_shaders
 
 def _unlink_clears(cube):

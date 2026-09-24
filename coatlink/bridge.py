@@ -625,6 +625,16 @@ def _pull_once(context, force):
             if not os.path.isfile(path):
                 messages.append("returned file is missing: %s" % os.path.basename(path))
                 continue
+            last_send = STATE.get("last_send") or 0.0
+            if last_send and os.path.getmtime(path) < last_send - 2.0:
+                # The model we *sent* still sits under its one fixed name, and a signal
+                # from an earlier round is still naming it.  Importing that brings our
+                # own export back - a copy, or the model we are waiting on replaced by
+                # itself.  A real return is written after the send, so its mtime is
+                # newer; the file name never changes, which makes time the whole story.
+                messages.append("skipped %s: unchanged since we sent it"
+                                % os.path.basename(path))
+                continue
             candidates.append((os.path.getmtime(path), path))
 
     imported = []
@@ -911,6 +921,7 @@ def _read_paint_map(path):
 TEXTURE_SLOTS = (("normal", ("normalmap", "normal", "nrm", "bump")),
                  ("metalness", ("metalness", "metallic", "metal")),
                  ("roughness", ("roughness", "rough", "gloss")),
+                 ("emissive", ("emissive", "emission")),
                  ("color", ("diffuse", "color", "colour", "albedo", "base")))
 
 #: the slots a Principled BSDF has an input for, in the order they are wired, with the
@@ -1054,6 +1065,17 @@ def _paint_material(name, textures):
         bump.location = (surface.location.x - 300, surface.location.y - 380)
         links.new(node.outputs["Color"], bump.inputs["Color"])
         links.new(bump.outputs["Normal"], surface.inputs["Normal"])
+    emissive = textures.get("emissive")
+    image = _paint_image(emissive) if emissive else None
+    if image is not None and "Emission Color" in surface.inputs:
+        # light rather than surface, so it is read as a picture.  A channel nobody
+        # painted comes back as a flat black image, which emits nothing - the right
+        # answer, and the reason this can be wired unconditionally.
+        node = nodes.new("ShaderNodeTexImage")
+        node.image = image
+        node.label = os.path.basename(emissive)
+        node.location = (surface.location.x - 420, surface.location.y - 820)
+        links.new(node.outputs["Color"], surface.inputs["Emission Color"])
     return material
 
 
@@ -1101,7 +1123,7 @@ def _apply_paint_materials(path, placements, file_materials=()):
             made[wanted] = material
             _log("paint material %s: %s" % (wanted, ", ".join(
                 "%s %s" % (slot, os.path.basename(textures[slot]) or "none")
-                for slot in ("color", "metalness", "roughness", "normal"))))
+                for slot in ("color", "metalness", "roughness", "normal", "emissive"))))
         if _assign_shader_material(obj, material, file_materials):
             assigned.append(obj.name)
     if assigned:
