@@ -13,10 +13,11 @@ mistaken for our old per-frame reads.
   phase A (24 s) - no panel open at all           -> baseline
   phase B (24 s) - the CoatLink panel open        -> the reported condition
 
-Run it from 3D-Coat's Python console:
+Run it from 3D-Coat's Python console, from the folder it sits in:
 
-  exec(open(r"H:\\Misc\\Blender-CoatLink\\coat_side\\diagnostics\\panel_probe.py",
-            encoding="utf-8").read())
+  import os; exec(open(os.path.join(os.getcwd(), "panel_probe.py"), encoding="utf-8").read())
+
+(the path is derived from this file's own location, never written down)
 
 Keep the 3D-Coat window visible while it runs and watch the sculpt tree. Close
 the CoatLink panel yourself afterwards (it has no close API).
@@ -31,7 +32,12 @@ import traceback
 
 import coat
 
-sys.path.insert(0, r'H:\Misc\Blender-CoatLink\coat_side')
+#: This file is exec'd from 3D-Coat's console (where there is no __file__) and can also be
+#: run as a script, so the folder comes from whichever of the two is available - the
+#: console route requires running it from the folder it sits in, as the docstring says.
+_HERE = os.path.dirname(os.path.abspath(globals().get("__file__")
+                                       or os.path.join(os.getcwd(), "panel_probe.py")))
+sys.path.insert(0, os.path.dirname(_HERE))
 import CoatLinkLib  # noqa: E402
 
 PHASE_SECONDS = 24.0

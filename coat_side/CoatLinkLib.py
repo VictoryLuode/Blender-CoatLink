@@ -79,7 +79,9 @@ SHADER_DEFAULT_FAMILY = "PbrShaders"
 #: the user data folder.  The user's own copy is searched first all the same - that is
 #: where downloaded shaders land.  The install folder carries a year and can sit on any
 #: drive, so it is looked for rather than assumed.
-INSTALL_DRIVES = ("C", "D", "E", "F", "G", "H")
+_DRIVE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+_INSTALL_DRIVES = []
+_DRIVES_LOOKED_UP = []
 _INSTALL_ROOT = []
 _PRESET_FOLDERS = {}
 _PRESET_NAMES = []
@@ -125,6 +127,20 @@ VOXEL_TOGGLE_POLLS = 3
 STATE_FILE = "CoatLink.json"
 RUN_MARKER = "run.txt"
 MENU_ID = "CoatLink"
+
+
+def xml_escape(text):
+    """Escape text that is about to be written inside an XML element.
+
+    The menu files carry absolute paths, and a single unescaped ``&`` makes the whole
+    file unreadable to 3D-Coat - which then shows no menu at all, with nothing in the log
+    to say why.  ``&`` is a legal character in a Windows user or folder name
+    (``C:\\Users\\Tom & Jerry\\...``), so every path that goes into the XML goes through
+    here first.
+    """
+    return (str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
 MENU_PATHS = ("Scripts",)  # one entry point, as everywhere else in this project
 TOOL_ROOMS = ("Voxels", "Paint")      # rooms whose tool panel gets the CoatLink buttons
 #: one tool button per room per action, in this order; the file names double as the
@@ -231,17 +247,25 @@ def documents_bases():
 def user_data_dir():
     """3D-Coat's user data folder (``…/Documents/3DCoat`` and friends).
 
-    What the script found by looking at itself comes first; ``~/Documents/3DCoat``
+    What the script found by looking at itself comes first; the folder under Documents
     is only the guess to fall back on when that failed (the script was started from
-    somewhere else, or copied out of its folder).
+    somewhere else, or copied out of its folder).  Recent builds name that folder after
+    the version (``3DCoat2025``, ``3DCoat2026``) and the 4.x line carried a hyphen
+    (``3D-CoatV48``), so the name is matched, never assumed - and only folders that
+    really hold 3D-Coat's data count.
     """
     data = script_user_data()
     if data:
         return data
     for base in documents_bases():
         for name in os.listdir(base) if os.path.isdir(base) else []:
-            if name.lower() in ("3dcoat", "3d-coatv48", "3d-coatv49"):
-                return os.path.join(base, name)
+            lowered = name.lower()
+            if not (lowered.startswith("3dcoat") or lowered.startswith("3d-coat")):
+                continue
+            folder = os.path.join(base, name)
+            if os.path.isdir(os.path.join(folder, "UserPrefs")) \
+                    or os.path.isdir(os.path.join(folder, "Scripts")):
+                return folder
     return os.path.join(documents_bases()[0], "3DCoat")
 
 
@@ -376,6 +400,19 @@ def consume_import(root, model):
     return True
 
 
+def file_stamp(path):
+    """(size, mtime in ns) - how a freshly written file is told from the last one.
+
+    The exchange files have fixed names, so "the file is there" never means "it was just
+    written": the stamp is what does.
+    """
+    try:
+        info = os.stat(path)
+    except OSError:
+        return None
+    return (info.st_size, getattr(info, "st_mtime_ns", int(info.st_mtime * 1000000000)))
+
+
 def write_signal(root, model):
     folder = ensure_folder(root)
     with open(signal_path(root), "w", encoding="utf-8", newline="\n") as handle:
@@ -447,7 +484,7 @@ def volume_shaders(names):
     try:
         for name in names:
             try:
-                if not CMD.SetCurVolume(name):
+                if CMD.SetCurVolume(name) is False:      # some builds answer None on success
                     log("shader map: no volume named %s" % name)
                     continue
                 shader = (CMD.GetCurVolumeShader() or "").strip()
@@ -465,31 +502,81 @@ def volume_shaders(names):
     return found
 
 
+def drive_is_worth_asking(root):
+    """Whether Windows should be asked about a drive at all.
+
+    Only two answers matter: a fixed or removable drive that is really there.  Asking a
+    disconnected network mapping whether a path exists blocks for tens of seconds, and the
+    drive type is answered without touching the drive - so this check must never be the
+    thing that hangs.  Off Windows there is nothing to ask, and the answer is yes.
+    """
+    try:
+        import ctypes
+
+        kinds = {0: "unknown", 1: "none", 2: "removable", 3: "fixed",
+                 4: "remote", 5: "cdrom", 6: "ram"}
+        kind = kinds.get(ctypes.windll.kernel32.GetDriveTypeW(str(root)), "unknown")
+    except Exception:
+        kind = "unknown"
+    if kind in ("none", "remote", "cdrom"):
+        return False
+    try:
+        return os.path.exists(root)
+    except OSError:
+        return False
+
+
+def install_drives():
+    """The drive letters to look for a 3D-Coat install on, looked up once per session."""
+    if _DRIVES_LOOKED_UP:
+        return _INSTALL_DRIVES
+    for letter in _DRIVE_LETTERS:
+        if drive_is_worth_asking("%s:/" % letter):
+            _INSTALL_DRIVES.append(letter)
+    _DRIVES_LOOKED_UP.append(True)          # the answer does not change mid-session
+    return _INSTALL_DRIVES
+
+
+def install_roots_with_shaders():
+    """Every program folder that really carries a shader library, newest name last."""
+    tops = []
+    for drive in install_drives():
+        tops += ["%s:/Program Files" % drive, "%s:/Program Files (x86)" % drive]
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        tops.append(os.path.join(local, "Programs"))   # a per-user install lands here
+    found = []
+    for top in tops:
+        try:
+            entries = sorted(os.listdir(top))
+        except OSError:
+            continue
+        for entry in entries:
+            lowered = entry.lower()
+            # measured: the folder is "3DCoat-2025" on some installs, "3DCoat2025" on
+            # others, so both spellings count - and only one that has the library
+            if not (lowered.startswith("3dcoat") or lowered.startswith("3d-coat")):
+                continue
+            folder = os.path.join(top, entry)
+            if os.path.isdir(os.path.join(folder, "UserPrefs", "Shaders")):
+                found.append(folder)
+    return sorted(found, key=lambda path: os.path.basename(path).lower())
+
+
 def install_root():
     """3D-Coat's program folder, or "" when none is found.
 
     The folder carries a year in its name and can sit on any drive, so it is looked for
-    instead of assumed - the same reason tests/check_coat_api.py looks for it.  Read once
-    per session (memoised), because the search walks a few program-folder listings.
+    instead of assumed - the same reason tests/check_coat_api.py looks for it.  With two
+    installs side by side the newest name wins, so a preset is read from the build the
+    artist is most likely running.  Read once per session (memoised), because the search
+    walks the program-folder listing of every drive.
     """
     if _INSTALL_ROOT:
         return _INSTALL_ROOT[0]
-    for drive in INSTALL_DRIVES:
-        for base in ("Program Files", "Program Files (x86)"):
-            top = "%s:/%s" % (drive, base)
-            try:
-                entries = sorted(os.listdir(top))
-            except OSError:
-                continue
-            for entry in entries:
-                if not entry.lower().startswith("3dcoat"):
-                    continue
-                folder = os.path.join(top, entry)
-                if os.path.isdir(os.path.join(folder, "UserPrefs", "Shaders")):
-                    _INSTALL_ROOT.append(folder)
-                    return folder
-    _INSTALL_ROOT.append("")
-    return ""
+    found = install_roots_with_shaders()
+    _INSTALL_ROOT.append(found[-1] if found else "")
+    return _INSTALL_ROOT[0]
 
 
 def shader_preset_roots():
@@ -701,6 +788,14 @@ def write_shader_map(root, names=None, model=""):
     map can never describe a newer model.  Never raises: refusing to send a model
     because a shader could not be read would be worse than having no map at all.
     """
+    try:
+        return _write_shader_map(root, names=names, model=model)
+    except Exception as exc:
+        log("shader map: not written (%s: %s)" % (type(exc).__name__, exc))
+        return {}
+
+
+def _write_shader_map(root, names=None, model=""):
     if names is None:
         names = model_nodes(model)
     names = [name for name in (names or []) if name]
@@ -815,15 +910,21 @@ def load_state():
 
 def save_state(data):
     """Merge into the state file: the panel, the close handler and the menu
-    registration all write different keys and must not wipe each other."""
+    registration all write different keys and must not wipe each other.
+
+    Written through a temporary file and renamed, because a half-written state file costs
+    every setting in it - and the units and axis the Blender half reads live in there too.
+    """
     try:
         import json
 
         merged = load_state()
         merged.update(data)
         os.makedirs(os.path.dirname(state_path()), exist_ok=True)
-        with open(state_path(), "w", encoding="utf-8", newline="\n") as handle:
+        temporary = state_path() + ".tmp"
+        with open(temporary, "w", encoding="utf-8", newline="\n") as handle:
             json.dump(merged, handle, indent=2)
+        os.replace(temporary, state_path())
         return True
     except Exception:
         return False
@@ -1569,8 +1670,8 @@ class CoatLinkPanel(object):
             return
         exported = self._export_direct(path)
         if exported:
+            write_shader_map(root, model=path)   # before the signal: see _export_selected
             write_signal(root, path)
-            write_shader_map(root, model=path)
             self._report("Sent to Blender: %s (whole scene)%s" % (os.path.basename(path), export_note()),
                          "folder: %s" % app_folder(root))
             return
@@ -1595,8 +1696,10 @@ class CoatLinkPanel(object):
             self._report("Nothing sent: %s" % exc, "select a node in the Sculpt Tree")
             log("selected-node export refused: %s" % exc)
             return
-        write_signal(root, path)
+        # the map goes down before the signal: Blender polls the signal every couple of
+        # seconds, and a signal that arrives before the map would arrive with no materials
         write_shader_map(root, names, path)
+        write_signal(root, path)
         what = "selected node + subtree" if chosen <= 1 else "%d selected nodes + subtrees" % chosen
         self._report("Sent %s: %s (%s)%s"
                      % (os.path.basename(path), ", ".join(names), what, reduction_note()),
@@ -1752,8 +1855,16 @@ class CoatLinkPanel(object):
         return os.path.isfile(signal_path(primary_root()))
 
     def _export_direct(self, path):
+        """3D-Coat's own exporter, for the whole scene.
+
+        The file name is fixed, so the previous send left a file of the same name behind:
+        its stamp is what says whether *this* call wrote anything.  Reporting an old model
+        as the one just sent is the worst thing this bridge could do - the artist would get
+        back what they sent minutes ago, and nothing about it would look wrong.
+        """
         if CMD is None:
             return False
+        before = file_stamp(path)
         try:
             notes = [part for part in (apply_reduction(), apply_textures()) if part]
             if notes:
@@ -1762,7 +1873,15 @@ class CoatLinkPanel(object):
             coat.io.step(4)
         except Exception:
             return False
-        return os.path.isfile(path)
+        after = file_stamp(path)
+        if after is None:
+            log("export: no %s was written" % os.path.basename(path))
+            return False
+        if after == before:
+            log("export: %s is unchanged - the exporter wrote nothing"
+                % os.path.basename(path))
+            return False
+        return True
 
     def _report(self, status, detail):
         log(status + (" | " + detail if detail else ""))

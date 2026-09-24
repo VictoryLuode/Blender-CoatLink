@@ -94,9 +94,18 @@ class COATLINK_OT_detect(bpy.types.Operator):
         if p is None:
             self.report({"ERROR"}, "add-on preferences unavailable")
             return {"CANCELLED"}
-        exchange = applink.detect_exchange(p.exchange_folder)
-        p.exchange_folder = exchange
-        folder = applink.ensure_app_folder(exchange)
+        # Detecting is the first thing anyone runs, so it must report rather than raise:
+        # creating the folder can fail (a read-only Documents, a folder held by a sync
+        # client, a path over the Windows limit) and an uncaught error there is a traceback
+        # in the middle of the setup.
+        try:
+            exchange = applink.detect_exchange(p.exchange_folder)
+            p.exchange_folder = exchange
+            folder = applink.ensure_app_folder(exchange)
+        except Exception as exc:
+            bridge._set_message("Detect failed: %s" % exc)
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
         self.report({"INFO"}, "Exchange: %s" % exchange)
         self.report({"INFO"}, "AppLink target ready: %s" % folder)
         return {"FINISHED"}

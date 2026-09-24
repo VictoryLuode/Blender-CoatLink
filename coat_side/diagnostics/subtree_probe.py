@@ -7,7 +7,8 @@ import sys
 import tempfile
 import traceback
 import coat
-sys.path.insert(0, r'H:\Misc\Blender-CoatLink\coat_side')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(
+    globals().get("__file__") or os.path.join(os.getcwd(), "subtree_probe.py")))))
 from CoatLinkScopedExport import export_subtree
 folder = tempfile.mkdtemp(prefix='coat_subtree_probe_')
 path = os.path.join(folder, 'subtree.obj')

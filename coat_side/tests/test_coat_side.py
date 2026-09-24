@@ -254,6 +254,23 @@ def main():
     check("send writes the signal Blender watches", os.path.isfile(bridge.signal_path(bridge.primary_root())))
     check("send reports the file", "Sent to Blender" in panel.status and "bridge.obj" in panel.status, panel.status)
 
+    # ---- an export that wrote nothing must not look like a send ----
+    # The file name is fixed, so the previous send left a bridge.obj behind: what says the
+    # export worked is its stamp changing.  Handing Blender the model from last time and
+    # calling it this send would look perfectly normal and be wrong.
+    os.remove(bridge.signal_path(bridge.primary_root()))
+    stale = bridge.model_path(bridge.primary_root(), bridge.EXPORT_FORMAT)
+    before = os.stat(stale)
+    coat.direct_export = None                    # the exporter exists but writes nothing
+    panel.SendToBlender()
+    check("an export that wrote nothing is not reported as sent",
+          "Export failed" in panel.status, panel.status)
+    check("and it leaves no signal for Blender to pick up",
+          not os.path.isfile(bridge.signal_path(bridge.primary_root())))
+    check("the model from the last send is left where it was",
+          os.stat(stale).st_size == before.st_size, os.stat(stale).st_size)
+    coat.direct_export = direct_export
+
     # ---- there is exactly one export format ----
     check("the panel keeps no format state", not hasattr(panel, "format"))
     check("3D-Coat hands back OBJ, the same format Blender sends",

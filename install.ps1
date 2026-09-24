@@ -123,7 +123,19 @@ function Get-DriveProgramRoots {
 function Get-CoatScripts {
     if ($CoatScripts) { return $CoatScripts }
     if ($env:COAT_SCRIPTS_DIR) { return $env:COAT_SCRIPTS_DIR }
-    return (Join-Path (Get-DocumentsDir) '3DCoat\UserPrefs\Scripts')
+    # Recent builds name the folder after the version (3DCoat2025, 3DCoat2026) and
+    # Documents may have been moved, so the real folder is looked for.  Empty when there is
+    # none: the installer searches for it itself, and a wrong guess passed on as --scripts
+    # would override that.
+    $documents = Get-DocumentsDir
+    $data = @(Get-ChildItem -LiteralPath $documents -Directory -ErrorAction SilentlyContinue |
+              Where-Object {
+                  $_.Name -match '^3d-?coat' -and
+                  (Test-Path -LiteralPath (Join-Path $_.FullName 'UserPrefs') -PathType Container)
+              } |
+              Sort-Object -Property Name | Select-Object -Last 1)
+    if ($data.Count -gt 0) { return Join-Path $data[0].FullName 'UserPrefs\Scripts' }
+    return ''
 }
 
 function Get-CoatDir {
@@ -197,7 +209,7 @@ if (-not $CoatOnly) {
 # ---- 3D-Coat half ----------------------------------------------------------
 if (-not $BlenderOnly) {
     $scripts = Get-CoatScripts
-    if (-not (Test-Path $scripts)) {
+    if ($scripts -and -not (Test-Path $scripts)) {
         Write-Host "no such scripts folder: $scripts" -ForegroundColor Red
         Write-Host 'Start 3D-Coat once so it creates its user folders, or pass -CoatScripts <path>.'
         exit 1
@@ -212,7 +224,9 @@ if (-not $BlenderOnly) {
         Write-Host 'No Python found: start 3D-Coat once (it ships one), or install Python.' -ForegroundColor Red
         exit 1
     }
-    $installerArgs = @($installer, '--scripts', $scripts)
+    $installerArgs = @($installer)
+    # no --scripts when we did not find the folder: the installer looks for it itself
+    if ($scripts) { $installerArgs += @('--scripts', $scripts) }
     $coat = Get-CoatDir
     if ($coat) { $installerArgs += @('--coat', $coat) }
     if ($Uninstall) { $installerArgs += '--uninstall' }

@@ -129,11 +129,24 @@ find_coat_dir() {
     printf '%s\n' "${group[@]}" | sort -V | tail -1
 }
 
-# 3D-Coat's script folder (where the 3D-Coat side of the bridge is installed)
+# 3D-Coat's script folder (where the 3D-Coat side of the bridge is installed).
+# Empty when it is not where it usually is: the installer looks for it itself, and it knows
+# that recent builds name the folder after the version (3DCoat2025, 3DCoat2026) and that
+# Documents may have been moved to OneDrive.  A wrong guess handed over as --scripts is
+# worse than no guess at all, because it overrides that search.
 find_coat_scripts() {
     if [ -n "${COAT_SCRIPTS_DIR:-}" ]; then
         printf '%s\n' "$COAT_SCRIPTS_DIR"
         return 0
     fi
-    printf '%s\n' "$HOME/Documents/3DCoat/UserPrefs/Scripts"
+    for base in "$HOME/Documents" "$HOME/OneDrive/Documents"; do
+        [ -d "$base" ] || continue
+        for data in "$base"/3DCoat "$base"/3DCoat* "$base"/3D-Coat*; do
+            if [ -d "$data/UserPrefs/Scripts" ]; then
+                printf '%s\n' "$data/UserPrefs/Scripts"
+                return 0
+            fi
+        done
+    done
+    return 0
 }

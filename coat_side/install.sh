@@ -47,7 +47,10 @@ winpath() {
     fi
 }
 
-ARGS=( --scripts "$(winpath "$SCRIPTS")" )
+ARGS=()
+# no --scripts when the folder was not found: the installer searches for it itself, and an
+# explicit (even empty) one would override that search
+[ -n "$SCRIPTS" ] && ARGS+=( --scripts "$(winpath "$SCRIPTS")" )
 [ -n "$COAT" ] && ARGS+=( --coat "$(winpath "$COAT")" )
 # anything past the two paths is passed straight through (--uninstall, --quiet)
 

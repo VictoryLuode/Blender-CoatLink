@@ -25,7 +25,11 @@ def windows_path(path):
     """3D-Coat's XML wants forward slashes, whatever the shell gave us."""
     return str(path).replace("\\", "/")
 
-MENU_HEAD = "<ClassArray.ExtraMenuItem>\n"
+
+#: 3D-Coat reads these as XML.  Declaring the encoding costs a line and removes the guess
+#: a non-ASCII user folder would otherwise depend on; escaping the path is what keeps a
+#: folder called "Docs & Stuff" from making the whole file unreadable (see lib.xml_escape).
+MENU_HEAD = '<?xml version="1.0" encoding="UTF-8"?>\n<ClassArray.ExtraMenuItem>\n'
 MENU_TAIL = "</ClassArray.ExtraMenuItem>\n"
 
 MENU_BLOCK = (
@@ -128,7 +132,7 @@ def _write_extra(name, text):
 
 def write_menu_xml():
     """The Scripts and Windows menu entries - one file, read at every start."""
-    where = windows_path(here())
+    where = lib.xml_escape(windows_path(here()))
     blocks = "".join(MENU_BLOCK % {"path": path, "id": MENU_ID, "here": where}
                      for path in MENU_PATHS)
     return _write_extra(MENU_FILE, MENU_HEAD + blocks + MENU_TAIL)
@@ -136,7 +140,7 @@ def write_menu_xml():
 
 def write_tools_xml():
     """The tool buttons: one entry per button per room, in TOOL_ROOMS order."""
-    where = windows_path(here())
+    where = lib.xml_escape(windows_path(here()))
     blocks = "".join(TOOL_BLOCK % {"room": room, "id": action, "here": where}
                      for room in TOOL_ROOMS for action in TOOL_ACTIONS)
     return _write_extra(TOOLS_FILE, MENU_HEAD + blocks + MENU_TAIL)

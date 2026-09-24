@@ -151,6 +151,20 @@ def main():
               for entry in entries),
           [entry.findtext("Command") for entry in entries])
 
+    # A user folder may legally contain "&" ("C:\Users\Tom & Jerry\..."), and one unescaped
+    # ampersand makes the whole file unreadable to 3D-Coat - which then shows no menu and
+    # logs nothing.  The path is escaped on the way in, so the file always parses.
+    plain = "C:/Users/Tom & Jerry/3DCoat"
+    where = lib.xml_escape(CoatLinkMenu.windows_path(plain))
+    text = (CoatLinkMenu.MENU_HEAD
+            + CoatLinkMenu.MENU_BLOCK % {"path": "Scripts", "id": lib.MENU_ID, "here": where}
+            + CoatLinkMenu.MENU_TAIL)
+    check("a folder with an & in its name still writes a menu file 3D-Coat can parse",
+          "&amp;" in where
+          and ET.fromstring(text).findtext("ExtraMenuItem/Command")
+          == "script:%s/CoatLink_Setup.py" % plain,
+          (where, ET.fromstring(text).findtext("ExtraMenuItem/Command")))
+
     failed = [item for item in RESULTS if not item[1]]
     print("\nRESULT: %d/%d checks passed" % (len(RESULTS) - len(failed), len(RESULTS)))
     for name, _ok, detail in failed:
