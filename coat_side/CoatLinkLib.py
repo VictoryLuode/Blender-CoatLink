@@ -3,15 +3,19 @@
 # CoatLink - 3D-Coat side of the model bridge.  Copyright (C) 2026 VictoryLuode
 #
 # A non-modal panel pinned to the top-right of the 3D-Coat viewport, with the
-# same layout and wording as the Blender add-on's menu:
+# same sections, in the same order and the same words, as the Blender add-on's
+# menu:
 #
-#     Send to Blender      export this model into Blender's folder
-#     Pull from Blender    import the model Blender sent
-#     Format               what we hand to Blender (FBX / OBJ)
-#     Detect               find the exchange folder and prepare the target
-#     Folder               open the exchange folder
-#     Start Blender        launch the newest Blender found on this machine
-#     status box           last action, folder, queue state
+#     Send / Pull          hand this model to Blender, take what Blender sent
+#     Voxelize visible     press every visible node's V/S badge
+#     Send options         Scope, Reduction percent, Textures
+#     Setup                Detect, Open folder, Start Blender, Remove launcher
+#     Status               the last action, Copy details, what is queued
+#
+# The panel carries the controls and one readout.  The extra lines it used to
+# print - model size, surface/voxel statistics, a second detail line - are still
+# gathered (they feed the log and Copy details) but are no longer rows, so the
+# panel reads like the Blender menu instead of like a diagnostics dump.
 #
 # The exchange layout is the one the Blender add-on uses:
 #
@@ -1138,7 +1142,6 @@ PANEL_LABELS = {
     "SendScope": "Scope",
     "ReductionPercent": "Reduction percent",
     "Textures": "Textures",
-    "RefreshStats": "Refresh info",
     "CopyDetails": "Copy details",
     "Detect": "Detect",
     "OpenFolder": "Open folder",
@@ -1400,19 +1403,16 @@ class CoatLinkPanel(object):
         items.append("VoxelizeVisible")
         items.append("##makes every visible object in the Sculpt Tree a voxel volume")
         items.append("---")
+        # Same sections, same order, same words as the Blender menu's Send options
+        # block: the switch that decides what goes out, then the switches that
+        # decide what shape it goes out in.
         items.append("#Send options")
         items.append("SendScope,[%s]" % SEND_SCOPE_LABELS)
         try:
             items.append("##" + SEND_SCOPE_HINTS[int(self.SendScope)])
         except (IndexError, TypeError, ValueError):
             pass
-        items.append("#" + self.SizeLabel)
         items.append("ReductionPercent,[0,100]")
-        items.append("RefreshStats")
-        items.extend(panel_text_rows(
-            getattr(self, "StatsLabel", "Statistics paused; click Refresh info"), 2))
-        items.extend(panel_text_rows(self.ModeLabel, 1))
-        items.append("##Reduction % = removed; estimate only, export not verified")
         items.append("Textures,[%s]" % TEXTURES_LABELS)
         items.append("---")
         items.append("#Setup")
@@ -1424,19 +1424,23 @@ class CoatLinkPanel(object):
         items.append("RemoveLauncher")
         items.append("[1]")
         items.append("---")
+        # Two fixed rows and nothing else: the size, the statistics and the second
+        # detail line are in Copy details and the log.  The queue row appears only
+        # while something is waiting, so an empty panel stays empty.
         items.append("#Status")
-        items.extend(panel_text_rows(self.status, 4))
-        items.extend(panel_text_rows(self.detail, 2))
+        items.extend(panel_text_rows(self.status, 2))
         items.append("CopyDetails")
         items.append("##copies full details, including local paths")
-        items.extend(panel_text_rows(self.QueueLabel, 1))
+        if self.QueueLabel:
+            items.extend(panel_text_rows(self.QueueLabel, 1))
         items.append("##" + REOPEN_HINT)
         return items
 
     def CopyDetails(self):
         """Explicit local clipboard action; never called by redraw."""
         report = "\n".join((PANEL_CAPTION, self.status, self.detail, self.SizeLabel,
-                            getattr(self, "StatsLabel", "Statistics not refreshed")))
+                            getattr(self, "StatsLabel", "Statistics not refreshed"),
+                            self.ModeLabel))
         try:
             if sys.platform != "win32":
                 raise RuntimeError("clipboard copying is currently available on Windows only")
@@ -1634,8 +1638,10 @@ class CoatLinkPanel(object):
         parts = ["Folder: " + os.path.basename(root)]
         parts.append("waiting: " + os.path.basename(queued) if queued else "waiting: nothing")
         self.detail = " | ".join(parts)
+        # Empty while nothing waits: the panel draws a queue row only when there is a
+        # queue, so an idle panel says nothing rather than saying "nothing".
         self.QueueLabel = ("Queue: %s waiting - press Pull" % os.path.basename(queued)
-                           if queued else "Queue: nothing waiting from Blender")
+                           if queued else "")
     # ---- actions ----------------------------------------------------------
 
     def SendToBlender(self):

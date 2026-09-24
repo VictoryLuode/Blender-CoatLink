@@ -15,8 +15,8 @@ text is not cut off.
 | The menu | the popover inside that button | the panel opened from the tool strip |
 | Actions | the opening row: `Send`, `Pull` | the opening row: `Send`, `Pull`, then `To voxels` |
 | Options | under **Send options**: `Scope`, `Import as` (voxel by default), `Send to origin`, `Remesh on send`, `Voxel size`, `Adaptivity` | the same scope droplist first, then reduction percentage and textures - nothing else, because this half hands out what the scene already holds, so where the model lands is the sending side's business |
-| Return / settings | under **Return**: `Auto receive`, `Without materials`, `Replace in place`, `Shaders as materials` | `Refresh info` readout (sizes, faces, voxel-or-surface, how much of the tree is still surface) |
-| Below that | under **Setup**: `Axis`, `Scale (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs`, `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read`, `Unlink selected`.  Under **Status**: the readout and `Copy details` | under **Setup**: `Detect`, `Open folder`, `Start Blender`, `Remove tool buttons`.  Then `Copy details` and the queue line |
+| Return / settings | under **Return**: `Auto receive`, `Without materials`, `Replace in place`, `Shaders as materials` | nothing: no action on this side could use those switches, so the panel does not pretend otherwise.  The size / face-count / voxel-or-surface readouts are gathered for `Copy details` and the log rather than drawn as rows |
+| Below that | under **Setup**: `Axis`, `Scale (0 = auto)`, `Match scale`, `Modifiers`, `Skip dialogs`, `Detect`, `Open folder`, `Start 3D-Coat`, `Force re-read`, `Unlink selected`.  Under **Status**: the readout and `Copy details` | under **Setup**: `Detect`, `Open folder`, `Start Blender`, `Remove tool buttons`.  Under **Status**: two status rows and `Copy details`, plus the queue line while something is waiting |
 | Source | `coatlink/` - Blender add-on, 8 files | `coat_side/CoatLinkLib.py` + three entry scripts + two XML files |
 
 The tool-strip buttons keep their longer labels (`Send to Blender`, `Pull from Blender`)
@@ -27,7 +27,12 @@ The 3D-Coat panel is 3D-Coat's **own** dialog (`coat.dialog()...topRight()`), ne
 of ours and never Qt, and its controls are native too, using the layout 3D-Coat's shipped
 Autoexport panel uses: `Name,[min,max]` is a number field, `Name,[#a|#b]` a droplist, `Name`
 a checkbox.  Controls are labelled through 3D-Coat's own translation table, so the panel
-reads `Scope`, `Reduction percent`, `Refresh info` rather than the identifiers the code uses.
+reads `Scope`, `Reduction percent`, `Textures` rather than the identifiers the code uses.
+
+The panel draws the controls and one status line; the readouts it used to add - model size,
+face count, voxel-or-surface state, how much of the tree is still surface - are kept in
+`Copy details` and the log.  They are diagnostics, and a diagnostics dump on screen made the
+two halves read differently when what they do is the same.
 
 The Blender menu groups those same sections as **fold-out headers** (Blender's own popovers
 do it this way): a small header per section, and the body drawn only while it is open.
@@ -67,11 +72,10 @@ order; folding is not what makes them the same, the words and the order are.
 | Scope | `Selected` = the nodes selected in the Sculpt Tree plus their children; `whole scene` = 3D-Coat's own export |
 | To voxels | Convert every visible object in the tree to a voxel volume, using 3D-Coat's own S/V badge |
 | Reduction percent | Removed, not kept; 0 hands the choice back to 3D-Coat's dialog |
-| Refresh info | Read the current object's size, face count, voxel-or-surface state, and how much of the tree is still surface |
 | Textures | Off out of the box, so the texture files stay out of the exchange folder; `textures on` lets it write them |
 | Detect / Open folder / Start Blender | Exchange folder and Blender lookup |
 | Remove tool buttons | Takes the runtime menu and tool entries back out |
-| Copy details | Full status and paths to the clipboard (local clipboard only) |
+| Copy details | Full status, the size / face-count / voxel-or-surface readouts and the paths to the clipboard (local clipboard only) |
 
 ## Where the 3D-Coat panel can live (and where it cannot)
 

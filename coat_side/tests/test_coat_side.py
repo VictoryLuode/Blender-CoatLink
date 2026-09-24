@@ -142,8 +142,10 @@ def main():
     # ---- pull ----
     panel = bridge.CoatLinkPanel()
     check("the native panel exposes Copy details", "CopyDetails" in panel.ui())
-    check("refresh label describes sizes and voxel/surface statistics",
-          bridge.PANEL_LABELS["RefreshStats"] == "Refresh info")
+    check("the size and statistics readouts are gathered but no longer panel rows",
+          "RefreshStats" not in panel.ui()
+          and not any(item.startswith("#") and item[1:].startswith("Size:")
+                      for item in panel.ui()), panel.ui())
     panel.status = "A very long status " * 60
     panel.detail = "C:/a/very/long/path/" * 60
     long_layout = panel.ui()
@@ -170,14 +172,19 @@ def main():
         bridge.subprocess.run = original_run
     panel.status = "Ready"
     panel.detail = ""
+    panel.status = "A very long status " * 60
+    long_rows = len(panel.ui())
+    panel.status = "Ready"
     check("short and long diagnostics occupy the same number of native rows",
-          len(panel.ui()) == len(long_layout))
+          len(panel.ui()) == long_rows, (len(panel.ui()), long_rows))
 
     # ---- Queue readout: what Blender left for us, without reading disk per frame ----
     queue_root = bridge.primary_root()
     panel.refresh_detail()
-    check("an empty queue is reported as such",
-          "nothing" in panel.QueueLabel, panel.QueueLabel)
+    check("an empty queue is not a row - the panel stays quiet, Copy details still says it",
+          panel.QueueLabel == "" and "nothing" in panel.detail, panel.detail)
+    check("and no queue row is drawn while nothing waits",
+          not any("Queue:" in item for item in panel.ui()), panel.ui()[-6:])
     queued_path = os.path.join(bridge.app_folder(queue_root), "queued.obj")
     with open(queued_path, "w", encoding="utf-8") as handle:
         handle.write("# fake model\n")
@@ -294,7 +301,7 @@ def main():
     scope_index = next(index for index, item in enumerate(items)
                        if item.startswith("SendScope,[#"))
     check("the scope is the first thing inside the Send options block, like Blender's",
-          items.index("#Send options") < scope_index < items.index("#" + panel.SizeLabel),
+          items.index("#Send options") < scope_index < items.index("ReductionPercent,[0,100]"),
           items[:8])
     check("the scope says what it will send",
           items[scope_index + 1] == "##" + bridge.SEND_SCOPE_HINTS[int(panel.SendScope)],
@@ -332,7 +339,7 @@ def main():
           bridge.SEND_SCOPE_LABELS == "#Selected|#Whole scene", bridge.SEND_SCOPE_LABELS)
     check("and both scopes are explained under it",
           len(bridge.SEND_SCOPE_HINTS) == 2, bridge.SEND_SCOPE_HINTS)
-    for name in ("SendScope", "ReductionPercent", "Textures", "RefreshStats",
+    for name in ("SendScope", "ReductionPercent", "Textures",
                  "Detect", "OpenFolder", "StartBlender", "RemoveLauncher"):
         check("the panel control '%s' has a readable label" % name,
               translations.get(name), translations)
@@ -526,8 +533,15 @@ def main():
     check("Refresh info reports how much of the tree is still surface",
           panel.ModeLabel == "2 of 3 visible objects in surface mode - press To voxels",
           panel.ModeLabel)
-    check("the mode summary is drawn for the user",
-          any(item.startswith("##") and "surface mode" in item for item in panel.ui()),
+    clipboard_calls = []
+    bridge.subprocess.run = lambda *args, **kwargs: clipboard_calls.append((args, kwargs))
+    try:
+        panel.CopyDetails()
+    finally:
+        bridge.subprocess.run = original_run
+    check("the mode summary reaches the user through Copy details, not as a panel row",
+          clipboard_calls and panel.ModeLabel in clipboard_calls[0][1]["input"].decode("utf-16")
+          and not any("surface mode" in item for item in panel.ui()),
           panel.ui()[-9:])
     panel.VoxelizeVisible()
     check("and it reads clear once they are voxel volumes",
