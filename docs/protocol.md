@@ -129,7 +129,18 @@ leaves the other side reading a stale axis/unit record, which is exactly what th
   centimetres on a default install) and applied on the way out, divided back on the way in, so
   2 m in Blender is 2 m in 3D-Coat.  A size difference that is *not* a clean unit factor is
   reported and left alone, never stretched - your sculpting is safe.  `Scale` forces a factor;
-  0 means auto.
+  0 means auto.  A machine can have an older 3D-Coat data folder beside the current one, so the
+  **newest** state file is the one read: the running half rewrites its own on every action, and a
+  stale file is a scene that is no longer there.  When nothing has reported the units yet, no
+  conversion is applied and the status line says `units unknown` - a silent 1:1 is how a model
+  arrives a hundred times out.
+* **Encoding.**  The files 3D-Coat writes (`export.txt`, the OBJ it hands back) are read in
+  whatever encoding they turn out to be in - UTF-8, UTF-16 with or without a byte-order mark, or
+  the machine's own code page - worked out from the bytes rather than assumed.  It matters twice
+  over for the OBJ, which is rewritten once the packaging group is taken out of it: read as UTF-8
+  with the unreadable bytes replaced, an object name outside ASCII would be quietly written back
+  damaged.  Everything the bridge itself writes is UTF-8, and every JSON side file is pure ASCII
+  (`json` escapes by default), so those reads never have to guess.
 * **Axis.**  3D-Coat's `SwapYZ` ("swap the Y and Z scene axes", for Z-up applications) is
   detected the same way, and one rule covers both directions - which is what keeps them from
   drifting apart.  `Axis` can force either convention.  Formats that carry their own axis
@@ -155,7 +166,13 @@ leaves the other side reading a stale axis/unit record, which is exactly what th
   from the panel does the same in code.  The sculpt tree then matches the Blender outliner.
 * **Selection, not the scene.**  `Export` exports `Scene.current()` with
   `with_subtree=True, all_selected=False`, so sculpting in progress cannot leak into Blender,
-  and a return that loses its object groups is refused rather than merged.
+  and a return that loses its object groups is refused rather than merged.  When the sculpt tree's
+  own selection is what drove the send, the status line names how many nodes went; if 3D-Coat's
+  extraction merges them into a single object, it says that too - a merged model and a send that
+  lost objects look identical otherwise.  The group check that guards this asks the mesh which
+  object each face belongs to, and the only call for that is one face at a time, so the packaging
+  node - the usual reason for the question - is ruled out first and the rest stops at the first
+  offending face.
 * **Names.**  Objects keep their names in both directions.  Groups that come back are matched
   to the objects they came from and updated in place; renamed objects are still found;
   unrelated same-name objects are never overwritten.
