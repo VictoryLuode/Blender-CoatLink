@@ -1115,6 +1115,20 @@ def main():
     check("and the check stops at the first face, not the whole model",
           coat.meshes[-1].face_object_reads <= 2, coat.meshes[-1].face_object_reads)
 
+    # A group name the reader could not make sense of used to become a question mark and
+    # then be written back that way, because the OBJ is rewritten once the packaging groups
+    # are out of it.  Object names are the artist's, in whatever their machine types in.
+    cp = os.path.join(os.path.dirname(scoped_path), "names_cp1252.obj")
+    with open(cp, "wb") as handle:
+        handle.write(("g Ren\u00e9\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n"
+                      "g bridge\nusemtl M\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+                     .encode("cp1252"))
+    scoped._drop_groups(cp, {"bridge"})
+    rewritten = open(cp, encoding="utf-8").read()
+    check("a name outside UTF-8 survives the rewrite", "Ren\u00e9" in rewritten,
+          rewritten.splitlines()[0])
+    check("and the packaging group is still taken out", "g bridge" not in rewritten, rewritten[-40:])
+
     # geometry outside any group at all is refused rather than handed over as a model
     # whose objects nobody can name
     def write_without_groups(path):

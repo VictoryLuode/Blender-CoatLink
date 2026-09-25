@@ -48,6 +48,38 @@ def _is_wrap(label, wrap_name):
     return not rest or rest.isdigit()
 
 
+def _read_text(path):
+    """The text of an OBJ 3D-Coat wrote, whatever encoding it wrote it in.
+
+    The file is rewritten after the packaging groups are taken out, so a byte the reader
+    could not make sense of would be replaced by a question mark and *written back* - a
+    name quietly damaged rather than a read that fails.  Object names are the artist's, so
+    they are finished with whatever their machine types in.
+    """
+    with open(path, 'rb') as handle:
+        blob = handle.read()
+    if blob.startswith(b'\xef\xbb\xbf'):
+        return blob.decode('utf-8-sig', 'replace')
+    if blob.startswith(b'\xff\xfe') or blob.startswith(b'\xfe\xff'):
+        return blob.decode('utf-16', 'replace')
+    if b'\x00' in blob[:64]:
+        return blob.decode('utf-16-le' if blob[1:2] == b'\x00' else 'utf-16-be', 'replace')
+    try:
+        return blob.decode('utf-8')
+    except UnicodeDecodeError:
+        pass
+    for codec in ('mbcs', 'cp1252'):
+        try:
+            return blob.decode(codec)
+        except (LookupError, UnicodeDecodeError):
+            continue
+    return blob.decode('latin-1', 'replace')
+
+
+def _lines(path):
+    return _read_text(path).splitlines(True)
+
+
 def _drop_groups(path, drop):
     """Rewrite the OBJ without the named groups, and without their material lines.
 
@@ -59,9 +91,8 @@ def _drop_groups(path, drop):
     os.close(handle)
     group = None
     try:
-        with open(path, encoding='utf-8', errors='replace') as source, \
-                open(cleaned, 'w', encoding='utf-8', newline='\n') as target:
-            for line in source:
+        with open(cleaned, 'w', encoding='utf-8', newline='\n') as target:
+            for line in _lines(path):
                 if line.startswith(('o ', 'g ')):
                     group = (line[2:].strip() or None)
                     if group and group.lower() in drop:
@@ -111,8 +142,7 @@ def export_subtree(coat, path, reduction=0, wrap_name=""):
         order = []
         by_group = {}
         group = [None]
-        with open(temporary, encoding='utf-8', errors='replace') as stream:
-            for line in stream:
+        for line in _lines(temporary):
                 if line.startswith('v '):
                     vertices += 1
                 elif line.startswith('f '):
