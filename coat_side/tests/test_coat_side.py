@@ -1086,6 +1086,26 @@ def main():
     panel._export_selected(bridge.primary_root(), scoped_path)
     check("the status says how many nodes went, when it was more than one",
           "2 selected nodes + subtrees" in panel.status, panel.status)
+    # this extraction answered with a single object for a two-node selection: 3D-Coat merged
+    # them, and nothing on this side can un-merge them.  Saying so is what keeps a merged
+    # model from reading as a send that lost objects.
+    check("a selection 3D-Coat merged into one object is said out loud",
+          "merged the 2 selected nodes into one object" in panel.status, panel.status)
+
+    # and a selection that really did come back as more than one object says nothing of the
+    # sort - the notice has to be about a merge, not about sending several nodes
+    def write_two_groups(path):
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write("g Volume1\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n"
+                         "g Volume2\nv 2 0 0\nv 3 0 0\nv 2 1 0\nf 4 5 6\n")
+        return True
+
+    coat.mesh_template = {"names": ["Volume1", "Volume2"], "faces": 6,
+                          "face_objects": [0, 1], "write": write_two_groups}
+    panel._export_selected(bridge.primary_root(), scoped_path)
+    check("a send that came back as several objects says nothing about merging",
+          "2 selected nodes + subtrees" in panel.status and "merged" not in panel.status,
+          panel.status)
 
     # The same shape, this time told which node is the packaging - which is what a real
     # send passes.  The mismatch is then understood without asking about a single face:
