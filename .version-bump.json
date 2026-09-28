@@ -1,0 +1,15 @@
+{
+  "_comment": "release.sh 的唯一配置：本仓的版本落点、CHANGELOG、打包命令、产物。改这里，不改 release.sh。",
+  "changelog": "CHANGELOG.md",
+  "title_prefix": "CoatLink",
+  "package": "./package.sh",
+  "artifacts": "dist/*.zip dist/*.3dcpack",
+  "summary_placeholder": "TODO: what changed, in the user's words",
+  "targets": [
+    {
+      "path": "coatlink/__init__.py",
+      "kind": "bl_info_tuple",
+      "_why": "Blender 用 ast.literal_eval 读这个元组；必须是字面量，不能是计算式（否则插件在 Preferences 里隐身）"
+    }
+  ]
+}
