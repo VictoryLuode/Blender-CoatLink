@@ -16,3 +16,6 @@ CLAUDE.md
 docs/handoffs/
 # local scratch (plans, drafts)
 .scratch/
+
+# local backups left by tooling — never commit these
+*.bak-*
