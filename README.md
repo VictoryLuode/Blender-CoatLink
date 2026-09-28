@@ -1,4 +1,4 @@
-# CoatLink
+# <img src="docs/brand/coatlink.svg" width="56" alt=""> CoatLink
 
 **A small, predictable two-way model bridge between Blender and 3D-Coat.** Models only: no
 baking, no texture nodes, no scene surgery.
