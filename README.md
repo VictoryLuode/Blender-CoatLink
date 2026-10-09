@@ -1,8 +1,9 @@
+
 # <img src="docs/brand/coatlink.svg" width="56" alt=""> CoatLink
 
 **A small, predictable two-way model bridge between Blender and 3D-Coat.** Models only: no
 baking, no texture nodes, no scene surgery.
-
+<img width="1280" height="640" alt="coatlink-social-1280x640" src="https://github.com/user-attachments/assets/e6fbd0d4-d4b8-4a5a-81f6-817fa5ed7119" />
 <img src="docs/images/blender-menu.png" width="300" alt="The CoatLink menu, opened from the single CoatLink button in Blender's top bar">
 <img src="docs/images/3dcoat-panel.jpg" width="620" alt="The CoatLink panel in 3D-Coat: export range, Export/Import, Selected To Voxel, export options, setup and status">
 
