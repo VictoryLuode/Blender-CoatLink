@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.2.1
+
+* Read exchange signals in UTF-16, UTF-8 with a byte-order mark, or the machine's
+  code page, preserving paths and object names outside UTF-8.
+* Use the newest available 3D-Coat state file, and report unknown units rather
+  than silently guessing a conversion.
+* Avoid per-face validation work when a selected-node export differs only by its
+  packaging group. Report when 3D-Coat merges several selected nodes into one model.
+* Add repository branding and release verification scripts.
+
+Validation: Blender headless tests and 3D-Coat stand-in-host tests pass. This
+release has not had a live round trip; paint-room texture export remains unverified.
+
 ## v0.2.0
 
 * **The numbering starts again here.**  1.18 counted every internal step, which said more
